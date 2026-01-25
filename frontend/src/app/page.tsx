@@ -10,6 +10,9 @@ import {
   Users,
 } from "lucide-react";
 import ImageSlider from "@/app/_components/ImageSlider";
+import LandingContentSections from "@/app/_components/LandingContentSections";
+import LandingHero from "@/app/_components/LandingHero";
+import Image from "next/image";
 import { useState, useEffect } from "react";
 
 export default function Home() {
@@ -32,8 +35,8 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section with Slider */}
-      <section className="relative h-[70vh] sm:h-[75vh] md:h-[85vh] max-h-[700px] sm:max-h-[900px]">
-        <ImageSlider 
+      <section className="relative h-[50vh] sm:h-[65vh] md:h-[65vh] max-h-[600px] sm:max-h-[900px]">
+        {/* <ImageSlider 
           key={sliderUpdate}
           className="w-full h-full"
           autoPlay={true}
@@ -41,11 +44,18 @@ export default function Home() {
           showControls={true}
           showIndicators={true}
           externalUpdate={sliderUpdate}
+        /> */}
+        <Image
+          src="/brand/banner2.jpg"
+          alt="Hero Image"
+          fill
+          className="object-cover h-full w-full"
         />
       </section>
 
       {/* Hero Content Section */}
-      <section className="py-8 sm:py-12 md:py-16 lg:py-20 xl:py-24 bg-white">
+      <LandingHero />
+      {/* <section className="py-8 sm:py-12 md:py-16 lg:py-20 xl:py-24 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-4xl mx-auto">
             <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold text-gray-900 mb-4 sm:mb-6">
@@ -75,10 +85,11 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
-
+      </section> */}
+      {/* Content Sections */}
+      <LandingContentSections />
       {/* Features Section */}
-      <section className="py-12 sm:py-16 md:py-20">
+      {/* <section className="py-12 sm:py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-3 sm:mb-4">
@@ -121,10 +132,10 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* CTA Section */}
-      <section className="py-12 sm:py-16 md:py-20 bg-white">
+      {/* <section className="py-12 sm:py-16 md:py-20 bg-white">
         <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl p-6 sm:p-8 md:p-12 text-center text-white shadow-lg">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4">Ready to Start Growing?</h2>
@@ -149,10 +160,10 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Stats Section */}
-      <section className="py-12 sm:py-16 md:py-20">
+      {/* <section className="py-12 sm:py-16 md:py-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8 text-center">
             <div className="p-4 sm:p-6">
@@ -178,7 +189,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-      </section>
+      </section> */}
     </div>
   );
 }

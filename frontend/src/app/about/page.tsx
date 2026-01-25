@@ -1,67 +1,144 @@
 import Link from "next/link";
-import { BookOpen, Target, Star } from "lucide-react";
+import { ArrowRight, BookOpen, Target, Star } from "lucide-react";
+
+const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
+
+const cards = [
+  {
+    href: "/about/story",
+    title: "Our Story",
+    desc: "Learn how ReferGrow was built to empower communities through transparent reward systems.",
+    Icon: BookOpen,
+  },
+  {
+    href: "/about/vision",
+    title: "Vision",
+    desc: "Explore our vision for a transparent, scalable platform that rewards network growth.",
+    Icon: Target,
+  },
+  {
+    href: "/about/success-stories",
+    title: "Success Stories",
+    desc: "Read inspiring stories from our thriving community members.",
+    Icon: Star,
+  },
+];
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-900 mb-4">
-            About <span className="text-blue-600">ReferGrow</span>
-          </h1>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Discover our mission, vision, and the success stories that define our community
-          </p>
+    <div className="min-h-screen bg-[var(--gray-50)]">
+      {/* Header */}
+      <div className="border-b border-[var(--gray-200)] bg-white">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
+          <div className="space-y-3">
+            {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-700)]">
+              <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
+              Learn more about ReferGrow
+            </div> */}
+
+            <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              About <span className="text-[var(--primary)]">ReferGrow</span>
+            </h1>
+
+            <p className="text-[var(--gray-700)] max-w-3xl">
+              Discover our mission, vision, and the success stories that define our community.
+            </p>
+          </div>
+
+          {/* Quick stats row (optional but nice) */}
+          <div className="mt-7 grid gap-4 sm:grid-cols-3">
+            {[
+              { k: "Transparent BV", v: "Clear income distribution" },
+              { k: "Community Growth", v: "Referral-first platform" },
+              { k: "Scalable System", v: "Built for long-term use" },
+            ].map((i) => (
+              <div
+                key={i.k}
+                className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-5 py-4"
+              >
+                <div className="text-sm font-extrabold text-[var(--gray-900)]">{i.k}</div>
+                <div className="mt-1 text-xs text-[var(--gray-600)]">{i.v}</div>
+              </div>
+            ))}
+          </div>
         </div>
+      </div>
 
-        <div className="grid gap-6 md:grid-cols-3">
-          <Link 
-            className="bg-white rounded-lg border border-gray-200 p-8 hover:shadow-md transition-shadow group" 
-            prefetch={false}
-            href="/about/story"
-          >
-            <div className="w-14 h-14 mx-auto mb-6 rounded-lg bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <BookOpen className="w-7 h-7 text-blue-600" />
-            </div>
-            <div className="text-center">
-              <h2 className="font-bold text-xl text-gray-900 mb-3">Our Story</h2>
-              <p className="text-sm text-gray-600">
-                Learn how ReferGrow was built to empower communities through transparent reward systems
-              </p>
-            </div>
-          </Link>
+      {/* Cards */}
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
+        <div className="rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm overflow-hidden">
+          {/* Brand strip */}
+          <div className="h-1 w-full" style={{ background: brandGradient }} />
 
-          <Link 
-            className="bg-white rounded-lg border border-gray-200 p-8 hover:shadow-md transition-shadow group" 
-            prefetch={false}
-            href="/about/vision"
-          >
-            <div className="w-14 h-14 mx-auto mb-6 rounded-lg bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Target className="w-7 h-7 text-blue-600" />
-            </div>
-            <div className="text-center">
-              <h2 className="font-bold text-xl text-gray-900 mb-3">Vision</h2>
-              <p className="text-sm text-gray-600">
-                Explore our vision for a transparent, scalable platform that rewards network growth
-              </p>
-            </div>
-          </Link>
+          <div className="p-6 sm:p-10">
+            <div className="grid gap-6 md:grid-cols-3">
+              {cards.map(({ href, title, desc, Icon }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  prefetch={false}
+                  className="group rounded-2xl border border-[var(--gray-200)] bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div
+                      className="h-12 w-12 rounded-2xl flex items-center justify-center text-white shadow-sm"
+                      style={{ background: "linear-gradient(135deg, #22C55E 0%, #0EA5E9 100%)" }}
+                    >
+                      <Icon className="h-6 w-6" />
+                    </div>
 
-          <Link
-            className="bg-white rounded-lg border border-gray-200 p-8 hover:shadow-md transition-shadow group"
-            prefetch={false}
-            href="/about/success-stories"
-          >
-            <div className="w-14 h-14 mx-auto mb-6 rounded-lg bg-blue-100 flex items-center justify-center group-hover:scale-110 transition-transform">
-              <Star className="w-7 h-7 text-blue-600" />
+                    <div className="h-10 w-10 rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] flex items-center justify-center text-[var(--gray-600)] group-hover:text-[var(--gray-900)] transition">
+                      <ArrowRight className="h-5 w-5 group-hover:translate-x-0.5 transition-transform" />
+                    </div>
+                  </div>
+
+                  <div className="mt-5 space-y-2">
+                    <h2 className="text-lg font-extrabold text-[var(--gray-900)]">
+                      {title}
+                    </h2>
+                    <p className="text-sm text-[var(--gray-700)] leading-relaxed">
+                      {desc}
+                    </p>
+                  </div>
+
+                  <div className="mt-6 text-xs font-bold text-[var(--primary)]">
+                    Explore {title} →
+                  </div>
+                </Link>
+              ))}
             </div>
-            <div className="text-center">
-              <h2 className="font-bold text-xl text-gray-900 mb-3">Success Stories</h2>
-              <p className="text-sm text-gray-600">
-                Read inspiring stories from our thriving community members
-              </p>
+
+            {/* Bottom CTA */}
+            <div className="mt-10 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-6 sm:p-8 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-extrabold text-[var(--gray-900)]">
+                  Ready to get started?
+                </h3>
+                <p className="mt-1 text-sm text-[var(--gray-700)]">
+                  Join the platform and explore services that generate BV and growth.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Link
+                  href="/register"
+                  prefetch={false}
+                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md"
+                  style={{ background: brandGradient }}
+                >
+                  Create Account
+                </Link>
+
+                <Link
+                  href="/services"
+                  prefetch={false}
+                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold border border-[var(--gray-200)] bg-white text-[var(--gray-800)] hover:bg-[var(--gray-50)] transition"
+                >
+                  Browse Services
+                </Link>
+              </div>
             </div>
-          </Link>
+          </div>
         </div>
       </div>
     </div>

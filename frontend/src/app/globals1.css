@@ -4,24 +4,14 @@
   /* Clean Professional Color Palette */
   --background: #ffffff;
   --foreground: #1f2937;
-  /* --primary: #2563eb;
+  --primary: #2563eb;
   --primary-dark: #1e40af;
-  --primary-light: #3b82f6; */
+  --primary-light: #3b82f6;
   --secondary: #6b7280;
   --accent: #06b6d4;
   --success: #059669;
   --warning: #d97706;
   --error: #dc2626;
-
-  /* Brand Colors (from logo) */
---primary: #0ea5e9;        /* brand blue */
---primary-dark: #0284c7;   /* darker blue for hover */
---primary-light: #38bdf8;  /* lighter blue */
---accent: #22c55e;         /* brand green */
---success: #16a34a;        /* stable success green */
-
-/* Brand Gradient */
---brand-gradient: linear-gradient(135deg, #22c55e 0%, #0ea5e9 100%);
   
   /* Neutral Palette */
   --gray-50: #f9fafb;
@@ -44,7 +34,6 @@
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
   --transition: all 0.15s ease;
 }
-
 
 body {
   background: #ffffff;
@@ -160,17 +149,6 @@ h4 { font-size: 1.25rem; }
   color: white;
 }
 
-.btn-primary {
-  background: var(--primary);
-  color: white;
-  box-shadow: var(--shadow-sm);
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: var(--primary-dark);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
 /* Inputs */
 input:not([type="checkbox"]):not([type="radio"]),
 textarea,

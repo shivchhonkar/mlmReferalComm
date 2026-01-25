@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { ShoppingCart, Menu, X } from "lucide-react";
 import { useAppSelector } from "@/store/hooks";
@@ -18,17 +19,20 @@ export default function SiteHeader() {
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <header className="sticky top-0 z-50 bg-white/90 backdrop-blur border-b border-gray-200 shadow-sm">
       <div className="mx-auto max-w-7xl">
         <div className="flex items-center justify-between px-4 lg:px-6 h-16">
           {/* Logo */}
-          <Link className="flex items-center gap-2 group" href="/">
-            <div className="w-9 h-9 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-sm">
-              <span className="text-2xl font-bold text-blue-600">▼</span>
+          <Link className="flex items-center gap-3 group" href="/">
+            <div className="relative h-16 w-[220px] sm:w-[260px]">
+              <Image
+                 src="/brand/logo.png"
+                alt="Sambhariya Marketing"
+                fill
+                priority
+                className="object-contain"
+              />
             </div>
-            <span className="text-xl font-bold text-gray-900">
-              ReferGrow
-            </span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -36,7 +40,7 @@ export default function SiteHeader() {
             {navigationItems.map((item) => (
               <Link
                 key={item.href}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 rounded-md transition-colors"
+                className="px-4 py-2 text-sm font-semibold text-gray-700 hover:text-sky-600 hover:bg-gray-50 rounded-md transition-colors"
                 href={item.href}
               >
                 {item.label}
@@ -54,7 +58,7 @@ export default function SiteHeader() {
             >
               <ShoppingCart className="w-5 h-5 text-gray-700" />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold">
+                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-sky-600 text-white text-xs font-bold">
                   {cartCount}
                 </span>
               )}
@@ -62,13 +66,12 @@ export default function SiteHeader() {
 
             <Link
               prefetch={false}
-              className="btn-primary px-4 py-2 rounded-md text-white text-sm font-medium"
+              className="inline-flex items-center justify-center px-4 py-2 rounded-md text-white text-sm font-semibold shadow-sm bg-gradient-to-r from-emerald-600 to-sky-600 hover:brightness-95 transition"
               href="/dashboard"
             >
               Dashboard
             </Link>
 
-            {/* Profile Section */}
             <ProfileSection />
           </div>
 
@@ -82,7 +85,7 @@ export default function SiteHeader() {
             >
               <ShoppingCart className="w-5 h-5 text-gray-700" />
               {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-blue-600 text-white text-xs font-bold">
+                <span className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center rounded-full bg-sky-600 text-white text-xs font-bold">
                   {cartCount}
                 </span>
               )}
@@ -111,21 +114,21 @@ export default function SiteHeader() {
             {navigationItems.map((item) => (
               <Link
                 key={item.href}
-                className="block px-4 py-3 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+                className="block px-4 py-3 rounded-md text-sm font-semibold text-gray-700 hover:bg-gray-100 transition-colors"
                 href={item.href}
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 {item.label}
               </Link>
             ))}
-            <div className="border-t border-gray-200 pt-4 mt-4 space-y-1">
-              {/* Mobile Profile Section */}
+            <div className="border-t border-gray-200 pt-4 mt-4 space-y-2">
               <div className="px-4 py-2">
                 <ProfileSection />
               </div>
+
               <Link
                 prefetch={false}
-                className="flex items-center justify-center px-4 py-3 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                className="flex items-center justify-center px-4 py-3 rounded-md text-sm font-semibold text-white bg-gradient-to-r from-emerald-600 to-sky-600 hover:brightness-95 transition-colors"
                 href="/dashboard"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
