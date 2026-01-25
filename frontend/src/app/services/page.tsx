@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import type { Service } from "@/store/slices/serviceSlice";
 import type { Category } from "@/store/slices/categorySlice";
 
-import sampleData from "./sample.json";
+// import sampleData from "./sample.json";
 
 export const runtime = "nodejs";
 
@@ -55,7 +55,7 @@ export default async function ServicesPage() {
   return (
     <div className="min-h-screen bg-[var(--gray-50)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        <ServicesCategoryClient services={sampleData?.services} categories={categories} />
+        <ServicesCategoryClient services={services} categories={categories} />
       </div>
     </div>
   );
