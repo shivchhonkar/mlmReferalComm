@@ -15,12 +15,12 @@ export default function LandingHero() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14 lg:py-18">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
+            {/* <span className="inline-flex items-center gap-2 rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700">
               <span className="h-2 w-2 rounded-full bg-emerald-500" />
               Referral • Growth • Services Marketplace
-            </span>
+            </span> */}
 
-            <h1 className="mt-5 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-gray-900">
+            <h1 className="mt-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-gray-900">
               Grow your business with{" "}
               <span className="bg-gradient-to-r from-emerald-600 to-sky-600 bg-clip-text text-transparent">
                 referrals & trusted services
