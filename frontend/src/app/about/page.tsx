@@ -37,7 +37,7 @@ export default function AboutPage() {
             </div> */}
 
             <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
-              About <span className="text-[var(--primary)]">ReferGrow</span>
+              About <span className="text-[var(--primary)]">Sambhariya</span>
             </h1>
 
             <p className="text-[var(--gray-700)] max-w-3xl">
