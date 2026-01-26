@@ -60,14 +60,15 @@ export default function TopStrip({
           <div className="flex h-10 items-center justify-between gap-4">
             {/* Left: Phone + WhatsApp */}
             <div className="flex items-center gap-3 text-sm">
-              <a
+             <a
                 href={`tel:${phone.replace(/\s+/g, "")}`}
-                className="inline-flex items-center gap-2 font-semibold hover:underline underline-offset-4"
+                className="inline-flex items-center gap-2 text-sm font-semibold hover:underline underline-offset-4"
                 aria-label="Call phone number"
               >
-                <Phone className="h-4 w-4" />
-                <span>{phone}</span>
+                <Phone className="h-3 w-3" />
+                <span className="text-xs sm:text-sm">{phone}</span>
               </a>
+
 
               {showWhatsApp && whatsappNumber ? (
                 <a
