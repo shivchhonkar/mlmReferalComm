@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Settings, Bell, Lock, Eye, Database, LogOut, ChevronRight } from "lucide-react";
+import { Settings, Bell, Lock, Eye, Database } from "lucide-react";
 import Link from "next/link";
 
 export default function SettingsPage() {
@@ -18,9 +18,9 @@ export default function SettingsPage() {
   });
 
   const handleToggle = (key: keyof typeof settings) => {
-    setSettings(prev => ({
+    setSettings((prev) => ({
       ...prev,
-      [key]: !prev[key]
+      [key]: !prev[key],
     }));
   };
 
@@ -29,86 +29,157 @@ export default function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "privacy", label: "Privacy", icon: Eye },
     { id: "data", label: "Data", icon: Database },
-  ];
+  ] as const;
+
+  const Toggle = ({
+    checked,
+    onClick,
+  }: {
+    checked: boolean;
+    onClick: () => void;
+  }) => (
+    <button
+      onClick={onClick}
+      type="button"
+      className={[
+        "relative inline-flex h-8 w-14 items-center rounded-full transition-colors",
+        checked ? "bg-gradient-to-r from-emerald-600 to-sky-600" : "bg-zinc-300",
+      ].join(" ")}
+      aria-pressed={checked}
+    >
+      <span
+        className={[
+          "inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform",
+          checked ? "translate-x-7" : "translate-x-1",
+        ].join(" ")}
+      />
+    </button>
+  );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-50 to-indigo-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <Settings className="w-8 h-8 text-blue-600" />
-            <h1 className="text-4xl font-bold text-gray-900">Settings</h1>
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
+                <Settings className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-semibold text-zinc-800">Preferences</span>
+            </div>
+
+            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+              Settings
+            </h1>
+            <p className="mt-2 text-sm text-zinc-600">
+              Manage your account preferences and settings
+            </p>
           </div>
-          <p className="text-gray-600">Manage your account preferences and settings</p>
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+            >
+              Back to Dashboard
+            </Link>
+          </div>
         </div>
 
         {/* Settings Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          {/* Sidebar Navigation */}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-4">
+          {/* Sidebar */}
           <div className="md:col-span-1">
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="rounded-3xl border border-zinc-200 bg-white shadow-sm overflow-hidden">
               {settingTabs.map((tab) => {
                 const Icon = tab.icon;
+                const active = activeTab === tab.id;
+
                 return (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                    className={`w-full px-6 py-4 flex items-center gap-3 transition-all text-left border-l-4 ${
-                      activeTab === tab.id
-                        ? "bg-blue-50 border-blue-600 text-blue-600 font-semibold"
-                        : "border-transparent text-gray-700 hover:bg-gray-50"
-                    }`}
+                    onClick={() => setActiveTab(tab.id)}
+                    type="button"
+                    className={[
+                      "w-full px-6 py-4 flex items-center gap-3 text-left transition",
+                      "border-l-4",
+                      active
+                        ? "bg-gradient-to-r from-emerald-50 to-sky-50 border-sky-600 text-sky-700"
+                        : "border-transparent text-zinc-700 hover:bg-zinc-50",
+                    ].join(" ")}
                   >
-                    <Icon className="w-5 h-5" />
-                    <span>{tab.label}</span>
+                    <span
+                      className={[
+                        "inline-flex h-9 w-9 items-center justify-center rounded-2xl border shadow-sm",
+                        active
+                          ? "border-sky-200 bg-white text-sky-700"
+                          : "border-zinc-200 bg-white text-zinc-600",
+                      ].join(" ")}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <div className="flex-1">
+                      <div className="font-extrabold">{tab.label}</div>
+                      <div className="text-xs text-zinc-500">
+                        {tab.id === "account"
+                          ? "Security & access"
+                          : tab.id === "notifications"
+                          ? "Email, push & SMS"
+                          : tab.id === "privacy"
+                          ? "Profile visibility"
+                          : "Your data controls"}
+                      </div>
+                    </div>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {/* Settings Content */}
+          {/* Content */}
           <div className="md:col-span-3">
-            <div className="bg-white rounded-2xl shadow-sm p-8">
-              {/* Account Settings */}
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 sm:p-8 shadow-sm">
+              {/* Account */}
               {activeTab === "account" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Account Settings</h2>
+                    <h2 className="text-2xl font-extrabold text-zinc-900">Account Settings</h2>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      Update security options and account details.
+                    </p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-semibold text-gray-900">Two-Factor Authentication</h3>
-                        <p className="text-sm text-gray-600 mt-1">Add an extra layer of security to your account</p>
+                        <h3 className="font-extrabold text-zinc-900">Two-Factor Authentication</h3>
+                        <p className="text-sm text-zinc-600 mt-1">
+                          Add an extra layer of security to your account
+                        </p>
                       </div>
-                      <button
-                        onClick={() => handleToggle("twoFactorAuth")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.twoFactorAuth ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.twoFactorAuth ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                      <Toggle checked={settings.twoFactorAuth} onClick={() => handleToggle("twoFactorAuth")} />
                     </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Change Password</h3>
-                      <button className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                    <div className="border-t border-zinc-200 pt-6">
+                      <h3 className="font-extrabold text-zinc-900 mb-3">Change Password</h3>
+                      <button
+                        type="button"
+                        className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                      >
                         Update Password
                       </button>
                     </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Email Address</h3>
-                      <p className="text-gray-600 mb-4">your.email@example.com</p>
-                      <button className="px-6 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors">
+                    <div className="border-t border-zinc-200 pt-6">
+                      <h3 className="font-extrabold text-zinc-900 mb-2">Email Address</h3>
+                      <p className="text-zinc-600 mb-4">your.email@example.com</p>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm font-extrabold text-sky-700 transition hover:bg-sky-100"
+                      >
                         Change Email
                       </button>
                     </div>
@@ -116,123 +187,84 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Notification Settings */}
+              {/* Notifications */}
               {activeTab === "notifications" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Notification Preferences</h2>
+                    <h2 className="text-2xl font-extrabold text-zinc-900">Notification Preferences</h2>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      Choose what you want to receive and where.
+                    </p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Email Notifications</h3>
-                        <p className="text-sm text-gray-600 mt-1">Receive updates via email</p>
-                      </div>
-                      <button
-                        onClick={() => handleToggle("emailNotifications")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.emailNotifications ? "bg-blue-600" : "bg-gray-300"
-                        }`}
+                    {[
+                      {
+                        key: "emailNotifications" as const,
+                        title: "Email Notifications",
+                        desc: "Receive updates via email",
+                      },
+                      {
+                        key: "pushNotifications" as const,
+                        title: "Push Notifications",
+                        desc: "Get notifications on your device",
+                      },
+                      {
+                        key: "smsNotifications" as const,
+                        title: "SMS Notifications",
+                        desc: "Receive SMS messages",
+                      },
+                      {
+                        key: "marketingEmails" as const,
+                        title: "Marketing Emails",
+                        desc: "Receive promotional content",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.key}
+                        className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition"
                       >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.emailNotifications ? "translate-x-7" : "translate-x-1"
-                          }`}
+                        <div>
+                          <h3 className="font-extrabold text-zinc-900">{item.title}</h3>
+                          <p className="text-sm text-zinc-600 mt-1">{item.desc}</p>
+                        </div>
+                        <Toggle
+                          checked={settings[item.key]}
+                          onClick={() => handleToggle(item.key)}
                         />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Push Notifications</h3>
-                        <p className="text-sm text-gray-600 mt-1">Get notifications on your device</p>
                       </div>
-                      <button
-                        onClick={() => handleToggle("pushNotifications")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.pushNotifications ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.pushNotifications ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">SMS Notifications</h3>
-                        <p className="text-sm text-gray-600 mt-1">Receive SMS messages</p>
-                      </div>
-                      <button
-                        onClick={() => handleToggle("smsNotifications")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.smsNotifications ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.smsNotifications ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
-                      <div>
-                        <h3 className="font-semibold text-gray-900">Marketing Emails</h3>
-                        <p className="text-sm text-gray-600 mt-1">Receive promotional content</p>
-                      </div>
-                      <button
-                        onClick={() => handleToggle("marketingEmails")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.marketingEmails ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.marketingEmails ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
-                    </div>
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Privacy Settings */}
+              {/* Privacy */}
               {activeTab === "privacy" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Privacy Settings</h2>
+                    <h2 className="text-2xl font-extrabold text-zinc-900">Privacy Settings</h2>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      Control what others can see.
+                    </p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-semibold text-gray-900">Private Profile</h3>
-                        <p className="text-sm text-gray-600 mt-1">Only show your profile to connections</p>
+                        <h3 className="font-extrabold text-zinc-900">Private Profile</h3>
+                        <p className="text-sm text-zinc-600 mt-1">
+                          Only show your profile to connections
+                        </p>
                       </div>
-                      <button
-                        onClick={() => handleToggle("privateProfile")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.privateProfile ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.privateProfile ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                      <Toggle checked={settings.privateProfile} onClick={() => handleToggle("privateProfile")} />
                     </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Blocked Users</h3>
-                      <button className="px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                    <div className="border-t border-zinc-200 pt-6">
+                      <h3 className="font-extrabold text-zinc-900 mb-3">Blocked Users</h3>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                      >
                         Manage Blocked Users
                       </button>
                     </div>
@@ -240,64 +272,55 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Data Settings */}
+              {/* Data */}
               {activeTab === "data" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-6">Data & Privacy</h2>
+                    <h2 className="text-2xl font-extrabold text-zinc-900">Data & Privacy</h2>
+                    <p className="mt-2 text-sm text-zinc-600">
+                      Manage how data is collected and exported.
+                    </p>
                   </div>
 
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl borderounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-semibold text-gray-900">Data Collection</h3>
-                        <p className="text-sm text-gray-600 mt-1">Allow us to collect usage data</p>
+                        <h3 className="font-extrabold text-zinc-900">Data Collection</h3>
+                        <p className="text-sm text-zinc-600 mt-1">Allow us to collect usage data</p>
                       </div>
-                      <button
-                        onClick={() => handleToggle("dataCollection")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.dataCollection ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.dataCollection ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                      <Toggle checked={settings.dataCollection} onClick={() => handleToggle("dataCollection")} />
                     </div>
 
-                    <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-semibold text-gray-900">Analytics Data</h3>
-                        <p className="text-sm text-gray-600 mt-1">Help us improve with analytics</p>
+                        <h3 className="font-extrabold text-zinc-900">Analytics Data</h3>
+                        <p className="text-sm text-zinc-600 mt-1">Help us improve with analytics</p>
                       </div>
-                      <button
-                        onClick={() => handleToggle("analyticsData")}
-                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                          settings.analyticsData ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
-                            settings.analyticsData ? "translate-x-7" : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+                      <Toggle checked={settings.analyticsData} onClick={() => handleToggle("analyticsData")} />
                     </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Export Your Data</h3>
-                      <p className="text-gray-600 text-sm mb-4">Download all your personal data in JSON format</p>
-                      <button className="px-6 py-2 border border-blue-600 text-blue-600 font-medium rounded-lg hover:bg-blue-50 transition-colors">
+                    <div className="border-t border-zinc-200 pt-6">
+                      <h3 className="font-extrabold text-zinc-900 mb-2">Export Your Data</h3>
+                      <p className="text-zinc-600 text-sm mb-4">
+                        Download all your personal data in JSON format
+                      </p>
+                      <button
+                        type="button"
+                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm font-extrabold text-sky-700 transition hover:bg-sky-100"
+                      >
                         Download Data
                       </button>
                     </div>
 
-                    <div className="border-t pt-6">
-                      <h3 className="font-semibold text-gray-900 mb-4">Delete Account</h3>
-                      <p className="text-gray-600 text-sm mb-4">Permanently delete your account and all associated data</p>
-                      <button className="px-6 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition-colors">
+                    <div className="border-t border-zinc-200 pt-6">
+                      <h3 className="font-extrabold text-zinc-900 mb-2">Delete Account</h3>
+                      <p className="text-zinc-600 text-sm mb-4">
+                        Permanently delete your account and all associated data
+                      </p>
+                      <button
+                        type="button"
+                        className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-700"
+                      >
                         Delete Account
                       </button>
                     </div>
@@ -305,11 +328,17 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Save Settings Button */}
-              <div className="border-t mt-8 pt-8">
-                <button className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">
+              {/* Save */}
+              <div className="mt-10 border-t border-zinc-200 pt-8">
+                <button
+                  type="button"
+                  className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-8 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                >
                   Save Changes
                 </button>
+                <p className="mt-3 text-xs text-zinc-500">
+                  Tip: These toggles are UI only right now. Connect APIs later to persist settings.
+                </p>
               </div>
             </div>
           </div>

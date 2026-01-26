@@ -4,18 +4,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAuth } from "@/lib/useAuth";
-import { 
-  Image as ImageIcon, 
-  Plus, 
-  Edit, 
-  Trash2, 
-  Eye, 
+import {
+  Image as ImageIcon,
+  Plus,
+  Edit,
+  Trash2,
+  Eye,
   EyeOff,
   Save,
   X,
   AlertCircle,
   CheckCircle,
-  RefreshCw
+  RefreshCw,
+  ArrowLeft,
 } from "lucide-react";
 import ImageUpload from "@/app/_components/ImageUpload";
 import SliderInlineEdit from "@/app/_components/SliderInlineEdit";
@@ -33,6 +34,7 @@ type Slider = {
 
 export default function AdminSliderPage() {
   useAuth({ requireAdmin: true });
+
   const [sliders, setSliders] = useState<Slider[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,12 +44,13 @@ export default function AdminSliderPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const [imageUploadKey, setImageUploadKey] = useState(0);
+
   const [formData, setFormData] = useState({
     title: "",
     description: "",
     imageUrl: "",
     order: 0,
-    isActive: true
+    isActive: true,
   });
 
   async function loadSliders() {
@@ -90,16 +93,18 @@ export default function AdminSliderPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...formData,
-          order: sliders.length
-        })
+          order: sliders.length,
+        }),
       });
       const body = await readApiBody(res);
       if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to create slider");
-      
+
       setSuccess("Slider created successfully!");
       setFormData({ title: "", description: "", imageUrl: "", order: 0, isActive: true });
+
       // Force ImageUpload component to reset by changing its key
-      setImageUploadKey(prev => prev + 1);
+      setImageUploadKey((prev) => prev + 1);
+
       await loadSliders();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to create slider");
@@ -117,11 +122,11 @@ export default function AdminSliderPage() {
       const res = await apiFetch(`/api/admin/sliders/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updates)
+        body: JSON.stringify(updates),
       });
       const body = await readApiBody(res);
       if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to update slider");
-      
+
       setSuccess("Slider updated successfully!");
       setEditingId(null);
       await loadSliders();
@@ -134,18 +139,16 @@ export default function AdminSliderPage() {
 
   async function deleteSlider(id: string) {
     if (!confirm("Are you sure you want to delete this slider?")) return;
-    
+
     setBusy(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const res = await apiFetch(`/api/admin/sliders/${id}`, {
-        method: "DELETE"
-      });
+      const res = await apiFetch(`/api/admin/sliders/${id}`, { method: "DELETE" });
       const body = await readApiBody(res);
       if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to delete slider");
-      
+
       setSuccess("Slider deleted successfully!");
       await loadSliders();
     } catch (err: unknown) {
@@ -165,20 +168,20 @@ export default function AdminSliderPage() {
     setSuccess(null);
 
     try {
-      console.log('Sending reorder data:', { sliders: reorderedSliders });
+      console.log("Sending reorder data:", { sliders: reorderedSliders });
       const res = await apiFetch("/api/admin/sliders/reorder", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sliders: reorderedSliders })
+        body: JSON.stringify({ sliders: reorderedSliders }),
       });
       const body = await readApiBody(res);
-      console.log('Response:', res.status, body);
+      console.log("Response:", res.status, body);
       if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to reorder sliders");
-      
+
       setSuccess("Sliders reordered successfully!");
       await loadSliders();
     } catch (err: unknown) {
-      console.error('Reorder error:', err);
+      console.error("Reorder error:", err);
       setError(err instanceof Error ? err.message : "Failed to reorder sliders");
     } finally {
       setBusy(false);
@@ -203,11 +206,12 @@ export default function AdminSliderPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading sliders...</p>
+            <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-sky-600" />
+            <p className="mt-4 text-zinc-600">Loading sliders...</p>
           </div>
         </div>
       </div>
@@ -215,33 +219,48 @@ export default function AdminSliderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-gray-500 flex items-center justify-center text-white">
-                <ImageIcon className="w-6 h-6" />
-              </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-gray-600 bg-clip-text text-transparent">
-                Slider Management
-              </h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
+                <ImageIcon className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-semibold text-zinc-800">Admin</span>
             </div>
-            <p className="text-sm text-gray-600 ml-15">
+
+            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+              Slider Management
+            </h1>
+            <p className="mt-2 text-sm text-zinc-600">
               Manage home page slider images and content
             </p>
           </div>
-          <div className="flex gap-3">
-            <Link 
-              className="glass-panel rounded-xl px-5 py-2.5 text-sm font-medium transition-all hover:scale-105 hover:shadow-lg border border-blue-200" 
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <Link
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              prefetch={false}
+              href="/admin"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Admin
+            </Link>
+
+            <Link
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/admin/services"
             >
               Services
             </Link>
-            <Link 
-              className="glass-panel rounded-xl px-5 py-2.5 text-sm font-medium transition-all hover:scale-105 hover:shadow-lg border border-blue-200" 
+
+            <Link
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/dashboard"
             >
@@ -252,67 +271,66 @@ export default function AdminSliderPage() {
 
         {/* Alerts */}
         {error && (
-          <div className="mb-6 glass-panel animate-shake rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
+          <div className="mb-6 rounded-2xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-sm flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
             {error}
           </div>
         )}
 
         {/* Create New Slider */}
-        <div className="glass-panel rounded-2xl border border-blue-200 p-6 mb-6">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center text-white">
-              <Plus className="w-5 h-5" />
+        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
+              <Plus className="h-5 w-5" />
             </div>
-            <h2 className="font-bold text-xl">Create New Slider</h2>
+            <h2 className="text-xl font-extrabold text-zinc-900">Create New Slider</h2>
           </div>
-          
+
           <form onSubmit={createSlider} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Title *
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-zinc-800">Title *</label>
               <input
                 type="text"
                 required
                 maxLength={100}
                 value={formData.title}
                 onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full glass-panel rounded-lg border border-blue-200 px-4 py-2 font-medium transition-all focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                 placeholder="Enter slider title"
               />
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image *
-              </label>
-              <ImageUpload
-                key={imageUploadKey}
-                onImageSelect={(imageUrl) => setFormData({ ...formData, imageUrl })}
-                currentImage={formData.imageUrl}
-              />
+              <label className="mb-2 block text-sm font-semibold text-zinc-800">Image *</label>
+              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                <ImageUpload
+                  key={imageUploadKey}
+                  onImageSelect={(imageUrl) => setFormData({ ...formData, imageUrl })}
+                  currentImage={formData.imageUrl}
+                />
+              </div>
             </div>
-            
+
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-zinc-800">Description</label>
               <textarea
                 maxLength={500}
                 rows={3}
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="w-full glass-panel rounded-lg border border-blue-200 px-4 py-2 font-medium transition-all focus:ring-2 focus:ring-purple-500"
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                 placeholder="Enter slider description (optional)"
               />
+              <div className="mt-1 text-xs text-zinc-500">
+                {formData.description.length}/500
+              </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-xl bg-gradient-to-r from-blue-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-105 hover:shadow-xl disabled:opacity-60 disabled:hover:scale-100"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-60"
               >
                 {busy ? "Creating..." : "Create Slider"}
               </button>
@@ -321,32 +339,31 @@ export default function AdminSliderPage() {
         </div>
 
         {/* Sliders List */}
-        <div className="glass-panel rounded-2xl border border-blue-200 p-6">
-          <div className="flex items-center justify-between mb-4">
+        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">
-                <ImageIcon className="w-5 h-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-emerald-600 text-white shadow">
+                <ImageIcon className="h-5 w-5" />
               </div>
-              <h2 className="font-bold text-xl">All Sliders</h2>
+              <h2 className="text-xl font-extrabold text-zinc-900">All Sliders</h2>
             </div>
-            
-            <div className="flex items-center gap-3">
-              {/* Success Message */}
+
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {success && (
-                <div className="flex items-center gap-2 glass-panel rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-700">
-                  <CheckCircle className="w-4 h-4" />
+                <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+                  <CheckCircle className="h-4 w-4" />
                   {success}
                 </div>
               )}
-              
-              {/* Refresh Button */}
+
               <button
                 onClick={refreshSliders}
                 disabled={isRefreshing}
-                className="flex items-center gap-2 glass-panel rounded-xl px-4 py-2 text-sm font-medium transition-all hover:scale-105 hover:shadow-lg border border-blue-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                 title="Refresh all sliders"
+                type="button"
               >
-                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
                 Refresh
               </button>
             </div>
@@ -354,76 +371,81 @@ export default function AdminSliderPage() {
 
           {/* Image Tabs */}
           {sliders.length > 0 && (
-            <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
+            <div className="mb-6 flex gap-2 overflow-x-auto pb-2">
               {sliders.map((slider, index) => (
                 <button
                   key={slider._id}
                   onClick={() => setActiveImageId(slider._id)}
-                  className={`flex-shrink-0 relative px-4 py-2 rounded-lg border transition-all ${
+                  className={[
+                    "relative flex-shrink-0 rounded-2xl border px-4 py-2 text-left transition",
                     activeImageId === slider._id
-                      ? 'bg-blue-500 text-white border-purple-500 shadow-lg'
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-purple-300 hover:shadow-md'
-                  }`}
+                      ? "border-sky-300 bg-gradient-to-r from-emerald-50 to-sky-50 shadow"
+                      : "border-zinc-200 bg-white hover:bg-zinc-50",
+                  ].join(" ")}
+                  type="button"
                 >
                   <div className="flex items-center gap-2">
-                    <div className="w-8 h-6 rounded overflow-hidden bg-gray-100">
+                    <div className="h-6 w-8 overflow-hidden rounded-lg bg-zinc-100">
                       <img
                         src={slider.imageUrl}
                         alt={slider.title}
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-cover"
                         onError={(e) => {
-                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='24' viewBox='0 0 32 24'%3E%3Crect width='32' height='24' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236b7280' font-family='sans-serif' font-size='8'%3ENo img%3C/text%3E%3C/svg%3E";
+                          e.currentTarget.src =
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='24' viewBox='0 0 32 24'%3E%3Crect width='32' height='24' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236b7280' font-family='sans-serif' font-size='8'%3ENo img%3C/text%3E%3C/svg%3E";
                         }}
                       />
                     </div>
-                    <span className="text-xs font-medium truncate max-w-20">
+
+                    <span className="max-w-28 truncate text-xs font-extrabold text-zinc-800">
                       {slider.title || `Slider ${index + 1}`}
                     </span>
-                    {slider.isActive && (
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    )}
+
+                    {slider.isActive && <span className="h-2 w-2 rounded-full bg-emerald-500" />}
                   </div>
+
                   {activeImageId === slider._id && (
-                    <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-blue-600 rounded-full"></div>
+                    <div className="absolute -bottom-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full bg-gradient-to-r from-emerald-600 to-sky-600" />
                   )}
                 </button>
               ))}
             </div>
           )}
-          
+
           {sliders.length === 0 ? (
-            <div className="text-center py-12">
-              <ImageIcon className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-              <p className="text-gray-600">No sliders created yet</p>
+            <div className="py-12 text-center">
+              <ImageIcon className="mx-auto mb-4 h-12 w-12 text-zinc-400" />
+              <p className="text-zinc-600">No sliders created yet</p>
             </div>
           ) : (
             <div className="space-y-4">
               {sliders.map((slider, index) => (
-                <div 
-                  key={slider._id} 
-                  className={`border rounded-lg p-4 transition-all ${
+                <div
+                  key={slider._id}
+                  className={[
+                    "rounded-3xl border p-4 transition",
                     activeImageId === slider._id
-                      ? 'border-purple-500 bg-blue-50/50 shadow-lg'
-                      : 'border-blue-200 hover:bg-blue-50/50'
-                  }`}
+                      ? "border-sky-300 bg-gradient-to-r from-emerald-50/60 to-sky-50/60 shadow"
+                      : "border-zinc-200 hover:bg-zinc-50/60",
+                  ].join(" ")}
                 >
-                  <div className="flex gap-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
                     {/* Image Preview */}
-                    <div className="w-24 h-16 rounded-lg overflow-hidden flex-shrink-0 bg-gray-100 relative">
+                    <div className="relative h-20 w-full overflow-hidden rounded-2xl bg-zinc-100 sm:h-16 sm:w-28 flex-shrink-0">
                       <img
                         src={slider.imageUrl}
                         alt={slider.title}
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-cover"
                         onError={(e) => {
-                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='64' viewBox='0 0 96 64'%3E%3Crect width='96' height='64' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236b7280' font-family='sans-serif' font-size='12'%3ENo image%3C/text%3E%3C/svg%3E";
+                          e.currentTarget.src =
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='112' height='64' viewBox='0 0 112 64'%3E%3Crect width='112' height='64' fill='%23e5e7eb'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%236b7280' font-family='sans-serif' font-size='12'%3ENo image%3C/text%3E%3C/svg%3E";
                         }}
                       />
-                      {/* Active Indicator */}
                       {activeImageId === slider._id && (
-                        <div className="absolute top-2 right-2 w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+                        <div className="absolute right-2 top-2 h-3 w-3 animate-pulse rounded-full bg-sky-600" />
                       )}
                     </div>
-                    
+
                     {/* Content */}
                     <div className="flex-1">
                       {editingId === slider._id ? (
@@ -438,63 +460,77 @@ export default function AdminSliderPage() {
                         />
                       ) : (
                         <div>
-                          <h3 className="font-semibold text-lg text-gray-900 mb-1">
-                            {slider.title}
-                          </h3>
-                          {slider.description && (
-                            <p className="text-sm text-gray-600 mb-2">
-                              {slider.description}
-                            </p>
-                          )}
-                          <div className="flex items-center gap-4 text-xs text-gray-700">
-                            <span>Order: {slider.order}</span>
-                            <span>Status: {slider.isActive ? "Active" : "Inactive"}</span>
-                            <span>Created: {new Date(slider.createdAt).toLocaleDateString()}</span>
+                          <h3 className="mb-1 text-lg font-extrabold text-zinc-900">{slider.title}</h3>
+                          {slider.description ? (
+                            <p className="mb-2 text-sm text-zinc-600">{slider.description}</p>
+                          ) : null}
+
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 font-semibold text-zinc-700">
+                              Order: {slider.order}
+                            </span>
+                            <span
+                              className={[
+                                "rounded-full border px-2.5 py-1 font-semibold",
+                                slider.isActive
+                                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                  : "border-zinc-200 bg-zinc-50 text-zinc-700",
+                              ].join(" ")}
+                            >
+                              {slider.isActive ? "Active" : "Inactive"}
+                            </span>
+                            <span className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 font-semibold text-zinc-700">
+                              Created: {new Date(slider.createdAt).toLocaleDateString()}
+                            </span>
                           </div>
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Actions */}
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-row items-center justify-between gap-3 sm:flex-col sm:items-end sm:justify-start">
                       <div className="flex gap-1">
                         <button
                           onClick={() => moveSliderUp(index)}
                           disabled={index === 0}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-extrabold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                           title="Move up"
+                          type="button"
                         >
                           ↑
                         </button>
                         <button
                           onClick={() => moveSliderDown(index)}
                           disabled={index === sliders.length - 1}
-                          className="p-1 rounded hover:bg-gray-200 disabled:opacity-50"
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-extrabold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                           title="Move down"
+                          type="button"
                         >
                           ↓
                         </button>
                       </div>
-                      
+
                       {editingId === slider._id ? (
                         <div className="flex gap-1">
                           <button
                             onClick={() => updateSlider(slider._id, slider)}
                             disabled={busy}
-                            className="p-1 rounded hover:bg-green-100 text-green-600"
+                            className="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
                             title="Save"
+                            type="button"
                           >
-                            <Save className="w-4 h-4" />
+                            <Save className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => {
                               setEditingId(null);
                               loadSliders();
                             }}
-                            className="p-1 rounded hover:bg-red-100 text-red-600"
+                            className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-700 transition hover:bg-red-100"
                             title="Cancel"
+                            type="button"
                           >
-                            <X className="w-4 h-4" />
+                            <X className="h-4 w-4" />
                           </button>
                         </div>
                       ) : (
@@ -502,26 +538,29 @@ export default function AdminSliderPage() {
                           <button
                             onClick={() => setEditingId(slider._id)}
                             disabled={busy}
-                            className="p-1 rounded hover:bg-blue-100 text-blue-600"
+                            className="rounded-xl border border-sky-200 bg-sky-50 p-2 text-sky-700 transition hover:bg-sky-100 disabled:opacity-60"
                             title="Edit"
+                            type="button"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => toggleActive(slider)}
                             disabled={busy}
-                            className="p-1 rounded hover:bg-yellow-100 text-yellow-600"
+                            className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-amber-800 transition hover:bg-amber-100 disabled:opacity-60"
                             title={slider.isActive ? "Deactivate" : "Activate"}
+                            type="button"
                           >
-                            {slider.isActive ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            {slider.isActive ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                           </button>
                           <button
                             onClick={() => deleteSlider(slider._id)}
                             disabled={busy}
-                            className="p-1 rounded hover:bg-red-100 text-red-600"
+                            className="rounded-xl border border-red-200 bg-red-50 p-2 text-red-700 transition hover:bg-red-100 disabled:opacity-60"
                             title="Delete"
+                            type="button"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="h-4 w-4" />
                           </button>
                         </div>
                       )}

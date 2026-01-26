@@ -2,8 +2,20 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
-import { Users, Settings, Mail, TrendingUp, UserCheck, UserX, Clock, CheckCircle, XCircle } from "lucide-react";
+import {
+  Users,
+  Settings,
+  Mail,
+  TrendingUp,
+  UserCheck,
+  UserX,
+  Clock,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
+
+/* ---------------- Types ---------------- */
 
 interface AnalyticsData {
   users: {
@@ -34,40 +46,63 @@ interface AnalyticsData {
   };
 }
 
+/* ---------------- Helper UI Component ---------------- */
+
+function SectionTitle({
+  icon: Icon,
+  title,
+}: {
+  icon: any;
+  title: string;
+}) {
+  return (
+    <h2 className="mb-6 flex items-center gap-3 text-2xl font-extrabold text-zinc-900">
+      <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
+        <Icon className="h-5 w-5" />
+      </span>
+      {title}
+    </h2>
+  );
+}
+
+/* ---------------- Main Page ---------------- */
+
 export default function AnalyticsPage() {
   useAuth({ requireAdmin: true });
   const router = useRouter();
+
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  /* ---------------- Fetch Analytics ---------------- */
+
   useEffect(() => {
     fetchAnalytics();
-    
-    // Set up real-time updates every 30 seconds
+
+    // Auto refresh every 30 sec
     const interval = setInterval(fetchAnalytics, 30000);
-    
-    // Listen for storage events for cross-tab updates
+
+    // Cross-tab updates
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'admin-action-updated') {
+      if (e.key === "admin-action-updated") {
         fetchAnalytics();
       }
     };
-    
-    globalThis.addEventListener('storage', handleStorageChange);
-    
+
+    globalThis.addEventListener("storage", handleStorageChange);
+
     return () => {
       clearInterval(interval);
-      globalThis.removeEventListener('storage', handleStorageChange);
+      globalThis.removeEventListener("storage", handleStorageChange);
     };
   }, []);
 
   const fetchAnalytics = async () => {
     try {
       const response = await fetch("/api/admin/analytics");
-      if (!response.ok) {
-        throw new Error("Failed to fetch analytics");
-      }
+      if (!response.ok) throw new Error("Failed to fetch analytics");
+
       const data = await response.json();
       setAnalytics(data);
     } catch (err) {
@@ -77,48 +112,65 @@ export default function AnalyticsPage() {
     }
   };
 
+  /* ---------------- Navigation ---------------- */
+
   const handleCardClick = (filters: { role?: string; status?: string }) => {
     const params = new URLSearchParams();
+
     if (filters.role) params.set("role", filters.role);
     if (filters.status) params.set("status", filters.status);
-    
-    const queryString = params.toString();
-    const url = `/admin/users${queryString ? `?${queryString}` : ''}`;
+
+    const url = `/admin/users${params.toString() ? `?${params}` : ""}`;
     router.push(url);
   };
 
+  /* ---------------- Loading UI ---------------- */
+
   if (loading) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-7xl">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, i) => (
-              <div key={i} className="bg-white p-6 rounded-lg border border-gray-200">
-                <div className="h-12 bg-gray-200 rounded mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-                <div className="h-8 bg-gray-200 rounded w-1/2"></div>
-              </div>
-            ))}
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-zinc-50">
+        <div className="mx-auto max-w-7xl px-6 py-14">
+          <div className="animate-pulse space-y-6">
+            <div className="h-10 w-1/3 rounded-xl bg-zinc-200" />
+            <div className="h-4 w-1/2 rounded-xl bg-zinc-200" />
+
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {[...Array(8)].map((_, i) => (
+                <div
+                  key={i}
+                  className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="mb-4 h-12 w-12 rounded-2xl bg-zinc-200" />
+                  <div className="mb-2 h-4 w-2/3 rounded bg-zinc-200" />
+                  <div className="h-8 w-1/3 rounded bg-zinc-200" />
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
+  /* ---------------- Error UI ---------------- */
+
   if (error) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-7xl">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-          <h2 className="text-red-800 font-semibold mb-2">Error loading analytics</h2>
-          <p className="text-red-600">{error}</p>
-          <button
-            onClick={fetchAnalytics}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-          >
-            Try Again
-          </button>
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-zinc-50">
+        <div className="mx-auto max-w-3xl px-6 py-14">
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm">
+            <h2 className="text-xl font-extrabold text-red-800 mb-2">
+              Error loading analytics
+            </h2>
+            <p className="text-sm text-red-600">{error}</p>
+
+            <button
+              onClick={fetchAnalytics}
+              className="mt-5 rounded-2xl bg-red-600 px-6 py-3 text-sm font-bold text-white hover:bg-red-700 transition"
+            >
+              Try Again
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -126,305 +178,163 @@ export default function AnalyticsPage() {
 
   if (!analytics) return null;
 
+  /* ---------------- Main UI ---------------- */
+
   return (
-    <div className="container mx-auto px-4 py-12 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">Analytics Dashboard</h1>
-        <p className="text-lg text-gray-600">
-          Comprehensive overview of your platform performance
-        </p>
-      </div>
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-zinc-50">
+      {/* Top Brand Strip */}
+      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
-      {/* User Analytics Section */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-          <Users className="w-6 h-6 mr-2 text-blue-600" />
-          User Analytics
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div 
-            className="bg-white p-6 rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow focus:outline-none focus:ring-2 focus:ring-blue-500"
-            onClick={() => handleCardClick({})}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleCardClick({});
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <Users className="w-8 h-8 text-blue-600" />
-              <span className="text-sm text-gray-500">Total</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.users.total.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Total Users</p>
-          </div>
+      <div className="mx-auto max-w-7xl px-6 py-12">
+        {/* Header */}
+        <div className="mb-10">
+          <h1 className="text-4xl font-extrabold text-zinc-900">
+            Analytics Dashboard
+          </h1>
+          <p className="mt-2 text-sm text-zinc-600">
+            Premium overview of your platform performance
+          </p>
+        </div>
 
-          <div 
-            className="bg-white p-6 rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow focus:outline-none focus:ring-2 focus:ring-green-500"
-            onClick={() => handleCardClick({ status: "active" })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleCardClick({ status: "active" });
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <UserCheck className="w-8 h-8 text-green-600" />
-              <span className="text-sm text-gray-500">Active</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.users.active.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Active Users</p>
-          </div>
+        {/* User Analytics */}
+        <div className="mb-14">
+          <SectionTitle icon={Users} title="User Analytics" />
 
-          <div 
-            className="bg-white p-6 rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow focus:outline-none focus:ring-2 focus:ring-purple-500"
-            onClick={() => handleCardClick({ status: "new" })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleCardClick({ status: "new" });
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <TrendingUp className="w-8 h-8 text-blue-600" />
-              <span className="text-sm text-gray-500">New</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.users.newRegistrations.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">New This Month</p>
-          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              {
+                label: "Total Users",
+                value: analytics.users.total,
+                icon: Users,
+                gradient: "from-sky-600 to-emerald-600",
+                click: {},
+              },
+              {
+                label: "Active Users",
+                value: analytics.users.active,
+                icon: UserCheck,
+                gradient: "from-emerald-600 to-green-500",
+                click: { status: "active" },
+              },
+              {
+                label: "New This Month",
+                value: analytics.users.newRegistrations,
+                icon: TrendingUp,
+                gradient: "from-purple-600 to-sky-600",
+                click: { status: "new" },
+              },
+              {
+                label: "Inactive Users",
+                value: analytics.users.total - analytics.users.active,
+                icon: UserX,
+                gradient: "from-red-600 to-orange-500",
+                click: { status: "suspended" },
+              },
+            ].map((card, i) => {
+              const Icon = card.icon;
+              return (
+                <button
+                  key={i}
+                  onClick={() => handleCardClick(card.click)}
+                  className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:shadow-xl transition text-left"
+                >
+                  <span
+                    className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${card.gradient} text-white shadow`}
+                  >
+                    <Icon className="w-6 h-6" />
+                  </span>
 
-          <div 
-            className="bg-white p-6 rounded-lg border border-gray-200 cursor-pointer hover:shadow-lg transition-shadow focus:outline-none focus:ring-2 focus:ring-red-500"
-            onClick={() => handleCardClick({ status: "suspended" })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleCardClick({ status: "suspended" });
-              }
-            }}
-            role="button"
-            tabIndex={0}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <UserX className="w-8 h-8 text-red-600" />
-              <span className="text-sm text-gray-500">Inactive</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">
-              {(analytics.users.total - analytics.users.active).toLocaleString()}
-            </p>
-            <p className="text-sm text-gray-600">Inactive Users</p>
+                  <p className="text-3xl font-extrabold text-zinc-900">
+                    {card.value.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-zinc-600">{card.label}</p>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Provider/Buyer Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Providers</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={() => handleCardClick({ role: "user" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "user" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-blue-600">{analytics.users.providers.total.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Total</p>
-              </button>
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500"
-                onClick={() => handleCardClick({ role: "user", status: "active" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "user", status: "active" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-green-600">{analytics.users.providers.active.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Active</p>
-              </button>
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500"
-                onClick={() => handleCardClick({ role: "user", status: "new" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "user", status: "new" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-blue-600">{analytics.users.providers.new.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">New</p>
-              </button>
-            </div>
-          </div>
+        {/* Service Analytics */}
+        <div className="mb-14">
+          <SectionTitle icon={Settings} title="Service Analytics" />
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Buyers</h3>
-            <div className="grid grid-cols-3 gap-4">
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onClick={() => handleCardClick({ role: "admin" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "admin" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-blue-600">{analytics.users.buyers.total.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Total</p>
-              </button>
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-green-500"
-                onClick={() => handleCardClick({ role: "admin", status: "active" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "admin", status: "active" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-green-600">{analytics.users.buyers.active.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">Active</p>
-              </button>
-              <button
-                className="text-center hover:bg-gray-50 p-2 rounded border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-2 focus:ring-purple-500"
-                onClick={() => handleCardClick({ role: "admin", status: "new" })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCardClick({ role: "admin", status: "new" });
-                  }
-                }}
-              >
-                <p className="text-xl font-bold text-blue-600">{analytics.users.buyers.new.toLocaleString()}</p>
-                <p className="text-sm text-gray-600">New</p>
-              </button>
-            </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-5">
+            {[
+              { label: "Total", value: analytics.services.total, icon: Settings },
+              { label: "Pending", value: analytics.services.pending, icon: Clock },
+              { label: "Approved", value: analytics.services.approved, icon: CheckCircle },
+              { label: "Rejected", value: analytics.services.rejected, icon: XCircle },
+              { label: "Active", value: analytics.services.active, icon: UserCheck },
+            ].map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <div
+                  key={i}
+                  className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:shadow-lg transition"
+                >
+                  <Icon className="w-7 h-7 text-sky-600 mb-4" />
+                  <p className="text-2xl font-extrabold text-zinc-900">
+                    {s.value.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-zinc-600">{s.label}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      {/* Service Analytics Section */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-          <Settings className="w-6 h-6 mr-2 text-blue-600" />
-          Service Analytics
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <Settings className="w-8 h-8 text-blue-600" />
-              <span className="text-sm text-gray-500">Total</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.services.total.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">All Services</p>
-          </div>
+        {/* Inquiry Analytics */}
+        <div className="mb-14">
+          <SectionTitle icon={Mail} title="Inquiry Analytics" />
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <Clock className="w-8 h-8 text-yellow-600" />
-              <span className="text-sm text-gray-500">Pending</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.services.pending.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Awaiting Approval</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600" />
-              <span className="text-sm text-gray-500">Approved</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.services.approved.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Approved Services</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <XCircle className="w-8 h-8 text-red-600" />
-              <span className="text-sm text-gray-500">Rejected</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.services.rejected.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Rejected Services</p>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <UserCheck className="w-8 h-8 text-blue-600" />
-              <span className="text-sm text-gray-500">Active</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.services.active.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Live Services</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {[
+              { label: "Total Inquiries", value: analytics.inquiries.total, icon: Mail },
+              { label: "Pending Response", value: analytics.inquiries.pending, icon: Clock },
+            ].map((q, i) => {
+              const Icon = q.icon;
+              return (
+                <div
+                  key={i}
+                  className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:shadow-lg transition"
+                >
+                  <Icon className="w-7 h-7 text-emerald-600 mb-4" />
+                  <p className="text-2xl font-extrabold text-zinc-900">
+                    {q.value.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-zinc-600">{q.label}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
-      </div>
 
-      {/* Inquiry Analytics Section */}
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6 flex items-center">
-          <Mail className="w-6 h-6 mr-2 text-blue-600" />
-          Inquiry Analytics
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <Mail className="w-8 h-8 text-blue-600" />
-              <span className="text-sm text-gray-500">Total</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.inquiries.total.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Total Inquiries</p>
-          </div>
+        {/* Summary */}
+        <div className="rounded-3xl border border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 p-10 shadow-sm">
+          <h2 className="text-2xl font-extrabold text-zinc-900 mb-8">
+            Platform Summary
+          </h2>
 
-          <div className="bg-white p-6 rounded-lg border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <Clock className="w-8 h-8 text-yellow-600" />
-              <span className="text-sm text-gray-500">Pending</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900">{analytics.inquiries.pending.toLocaleString()}</p>
-            <p className="text-sm text-gray-600">Pending Response</p>
-          </div>
-        </div>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
+            {[
+              { label: "Total Users", value: analytics.users.total, icon: Users },
+              { label: "Active Services", value: analytics.services.active, icon: Settings },
+              { label: "New Users", value: analytics.users.newRegistrations, icon: TrendingUp },
+            ].map((x, i) => {
+              const Icon = x.icon;
+              return (
+                <div key={i}>
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white shadow">
+                    <Icon className="w-8 h-8 text-sky-600" />
+                  </div>
 
-      {/* Quick Summary */}
-      <div className="bg-gradient-to-r from-blue-50 to-gray-50 rounded-lg p-8 border border-blue-200">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Platform Summary</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Users className="w-8 h-8 text-blue-600" />
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{analytics.users.total.toLocaleString()}</p>
-            <p className="text-gray-600">Total Users</p>
-          </div>
-          <div className="text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Settings className="w-8 h-8 text-green-600" />
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{analytics.services.active.toLocaleString()}</p>
-            <p className="text-gray-600">Active Services</p>
-          </div>
-          <div className="text-center">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <TrendingUp className="w-8 h-8 text-blue-600" />
-            </div>
-            <p className="text-3xl font-bold text-gray-900">{analytics.users.newRegistrations.toLocaleString()}</p>
-            <p className="text-gray-600">New Users This Month</p>
+                  <p className="text-3xl font-extrabold text-zinc-900">
+                    {x.value.toLocaleString()}
+                  </p>
+                  <p className="text-sm text-zinc-600">{x.label}</p>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

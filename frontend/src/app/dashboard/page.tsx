@@ -4,7 +4,17 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAuth } from "@/lib/useAuth";
-import { IndianRupee, BarChart3, TrendingUp, Link as LinkIcon, ShoppingCart, Copy, Check } from "lucide-react";
+import {
+  IndianRupee,
+  BarChart3,
+  TrendingUp,
+  Link as LinkIcon,
+  ShoppingCart,
+  Copy,
+  Check,
+  LogOut,
+  Settings2,
+} from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem } from "@/store/slices/cartSlice";
@@ -149,10 +159,11 @@ export default function DashboardPage() {
 
   if (error && !me) {
     return (
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-2xl">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-6 text-sm text-red-700">
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+        <div className="mx-auto max-w-2xl px-6 py-12">
+          <h1 className="text-3xl font-extrabold tracking-tight text-zinc-900">Dashboard</h1>
+          <div className="mt-5 rounded-2xl border border-red-200 bg-white p-6 text-sm text-red-700 shadow-sm">
             {error} —{" "}
             <Link prefetch={false} className="font-semibold underline hover:text-red-800" href="/login">
               Login
@@ -164,124 +175,161 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex flex-col sm:flex-row items-start justify-between gap-4 mb-8">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      {/* top brand line */}
+      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-6xl px-6 py-10">
+        {/* Header */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900">Dashboard</h1>
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 text-white">
+                <BarChart3 className="h-4 w-4" />
+              </span>
+              <span className="text-sm font-semibold text-zinc-800">Admin / User Dashboard</span>
+            </div>
+
+            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+              Dashboard
+            </h1>
             {me ? (
-              <p className="mt-2 text-sm text-gray-700">
-                Welcome back, <span className="font-semibold text-blue-600">{me.email}</span> ({me.role})
+              <p className="mt-2 text-sm text-zinc-700">
+                Welcome back,{" "}
+                <span className="font-semibold bg-gradient-to-r from-emerald-700 to-sky-700 bg-clip-text text-transparent">
+                  {me.email}
+                </span>{" "}
+                <span className="text-zinc-500">({me.role})</span>
               </p>
             ) : null}
           </div>
-          <div className="flex gap-3">
+
+          <div className="flex flex-wrap gap-3">
             {me?.role === "admin" ? (
-              <Link 
-                className="inline-flex items-center px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:shadow-md transition-shadow" 
+              <Link
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
                 prefetch={false}
                 href="/admin/services"
               >
-                <span className="text-blue-600">Manage Services</span>
+                <Settings2 className="h-4 w-4" />
+                Manage Services
               </Link>
             ) : null}
-            <button
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium disabled:opacity-60 hover:shadow-md transition-shadow"
-              onClick={logout}
-              disabled={busy}
-            >
-              Logout
-            </button>
+
             <Link
-              className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:shadow-md transition-shadow"
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/cart"
             >
-              Cart ({cart.totalQuantity})
+              <ShoppingCart className="h-4 w-4 text-emerald-700" />
+              Cart <span className="text-zinc-500">({cart.totalQuantity})</span>
             </Link>
+
+            <button
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60"
+              onClick={logout}
+              disabled={busy}
+            >
+              <LogOut className="h-4 w-4" />
+              Logout
+            </button>
           </div>
         </div>
 
         {error ? (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700">
+          <div className="mb-6 rounded-2xl border border-red-200 bg-white p-4 text-sm text-red-700 shadow-sm">
             {error}
           </div>
         ) : null}
 
+        {/* Top Cards */}
         {me ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-            <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <LinkIcon className="w-6 h-6 text-blue-600" />
+          <div className="mb-8 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {/* Referral Code */}
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-sm">
+                  <LinkIcon className="h-6 w-6" />
                 </div>
-                <h2 className="font-semibold text-lg text-gray-900">Referral Code</h2>
+                <h2 className="text-lg font-extrabold text-zinc-900">Referral Code</h2>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-blue-50 px-4 py-3 border border-blue-200">
-                <code className="text-lg font-bold text-blue-600">{me.referralCode}</code>
+
+              <div className="mt-2 flex items-center justify-between gap-2 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-4 py-3">
+                <code className="text-lg font-extrabold text-emerald-700">{me.referralCode}</code>
+
                 <button
                   onClick={copyReferralCode}
-                  className="p-2 rounded-md hover:bg-blue-100 transition-colors"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-200 bg-white shadow-sm transition hover:bg-emerald-50"
                   title={copiedCode ? "Copied!" : "Copy code"}
+                  type="button"
                 >
                   {copiedCode ? (
-                    <Check className="w-5 h-5 text-green-600" />
+                    <Check className="h-5 w-5 text-emerald-600" />
                   ) : (
-                    <Copy className="w-5 h-5 text-blue-600" />
+                    <Copy className="h-5 w-5 text-emerald-700" />
                   )}
                 </button>
               </div>
-              <p className="mt-3 text-xs text-gray-700">
-                Share this code to invite new users to your network
+
+              <p className="mt-3 text-xs text-zinc-600">
+                Share this code to invite new users to your network.
               </p>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <IndianRupee className="w-6 h-6 text-blue-600" />
+            {/* Total Income */}
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 text-white shadow-sm">
+                  <IndianRupee className="h-6 w-6" />
                 </div>
-                <h2 className="font-semibold text-lg text-gray-900">Total Income</h2>
+                <h2 className="text-lg text-zinc-900">Total Income</h2>
               </div>
-              <p className="mt-2 text-4xl font-bold text-blue-600">
+
+              <p className="mt-2 text-4xl bg-gradient-to-r from-emerald-700 to-sky-700 bg-clip-text text-transparent">
                 {formatINR(totalIncome)}
               </p>
-              <p className="mt-3 text-xs text-gray-700">
-                Cumulative BV income from your network
-              </p>
+
+              <p className="mt-3 text-xs text-zinc-600">Cumulative income from your network.</p>
             </div>
 
-            <div className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow md:col-span-2 lg:col-span-1">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <BarChart3 className="w-6 h-6 text-blue-600" />
+            {/* Quick Stats */}
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md md:col-span-2 lg:col-span-1">
+              <div className="mb-4 flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow-sm">
+                  <BarChart3 className="h-6 w-6" />
                 </div>
-                <h2 className="font-semibold text-lg text-gray-900">Quick Stats</h2>
+                <h2 className="text-lg font-extrabold text-zinc-900">Quick Stats</h2>
               </div>
+
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-700">Income Entries</span>
-                  <span className="font-semibold text-gray-900">{incomes.length}</span>
+                  <span className="text-zinc-600">Income Entries</span>
+                  <span className="font-extrabold text-zinc-900">{incomes.length}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-700">Available Services</span>
-                  <span className="font-semibold text-gray-900">{services.length}</span>
+                  <span className="text-zinc-600">Available Services</span>
+                  <span className="font-extrabold text-zinc-900">{services.length}</span>
                 </div>
               </div>
             </div>
           </div>
         ) : null}
 
-        <div className="glass-panel animate-fade-in rounded-2xl border border-blue-200 p-6 mb-6 transition-all hover:shadow-2xl" style={{animationDelay: '0.3s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-blue-500 to-gray-500 flex items-center justify-center text-white">
-              <ShoppingCart className="w-5 h-5" />
+        {/* Purchase Service */}
+        <div className="rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-sm">
+              <ShoppingCart className="h-5 w-5" />
             </div>
-            <h2 className="font-semibold text-lg">Purchase Service</h2>
+            <div>
+              <h2 className="text-lg font-extrabold text-zinc-900">Purchase Service</h2>
+              <p className="text-xs text-zinc-600">Choose a service and add it to cart or buy instantly.</p>
+            </div>
           </div>
+
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <select
-              className="flex-1 glass-panel rounded-xl border border-blue-200 px-4 py-3 font-medium transition-all focus:ring-2 focus:ring-blue-500"
+              className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
               value={selectedServiceId}
               onChange={(e) => setSelectedServiceId(e.target.value)}
             >
@@ -294,17 +342,19 @@ export default function DashboardPage() {
                 </option>
               ))}
             </select>
+
             <div className="flex gap-2 sm:flex-col">
               <button
-                className="rounded-xl border border-blue-200 px-6 py-3 text-sm font-semibold transition-all hover:scale-105 hover:shadow-xl disabled:opacity-60 disabled:hover:scale-100"
+                className="rounded-2xl border border-emerald-200 bg-white px-6 py-3 text-sm font-extrabold text-emerald-800 shadow-sm transition hover:bg-emerald-50 disabled:opacity-60"
                 onClick={addSelectedToCart}
                 disabled={busy || !selectedServiceId}
                 type="button"
               >
                 {addedToCart ? "Added" : "Add to Cart"}
               </button>
+
               <button
-                className="rounded-xl bg-linear-to-r from-blue-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-105 hover:shadow-xl disabled:opacity-60 disabled:hover:scale-100"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-60"
                 onClick={buyService}
                 disabled={busy || !selectedServiceId}
                 type="button"
@@ -313,6 +363,7 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
           {services.length === 0 ? (
             <p className="mt-3 text-xs text-zinc-600">
               No services available. Admin needs to create services first.
@@ -320,49 +371,57 @@ export default function DashboardPage() {
           ) : null}
         </div>
 
-        <div className="glass-panel animate-fade-in rounded-2xl border border-blue-200 p-6 transition-all hover:shadow-2xl" style={{animationDelay: '0.4s'}}>
-          <div className="flex items-center justify-between mb-4">
+        {/* Income History */}
+        <div className="mt-6 rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white">
-                <TrendingUp className="w-5 h-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-teal-600 text-white shadow-sm">
+                <TrendingUp className="h-5 w-5" />
               </div>
-              <h2 className="font-semibold text-lg">Income History</h2>
+              <div>
+                <h2 className="text-lg font-extrabold text-zinc-900">Income History</h2>
+                <p className="text-xs text-zinc-600">Track your referral earnings over time.</p>
+              </div>
             </div>
-            <Link 
-              className="text-sm font-medium bg-linear-to-r from-blue-600 to-blue-600 bg-clip-text text-transparent hover:underline transition-all hover:scale-105" 
+
+            <Link
+              className="text-sm font-semibold bg-gradient-to-r from-emerald-700 to-sky-700 bg-clip-text text-transparent hover:underline"
               prefetch={false}
               href="/referrals"
             >
               View Referral Tree →
             </Link>
           </div>
-          <div className="mt-4 overflow-auto rounded-xl border border-blue-200">
+
+          <div className="mt-4 overflow-auto rounded-2xl border border-zinc-200">
             <table className="w-full text-sm">
-              <thead className="bg-linear-to-r from-blue-500/10 to-blue-500/10 text-left text-zinc-700">
+              <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 text-left text-zinc-700">
                 <tr>
-                  <th className="py-3 px-4 font-semibold">Date</th>
-                  <th className="py-3 px-4 font-semibold">From</th>
-                  <th className="py-3 px-4 font-semibold">Level</th>
-                  <th className="py-3 px-4 font-semibold">BV</th>
-                  <th className="py-3 px-4 font-semibold">Amount</th>
+                  <th className="py-3 px-4 font-extrabold">Date</th>
+                  <th className="py-3 px-4 font-extrabold">From</th>
+                  <th className="py-3 px-4 font-extrabold">Level</th>
+                  <th className="py-3 px-4 font-extrabold">BV</th>
+                  <th className="py-3 px-4 font-extrabold">Amount</th>
                 </tr>
               </thead>
               <tbody>
                 {incomes.map((inc) => (
-                  <tr key={inc._id} className="border-t border-blue-200 hover:bg-blue-500/5 transition-colors">
+                  <tr
+                    key={inc._id}
+                    className="border-t border-zinc-200 hover:bg-emerald-50/40 transition-colors"
+                  >
                     <td className="py-3 px-4">{new Date(inc.createdAt).toLocaleString()}</td>
-                    <td className="py-3 px-4 font-medium">{inc.fromUser?.email ?? "—"}</td>
+                    <td className="py-3 px-4 font-semibold text-zinc-900">{inc.fromUser?.email ?? "—"}</td>
                     <td className="py-3 px-4">
-                      <span className="px-2 py-1 rounded-lg bg-blue-500/10 text-blue-700 text-xs font-semibold">
+                      <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
                         L{inc.level}
                       </span>
                     </td>
-                    <td className="py-3 px-4 font-medium">{inc.bv}</td>
-                    <td className="py-3 px-4 font-bold text-green-600">
-                      {formatINR(inc.amount)}
-                    </td>
+                    <td className="py-3 px-4 font-semibold text-zinc-900">{inc.bv}</td>
+                    <td className="py-3 px-4 text-emerald-700">{formatINR(inc.amount)}</td>
                   </tr>
                 ))}
+
                 {incomes.length === 0 ? (
                   <tr>
                     <td className="py-8 text-center text-zinc-600" colSpan={5}>

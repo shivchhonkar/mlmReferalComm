@@ -30,36 +30,41 @@ function NodeView({ node, depth }: { node: TreeNode; depth: number }) {
   const isCollapsed = collapsedNodes.has(node.id);
 
   return (
-    <div className="mt-3">
-      <div className="flex flex-wrap items-center gap-3 bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow">
-        <span className="rounded-md bg-blue-600 text-white px-3 py-1 text-xs font-bold">
+    <div className="mt-4">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+        <span className="rounded-xl bg-gradient-to-r from-emerald-600 to-sky-600 px-3 py-1 text-xs font-extrabold text-white shadow">
           Level {depth}
         </span>
-        <span className="text-sm font-semibold text-gray-800">{node.email}</span>
-        <span className="text-xs px-2 py-1 rounded-md bg-blue-50 text-blue-700 font-mono">
+
+        <span className="text-sm font-bold text-zinc-900">{node.email}</span>
+
+        <span className="text-xs rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-1 font-mono font-semibold text-sky-800">
           {node.referralCode}
         </span>
+
         {node.children.length > 0 && (
           <button
             onClick={() => toggleNode(node.id)}
-            className="ml-auto flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+            type="button"
+            className="ml-auto inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-extrabold text-zinc-700 transition hover:bg-zinc-100"
           >
             {isCollapsed ? (
               <>
-                <ChevronRight className="w-3 h-3" />
+                <ChevronRight className="h-3 w-3" />
                 Expand {node.children.length}
               </>
             ) : (
               <>
-                <ChevronDown className="w-3 h-3" />
+                <ChevronDown className="h-3 w-3" />
                 Collapse {node.children.length}
               </>
             )}
           </button>
         )}
       </div>
+
       {node.children.length > 0 && !isCollapsed ? (
-        <div className="ml-6 mt-2 border-l-2 border-gray-300 pl-6">
+        <div className="ml-6 mt-3 border-l-2 border-zinc-200 pl-6">
           {node.children.map((c) => (
             <NodeView key={c.id} node={c} depth={depth + 1} />
           ))}
@@ -75,7 +80,7 @@ export default function ReferralsPage() {
   const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
   const toggleNode = (nodeId: string) => {
-    setCollapsedNodes(prev => {
+    setCollapsedNodes((prev) => {
       const newSet = new Set(prev);
       if (newSet.has(nodeId)) {
         newSet.delete(nodeId);
@@ -96,26 +101,40 @@ export default function ReferralsPage() {
       .catch((e) => setError(String(e?.message ?? e)));
   }, []);
 
-  const contextValue = useMemo(() => ({
-    collapsedNodes,
-    toggleNode,
-  }), [collapsedNodes]);
+  const contextValue = useMemo(
+    () => ({
+      collapsedNodes,
+      toggleNode,
+    }),
+    [collapsedNodes]
+  );
 
   return (
     <CollapsedContext.Provider value={contextValue}>
-      <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-5xl">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+        <div className="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h1 className="text-4xl font-bold text-gray-900">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
+                  <Network className="h-4 w-4" />
+                </span>
+                <span className="text-sm font-semibold text-zinc-800">Referral Network</span>
+              </div>
+
+              <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
                 Referral Network
               </h1>
-              <p className="mt-2 text-sm text-gray-700">
-                Visualize your binary tree structure and network growth
+              <p className="mt-2 text-sm text-zinc-600">
+                Visualize your binary tree structure and network growth.
               </p>
             </div>
-            <Link 
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm font-medium hover:shadow-md transition-shadow" 
+
+            <Link
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/dashboard"
             >
@@ -124,36 +143,37 @@ export default function ReferralsPage() {
           </div>
 
           {error ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 mb-6">
+            <div className="mb-6 rounded-2xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-sm">
               ⚠️ {error}
             </div>
           ) : null}
 
           {tree ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <Network className="w-6 h-6 text-blue-600" />
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="mb-6 flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50 border border-emerald-100">
+                  <Network className="h-5 w-5 text-emerald-700" />
                 </div>
-                <h2 className="text-xl font-bold text-gray-800">Your Network Tree</h2>
+                <h2 className="text-lg font-extrabold text-zinc-900">Your Network Tree</h2>
               </div>
-              
+
               <NodeView node={tree} depth={0} />
-              
-              <div className="mt-8 pt-6 border-t border-gray-200 flex items-start gap-3">
+
+              <div className="mt-8 flex items-start gap-3 border-t border-zinc-200 pt-6">
                 <span className="text-2xl">ℹ</span>
                 <p className="text-xs text-zinc-600">
-                  <strong>Note:</strong> This view shows up to 5 levels of your referral network for optimal performance. 
-                  Each level represents a generation in your binary tree structure. Click &ldquo;Collapse&rdquo; or &ldquo;Expand&rdquo; to manage tree visibility.
+                  <strong>Note:</strong> This view shows up to 5 levels of your referral network for optimal
+                  performance. Each level represents a generation in your binary tree structure. Click
+                  &ldquo;Collapse&rdquo; or &ldquo;Expand&rdquo; to manage tree visibility.
                 </p>
               </div>
             </div>
           ) : (
-            <div className="glass-panel rounded-2xl border border-gray-200 p-12 text-center">
-              <div className="w-20 h-20 mx-auto rounded-full bg-gradient-to-br from-blue-500/20 to-gray-500/20 flex items-center justify-center text-4xl mb-4 animate-pulse">
+            <div className="rounded-3xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
+              <div className="mx-auto mb-4 flex h-20 w-20 animate-pulse items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-sky-100 text-4xl">
                 🌟
               </div>
-              <p className="text-lg text-zinc-600">Loading your network...</p>
+              <p className="text-sm font-semibold text-zinc-600">Loading your network...</p>
             </div>
           )}
         </div>

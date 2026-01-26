@@ -2,7 +2,19 @@
 
 import Link from "next/link";
 import { useState, useEffect } from "react";
-import { User, Camera, Save, Upload, Building, Phone, Mail, Globe, MapPin, CreditCard, FileText, Settings, ShoppingBag, Cog } from "lucide-react";
+import {
+  User,
+  Camera,
+  Save,
+  Upload,
+  Building,
+  MapPin,
+  CreditCard,
+  Settings,
+  ShoppingBag,
+  Cog,
+  CheckCircle2,
+} from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { apiFetch } from "@/lib/apiClient";
 
@@ -16,7 +28,7 @@ interface UserProfile {
   isVerified: boolean;
   isBlocked: boolean;
   referralCode: string;
-  
+
   // Business Settings
   businessName?: string;
   companyPhone?: string;
@@ -40,17 +52,25 @@ interface UserProfile {
   signature?: string;
   currencyCode?: string;
   currencySymbol?: string;
-  
+
   createdAt?: string;
   updatedAt?: string;
 }
+
+const tabs = [
+  { id: "basic", label: "Basic Info", icon: User },
+  { id: "company", label: "Company Info", icon: Building },
+  { id: "address", label: "Address", icon: MapPin },
+  { id: "business", label: "Business Settings", icon: Settings },
+  { id: "tax", label: "Tax & Compliance", icon: CreditCard },
+] as const;
 
 export default function ProfilePage() {
   const dispatch = useAppDispatch();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [activeSection, setActiveSection] = useState("basic");
+  const [activeSection, setActiveSection] = useState<(typeof tabs)[number]["id"]>("basic");
   const [successMessage, setSuccessMessage] = useState("");
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
@@ -102,13 +122,13 @@ export default function ProfilePage() {
       const res = await apiFetch("/api/profile");
       const data = await res.json();
       setProfile(data.user);
-      
+
       // Initialize form states
       setBasicInfo({
         name: data.user.name || "",
         email: data.user.email || "",
       });
-      
+
       setCompanyInfo({
         businessName: data.user.businessName || "",
         companyPhone: data.user.companyPhone || "",
@@ -116,14 +136,14 @@ export default function ProfilePage() {
         website: data.user.website || "",
         businessDescription: data.user.businessDescription || "",
       });
-      
+
       setAddressInfo({
         billingAddress: data.user.billingAddress || "",
         city: data.user.city || "",
         state: data.user.state || "",
         pincode: data.user.pincode || "",
       });
-      
+
       setBusinessSettings({
         businessType: data.user.businessType || "",
         industryType: data.user.industryType || "",
@@ -131,7 +151,7 @@ export default function ProfilePage() {
         currencyCode: data.user.currencyCode || "INR",
         currencySymbol: data.user.currencySymbol || "₹",
       });
-      
+
       setTaxSettings({
         gstin: data.user.gstin || "",
         panNumber: data.user.panNumber || "",
@@ -140,7 +160,7 @@ export default function ProfilePage() {
         enableTDS: data.user.enableTDS || false,
         enableTCS: data.user.enableTCS || false,
       });
-      
+
       if (data.user.profileImage) {
         setImagePreview(data.user.profileImage);
       }
@@ -165,48 +185,48 @@ export default function ProfilePage() {
 
   const uploadProfileImage = async () => {
     if (!profileImage) {
-      alert('Please select an image first');
+      alert("Please select an image first");
       return;
     }
-    
+
     const formData = new FormData();
     formData.append("image", profileImage);
-    
+
     try {
-      console.log('Uploading image:', profileImage.name, 'Size:', profileImage.size);
-      
+      console.log("Uploading image:", profileImage.name, "Size:", profileImage.size);
+
       // Use fetch directly for FormData uploads (apiFetch may interfere with multipart/form-data)
       const res = await fetch("/api/upload/profile-image", {
         method: "POST",
         body: formData,
         credentials: "include",
         headers: {
-          "accept": "application/json"
-        }
+          accept: "application/json",
+        },
         // Don't set Content-Type - let the browser set it with boundary for multipart/form-data
       });
-      
+
       const body = await res.json();
-      console.log('Upload response:', body, 'Status:', res.status);
-      
+      console.log("Upload response:", body, "Status:", res.status);
+
       if (!res.ok) {
         throw new Error(body.error || "Upload failed");
       }
-      
+
       setSuccessMessage("Profile image uploaded successfully!");
       setProfileImage(null);
       setTimeout(() => setSuccessMessage(""), 3000);
-      
+
       // Reload profile to get updated image
       await loadProfile();
-      
+
       // Trigger profile update event to refresh navbar
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('profileUpdated'));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("profileUpdated"));
       }
     } catch (error) {
       console.error("Failed to upload image:", error);
-      alert(`Failed to upload profile image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(`Failed to upload profile image: ${error instanceof Error ? error.message : "Unknown error"}`);
     }
   };
 
@@ -219,14 +239,14 @@ export default function ProfilePage() {
         body: JSON.stringify(basicInfo),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setSuccessMessage(data.message);
         await loadProfile();
-        
+
         // Trigger profile update event to refresh navbar
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('profileUpdated'));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("profileUpdated"));
         }
       } else {
         throw new Error(data.error || "Update failed");
@@ -248,7 +268,7 @@ export default function ProfilePage() {
         body: JSON.stringify(companyInfo),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setSuccessMessage(data.message);
         await loadProfile();
@@ -272,7 +292,7 @@ export default function ProfilePage() {
         body: JSON.stringify(addressInfo),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setSuccessMessage(data.message);
         await loadProfile();
@@ -296,7 +316,7 @@ export default function ProfilePage() {
         body: JSON.stringify(businessSettings),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setSuccessMessage(data.message);
         await loadProfile();
@@ -320,7 +340,7 @@ export default function ProfilePage() {
         body: JSON.stringify(taxSettings),
       });
       const data = await res.json();
-      
+
       if (res.ok) {
         setSuccessMessage(data.message);
         await loadProfile();
@@ -337,79 +357,86 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+        <div className="flex min-h-[70vh] items-center justify-center px-6">
+          <div className="h-12 w-12 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="bg-white shadow rounded-lg p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
               <div className="relative">
-                <div className="w-20 h-20 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                  {imagePreview ? (
-                    <img 
-                      src={
-                        imagePreview.startsWith('http') 
-                          ? imagePreview 
-                          : imagePreview.startsWith('/uploads')
-                          ? `http://localhost:4000${imagePreview}`
-                          : imagePreview // base64 data URL
-                      }
-                      alt="Profile" 
-                      className="w-20 h-20 rounded-full object-cover"
-                      onError={(e) => {
-                        console.error('Failed to load image:', imagePreview);
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
-                  ) : (
-                    <User className="w-10 h-10 text-blue-600" />
-                  )}
+                <div className="h-20 w-20 overflow-hidden rounded-full bg-gradient-to-br from-emerald-100 to-sky-100 p-[2px]">
+                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white">
+                    {imagePreview ? (
+                      <img
+                        src={
+                          imagePreview.startsWith("http")
+                            ? imagePreview
+                            : imagePreview.startsWith("/uploads")
+                            ? `http://localhost:4000${imagePreview}`
+                            : imagePreview // base64 data URL
+                        }
+                        alt="Profile"
+                        className="h-20 w-20 rounded-full object-cover"
+                        onError={(e) => {
+                          console.error("Failed to load image:", imagePreview);
+                          e.currentTarget.style.display = "none";
+                        }}
+                      />
+                    ) : (
+                      <User className="h-10 w-10 text-emerald-700" />
+                    )}
+                  </div>
                 </div>
-                <label className="absolute bottom-0 right-0 bg-blue-600 rounded-full p-1 cursor-pointer hover:bg-blue-700">
-                  <Camera className="w-4 h-4 text-white" />
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
+
+                <label className="absolute bottom-0 right-0 cursor-pointer rounded-full bg-gradient-to-r from-emerald-600 to-sky-600 p-2 shadow-md transition hover:from-emerald-700 hover:to-sky-700">
+                  <Camera className="h-4 w-4 text-white" />
+                  <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                 </label>
               </div>
+
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{profile?.name}</h1>
-                <p className="text-gray-600">{profile?.email}</p>
-                <p className="text-sm text-gray-500">{profile?.mobile}</p>
+                <h1 className="text-xl font-extrabold text-zinc-900 sm:text-2xl">{profile?.name}</h1>
+                <p className="text-sm text-zinc-600">{profile?.email}</p>
+                <p className="text-sm text-zinc-500">{profile?.mobile}</p>
               </div>
             </div>
-            {profileImage && (
-              <button
-                onClick={uploadProfileImage}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
-              >
-                <Upload className="w-4 h-4" />
-                Upload Image
-              </button>
-            )}
-            <div className="flex gap-3">
+
+            <div className="flex flex-wrap gap-3">
+              {profileImage && (
+                <button
+                  onClick={uploadProfileImage}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                >
+                  <Upload className="h-4 w-4" />
+                  Upload Image
+                </button>
+              )}
+
               <Link
                 href="/orders"
-                className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center gap-2 font-medium"
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               >
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingBag className="h-4 w-4 text-emerald-700" />
                 Orders
               </Link>
+
               <Link
                 href="/settings"
-                className="bg-gray-100 text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-200 flex items-center gap-2 font-medium"
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               >
-                <Cog className="w-4 h-4" />
+                <Cog className="h-4 w-4 text-sky-700" />
                 Settings
               </Link>
             </div>
@@ -418,323 +445,324 @@ export default function ProfilePage() {
 
         {/* Success Message */}
         {successMessage && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
-            {successMessage}
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-emerald-800 shadow-sm">
+            <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+            </span>
+            <div className="text-sm font-semibold">{successMessage}</div>
           </div>
         )}
 
-        {/* Navigation Tabs */}
-        <div className="bg-white shadow rounded-lg mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="flex space-x-8 px-6">
-              {[
-                { id: "basic", label: "Basic Info", icon: User },
-                { id: "company", label: "Company Info", icon: Building },
-                { id: "address", label: "Address", icon: MapPin },
-                { id: "business", label: "Business Settings", icon: Settings },
-                { id: "tax", label: "Tax & Compliance", icon: CreditCard },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveSection(tab.id)}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                    activeSection === tab.id
-                      ? "border-blue-500 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4 inline mr-2" />
-                  {tab.label}
-                </button>
-              ))}
+        {/* Tabs */}
+        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white shadow-sm">
+          <div className="border-b border-zinc-200">
+            <nav className="flex flex-wrap gap-2 px-4 py-3 sm:gap-3 sm:px-6">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const active = activeSection === tab.id;
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveSection(tab.id)}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold transition",
+                      active
+                        ? "bg-gradient-to-r from-emerald-600 to-sky-600 text-white shadow"
+                        : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50",
+                    ].join(" ")}
+                    type="button"
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.label}
+                  </button>
+                );
+              })}
             </nav>
           </div>
         </div>
 
-        {/* Content Sections */}
-        <div className="bg-white shadow rounded-lg p-6">
-          {/* Basic Info Section */}
+        {/* Content */}
+        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          {/* Basic Info */}
           {activeSection === "basic" && (
             <div>
-              <h2 className="text-xl font-semibold mb-6">Basic Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Basic Information</h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Full Name</label>
                   <input
                     type="text"
                     value={basicInfo.name}
                     onChange={(e) => setBasicInfo({ ...basicInfo, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Email</label>
                   <input
                     type="email"
                     value={basicInfo.email}
                     onChange={(e) => setBasicInfo({ ...basicInfo, email: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
               </div>
+
               <div className="mt-6">
                 <button
                   onClick={saveBasicInfo}
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Company Info Section */}
+          {/* Company */}
           {activeSection === "company" && (
             <div>
-              <h2 className="text-xl font-semibold mb-6">Company Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Company Information</h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Business Name</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Name</label>
                   <input
                     type="text"
                     value={companyInfo.businessName}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, businessName: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Company Phone</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Company Phone</label>
                   <input
                     type="tel"
                     value={companyInfo.companyPhone}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, companyPhone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Company Email</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Company Email</label>
                   <input
                     type="email"
                     value={companyInfo.companyEmail}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, companyEmail: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Website</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Website</label>
                   <input
                     type="url"
                     value={companyInfo.website}
                     onChange={(e) => setCompanyInfo({ ...companyInfo, website: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
               </div>
+
               <div className="mt-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">Business Description</label>
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Description</label>
                 <textarea
                   value={companyInfo.businessDescription}
                   onChange={(e) => setCompanyInfo({ ...companyInfo, businessDescription: e.target.value })}
                   rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                 />
               </div>
+
               <div className="mt-6">
                 <button
                   onClick={saveCompanyInfo}
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Address Section */}
+          {/* Address */}
           {activeSection === "address" && (
             <div>
-              <h2 className="text-xl font-semibold mb-6">Address Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Billing Address</label>
+              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Address Information</h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Billing Address</label>
                   <textarea
                     value={addressInfo.billingAddress}
                     onChange={(e) => setAddressInfo({ ...addressInfo, billingAddress: e.target.value })}
                     rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">City</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">City</label>
                   <input
                     type="text"
                     value={addressInfo.city}
                     onChange={(e) => setAddressInfo({ ...addressInfo, city: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">State</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">State</label>
                   <input
                     type="text"
                     value={addressInfo.state}
                     onChange={(e) => setAddressInfo({ ...addressInfo, state: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Pincode</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Pincode</label>
                   <input
                     type="text"
                     value={addressInfo.pincode}
                     onChange={(e) => setAddressInfo({ ...addressInfo, pincode: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
               </div>
+
               <div className="mt-6">
                 <button
                   onClick={saveAddressInfo}
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Business Settings Section */}
+          {/* Business Settings */}
           {activeSection === "business" && (
             <div>
-              <h2 className="text-xl font-semibold mb-6">Business Settings</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Business Settings</h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Business Type</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Type</label>
                   <input
                     type="text"
                     value={businessSettings.businessType}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, businessType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Industry Type</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Industry Type</label>
                   <input
                     type="text"
                     value={businessSettings.industryType}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, industryType: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Language</label>
                   <input
                     type="text"
                     value={businessSettings.language}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, language: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Currency Code</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Currency Code</label>
                   <select
                     value={businessSettings.currencyCode}
                     onChange={(e) => setBusinessSettings({ ...businessSettings, currencyCode: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-900 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
                   >
                     <option value="INR">INR</option>
                     <option value="USD">USD</option>
                   </select>
                 </div>
               </div>
+
               <div className="mt-6">
                 <button
                   onClick={saveBusinessSettings}
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           )}
 
-          {/* Tax Settings Section */}
+          {/* Tax */}
           {activeSection === "tax" && (
             <div>
-              <h2 className="text-xl font-semibold mb-6">Tax & Compliance</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Tax & Compliance</h2>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">GSTIN</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">GSTIN</label>
                   <input
                     type="text"
                     value={taxSettings.gstin}
                     onChange={(e) => setTaxSettings({ ...taxSettings, gstin: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">PAN Number</label>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">PAN Number</label>
                   <input
                     type="text"
                     value={taxSettings.panNumber}
                     onChange={(e) => setTaxSettings({ ...taxSettings, panNumber: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
                 </div>
               </div>
-              <div className="mt-6 space-y-4">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={taxSettings.isGSTRegistered}
-                    onChange={(e) => setTaxSettings({ ...taxSettings, isGSTRegistered: e.target.checked })}
-                    className="mr-2"
-                  />
-                  GST Registered
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={taxSettings.enableEInvoicing}
-                    onChange={(e) => setTaxSettings({ ...taxSettings, enableEInvoicing: e.target.checked })}
-                    className="mr-2"
-                  />
-                  Enable E-Invoicing
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={taxSettings.enableTDS}
-                    onChange={(e) => setTaxSettings({ ...taxSettings, enableTDS: e.target.checked })}
-                    className="mr-2"
-                  />
-                  Enable TDS
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={taxSettings.enableTCS}
-                    onChange={(e) => setTaxSettings({ ...taxSettings, enableTCS: e.target.checked })}
-                    className="mr-2"
-                  />
-                  Enable TCS
-                </label>
+
+              <div className="mt-6 space-y-3">
+                {[
+                  { key: "isGSTRegistered", label: "GST Registered" },
+                  { key: "enableEInvoicing", label: "Enable E-Invoicing" },
+                  { key: "enableTDS", label: "Enable TDS" },
+                  { key: "enableTCS", label: "Enable TCS" },
+                ].map((x) => (
+                  <label
+                    key={x.key}
+                    className="flex items-center gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-semibold text-zinc-800"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={(taxSettings as any)[x.key]}
+                      onChange={(e) => setTaxSettings({ ...taxSettings, [x.key]: e.target.checked } as any)}
+                      className="h-4 w-4"
+                    />
+                    {x.label}
+                  </label>
+                ))}
               </div>
+
               <div className="mt-6">
                 <button
                   onClick={saveTaxSettings}
                   disabled={saving}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
