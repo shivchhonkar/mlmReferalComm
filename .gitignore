@@ -13,9 +13,9 @@ node_modules/
 # ===============================
 # Environment variables (CONFIDENTIAL)
 # ===============================
-.env
+# .env
 # .env.local
-.env.*.local
+# .env.*.local
 
 # ===============================
 # Development scripts
