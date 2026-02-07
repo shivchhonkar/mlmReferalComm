@@ -24,7 +24,7 @@ interface UploadResult {
   };
 }
 
-export default function AdminCategoryUpload() {
+export default function AdminCategoryUpload({ onUploaded }: { onUploaded?: () => void | Promise<void> }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<UploadResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -95,6 +95,19 @@ export default function AdminCategoryUpload() {
       }
 
       setResult(data);
+      if (data?.success) {
+        try {
+          await onUploaded?.();
+        } catch {}
+        try {
+          localStorage.setItem("admin-categories-updated", String(Date.now()));
+        } catch {}
+        try {
+          const channel = new BroadcastChannel("admin-categories");
+          channel.postMessage({ type: "CATEGORIES_UPDATED" });
+          channel.close();
+        } catch {}
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
