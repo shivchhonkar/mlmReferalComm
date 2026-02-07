@@ -8,7 +8,8 @@ This is a monorepo containing two main applications:
 
 - **Backend** (`/backend`): Express.js REST API server
 - **Frontend** (`/frontend`): Next.js web application
-
+## FRONTEND PORT: 4000
+## BACKEND_URL: http://localhost:4001
 ## Quick Start
 
 ### Prerequisites

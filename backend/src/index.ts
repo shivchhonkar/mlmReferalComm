@@ -15,8 +15,8 @@ dotenv.config({ path: fs.existsSync(backendEnvPath) ? backendEnvPath : repoRootE
 
 const app = express();
 
-const port = Number(process.env.PORT ?? 4000);
-const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:3000";
+const port = Number(process.env.PORT ?? 4001);
+const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000";
 
 // Support multiple CORS origins (comma-separated)
 const allowedOrigins = corsOrigin.split(",").map(o => o.trim());

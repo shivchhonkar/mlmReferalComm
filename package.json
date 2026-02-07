@@ -1,9 +1,21 @@
 {
+  "name": "mlmReferalComm-root",
+  "private": true,
+  "scripts": {
+    "start-root": "node server.mjs",
+    "dev": "concurrently -n backend,root -c \"green,blue\" \"npm --prefix backend run dev\" \"npm run start-root\"",
+    "build": "npm --prefix frontend run build && npm --prefix backend run build",
+    "start": "node server.mjs"
+  },
   "dependencies": {
+    "express": "^4.19.2",
+    "http-proxy-middleware": "^2.0.6",
+    "next": "16.1.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
+    "concurrently": "^9.0.0",
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3"
   }
