@@ -1,7 +1,7 @@
 module.exports = {
   apps: [
     {
-      name: "refergrow-root",
+      name: "sambhariya-web",
       cwd: "/root/projects/mlmReferalComm",
       script: "node",
       args: "server.mjs",
@@ -17,7 +17,7 @@ module.exports = {
       max_memory_restart: "600M",
     },
     {
-      name: "refergrow-api",
+      name: "sambhariya-api",
       cwd: "/root/projects/mlmReferalComm/backend",
       script: "node",
       args: "dist/index.js",
