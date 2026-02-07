@@ -21,10 +21,10 @@ export default function TopStrip({
   phone = "+91 80457 86127",
   whatsappNumber,
   showWhatsApp = true,
-  facebookUrl = 'https://www.flipkart.com/',
-  instagramUrl = 'https://www.flipkart.com/',
-  linkedinUrl = 'https://www.flipkart.com/',
-  youtubeUrl = 'https://www.flipkart.com/',
+  facebookUrl = 'https://www.facebook.com/',
+  instagramUrl = 'https://www.instagram.com/',
+  linkedinUrl = 'https://www.linkedin.com/',
+  youtubeUrl = 'https://www.youtube.com/',
   timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone,
 }: Props) {
   const [now, setNow] = useState<Date>(() => new Date());

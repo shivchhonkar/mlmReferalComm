@@ -31,9 +31,9 @@ export default function RootLayout({
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>
           <TopStrip
-            phone="+91 9650593896"
-            whatsappNumber="919650593896"
-            showWhatsApp
+            phone={process.env.PHONE || "+91 90457 86127"}
+            whatsappNumber={process.env.WHATSAPP_NUMBER || "919045786127"}
+            showWhatsApp={process.env.SHOW_WHATSAPP === "true"}
             timeZone="Asia/Kolkata"
           />
           <SiteHeader />

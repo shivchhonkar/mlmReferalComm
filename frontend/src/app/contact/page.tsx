@@ -18,7 +18,7 @@ export default function ContactPage() {
   const contact = useMemo(
     () => ({
       email: "refergrow.official@gmail.com",
-      phone: "+91 9650593896",
+      phone: process.env.PHONE || "+91 90457 86127",
       hours: "Monday – Saturday: 10:00 AM – 6:00 PM IST",
       addressLine1: "Sambhariya Marketing",
       addressLine2: "India",
