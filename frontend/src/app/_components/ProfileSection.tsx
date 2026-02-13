@@ -25,6 +25,8 @@ type AnyUser = {
   profileImage?: string | null;
 };
 
+const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
+
 export default function ProfileSection() {
   const user = useAppSelector((s) => s.user.profile) as AnyUser | null;
   const dispatch = useAppDispatch();
@@ -71,7 +73,8 @@ export default function ProfileSection() {
   useEffect(() => {
     const checkAuthState = async () => {
       try {
-        const storedUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+        const storedUser =
+          typeof window !== "undefined" ? localStorage.getItem("user") : null;
         if (storedUser) {
           try {
             const parsedUser = JSON.parse(storedUser);
@@ -104,12 +107,16 @@ export default function ProfileSection() {
     return () => {
       window.removeEventListener("profileUpdated", handleProfileUpdate);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Close dropdown when clicking outside or pressing Escape
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (profileDropdownRef.current && !profileDropdownRef.current.contains(event.target as Node)) {
+      if (
+        profileDropdownRef.current &&
+        !profileDropdownRef.current.contains(event.target as Node)
+      ) {
         setIsProfileDropdownOpen(false);
       }
     };
@@ -150,8 +157,9 @@ export default function ProfileSection() {
   const BRAND_RING = "focus-visible:ring-[var(--primary)]";
 
   const menuItemBase =
-    "flex items-center gap-2 px-4 py-2 text-sm text-gray-700 rounded-md transition-colors";
-  const menuItemHover = "hover:bg-[var(--gray-50)] hover:text-[var(--primary)]";
+    "mx-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30";
+  const menuItemHover =
+    "hover:bg-[var(--gray-50)] hover:text-[var(--gray-900)] active:bg-[var(--gray-100)]";
 
   // Loading state
   if (isAuthLoading) {
@@ -185,7 +193,7 @@ export default function ProfileSection() {
                 alt="Profile"
                 className="w-7 h-7 rounded-full object-cover"
                 onError={(e) => {
-                  console.error("Failed to load profile image:", user.profileImage);
+                  console.error("Failed to load profile image:", user?.profileImage);
                   e.currentTarget.style.display = "none";
                 }}
               />
@@ -197,74 +205,142 @@ export default function ProfileSection() {
           )}
         </div>
 
-        <span className="hidden md:block truncate max-w-[140px]">
+        <span className="hidden md:block truncate max-w-[160px]">
           {user ? user.name || user.email || "User" : "Hello, Guest"}
         </span>
 
         <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform ${isProfileDropdownOpen ? "rotate-180" : ""}`}
+          className={`w-4 h-4 text-gray-500 transition-transform ${
+            isProfileDropdownOpen ? "rotate-180" : ""
+          }`}
         />
       </button>
 
       {isProfileDropdownOpen && (
         <div
-          className="absolute right-0 mt-2 w-56 bg-white border border-[var(--gray-200)] rounded-xl shadow-lg z-50 overflow-hidden"
+          className="absolute right-0 mt-3 w-[320px] origin-top-right rounded-2xl bg-white shadow-xl ring-1 ring-black/5 z-50 overflow-hidden"
           role="menu"
         >
-          <div className="px-4 py-3 border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
-            <div className="text-xs text-gray-600">Signed in as</div>
-            <div className="text-sm font-semibold text-gray-900 truncate">
-              {user ? user.name || user.email || "User" : "Guest"}
+          {/* caret */}
+          <div className="absolute -top-2 right-4 h-4 w-4 rotate-45 bg-white ring-1 ring-black/5" />
+
+          {/* Header */}
+          <div className="px-4 py-4 bg-[var(--gray-50)] border-b border-[var(--gray-200)]">
+            <div className="flex items-center gap-3">
+              <div
+                className={`h-10 w-10 rounded-full ${BRAND_BG} flex items-center justify-center overflow-hidden shadow-sm`}
+              >
+                {user ? (
+                  profileImageSrc ? (
+                    <img
+                      src={profileImageSrc}
+                      alt="Profile"
+                      className="h-10 w-10 object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = "none";
+                      }}
+                    />
+                  ) : (
+                    <User className="h-5 w-5 text-white" />
+                  )
+                ) : (
+                  <UserCircle className="h-5 w-5 text-white" />
+                )}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-gray-500">Signed in as</div>
+                <div className="text-sm font-semibold text-gray-900 truncate">
+                  {user ? user.name || user.email || "User" : "Guest"}
+                </div>
+
+                {/* <div className="mt-1 inline-flex items-center rounded-full border border-[var(--gray-200)] bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-600">
+                  {user ? (user.role === "admin" ? "Admin" : "Member") : "Visitor"}
+                </div> */}
+              </div>
             </div>
           </div>
 
-          <div className="p-1">
+          {/* Menu */}
+          <div className="py-2">
             {user ? (
               <>
-                <Link href="/dashboard" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/dashboard"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <Home className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Dashboard
                 </Link>
 
-                <Link href="/profile" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/profile"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <UserCircle className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Profile
                 </Link>
 
-                <Link href="/orders" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/orders"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <ShoppingBag className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Orders
                 </Link>
 
-                <Link href="/referrals" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/referrals"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <LinkIcon className={`w-4 h-4 ${BRAND_TEXT}`} />
-                  Referral
+                  Referrals
                 </Link>
 
                 {user.role === "admin" && (
                   <>
-                    <div className="my-1 border-t border-[var(--gray-200)]" />
+                    <div className="my-2 border-t border-[var(--gray-200)]" />
 
-                    <Link href="/admin" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                    <Link
+                      href="/admin"
+                      className={`${menuItemBase} ${menuItemHover}`}
+                      onClick={closeMenu}
+                    >
                       <Settings className={`w-4 h-4 ${BRAND_TEXT}`} />
                       Admin Panel
                     </Link>
 
-                    <Link href="/admin/users" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                    <Link
+                      href="/admin/users"
+                      className={`${menuItemBase} ${menuItemHover}`}
+                      onClick={closeMenu}
+                    >
                       <Users className={`w-4 h-4 ${BRAND_TEXT}`} />
                       Manage Users
                     </Link>
 
-                    <Link href="/admin/slider" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                    <Link
+                      href="/admin/slider"
+                      className={`${menuItemBase} ${menuItemHover}`}
+                      onClick={closeMenu}
+                    >
                       <ImageIcon className={`w-4 h-4 ${BRAND_TEXT}`} />
                       Manage Sliders
                     </Link>
                   </>
                 )}
 
-                <div className="my-1 border-t border-[var(--gray-200)]" />
+                <div className="my-2 border-t border-[var(--gray-200)]" />
 
-                <Link href="/settings" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/settings"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <Settings className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Settings
                 </Link>
@@ -274,7 +350,7 @@ export default function ProfileSection() {
                     closeMenu();
                     handleLogout();
                   }}
-                  className={`${menuItemBase} ${menuItemHover} w-full`}
+                  className={`${menuItemBase} ${menuItemHover} w-full text-left`}
                   role="menuitem"
                 >
                   <LogOut className={`w-4 h-4 ${BRAND_TEXT}`} />
@@ -283,29 +359,37 @@ export default function ProfileSection() {
               </>
             ) : (
               <>
-                <div className="px-3 py-2">
-                  <div className="text-xs text-gray-600">Welcome</div>
-                  <div className="text-sm font-semibold text-gray-900">Guest</div>
-                </div>
-
-                <Link href="/login" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/login"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <User className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Sign In
                 </Link>
 
-                <Link href="/register" className={`${menuItemBase} ${menuItemHover}`} onClick={closeMenu}>
+                <Link
+                  href="/register"
+                  className={`${menuItemBase} ${menuItemHover}`}
+                  onClick={closeMenu}
+                >
                   <UserCircle className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Sign Up
                 </Link>
 
-                <div className="px-3 py-3">
+                <div className="mt-2 px-4 pb-4">
                   <Link
                     href="/register"
                     onClick={closeMenu}
-                    className="btn-primary w-full justify-center"
+                    className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-extrabold text-white shadow-sm hover:shadow-md transition"
+                    style={{ background: brandGradient }}
                   >
                     Create Account
                   </Link>
+
+                  <p className="mt-2 text-center text-[11px] text-gray-500">
+                    Create an account to track orders & referrals.
+                  </p>
                 </div>
               </>
             )}

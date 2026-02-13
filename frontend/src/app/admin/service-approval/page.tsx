@@ -299,7 +299,7 @@ export default function ServiceApprovalPage() {
                 setSearchTerm(e.target.value);
               }}
               placeholder="Search pending services by name, slug, category..."
-              className="w-full rounded-2xl border border-zinc-200 bg-white py-3 pl-11 pr-4 text-sm text-zinc-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full rounded-2xl border border-zinc-200 bg-white py-3 !pl-11 pr-4 text-sm text-zinc-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
         </div>

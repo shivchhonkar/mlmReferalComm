@@ -104,10 +104,10 @@ export default function RegisterPage() {
                   <UserPlus className="h-7 w-7" />
                 </div>
 
-                <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-700)]">
+                {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-700)]">
                   <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
                   Create your account
-                </div>
+                </div> */}
 
                 <h1 className="text-2xl font-extrabold text-[var(--gray-900)]">
                   Join ReferGrow
@@ -141,7 +141,7 @@ export default function RegisterPage() {
                       required
                       autoComplete="name"
                       placeholder="Enter your name"
-                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
                   </div>
                 </div>
@@ -161,7 +161,7 @@ export default function RegisterPage() {
                       autoComplete="email"
                       required
                       placeholder="you@example.com"
-                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
                   </div>
                 </div>
@@ -182,7 +182,7 @@ export default function RegisterPage() {
                       required
                       minLength={8}
                       placeholder="Min. 8 characters"
-                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
                   </div>
                   <p className="text-xs text-[var(--gray-500)]">
@@ -202,7 +202,7 @@ export default function RegisterPage() {
                       value={referralCode}
                       onChange={(e) => setReferralCode(e.target.value)}
                       placeholder="Enter referral code"
-                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
                   </div>
 

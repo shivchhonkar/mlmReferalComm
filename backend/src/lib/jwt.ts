@@ -12,7 +12,7 @@ export type AuthTokenPayload = {
 };
 
 export async function signAuthToken(payload: AuthTokenPayload) {
-  // 7 days by default; adjust as needed.
+  // 7 days token lifetime as before
   return new SignJWT({ role: payload.role, email: payload.email })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(payload.sub)

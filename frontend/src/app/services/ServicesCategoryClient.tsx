@@ -82,10 +82,10 @@ export default function ServicesCategoryClient({
     <div className="space-y-8">
       {/* Page heading (match home style) */}
       <div className="space-y-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-white px-3 py-1 text-xs font-bold text-[var(--gray-700)]">
+        {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-white px-3 py-1 text-xs font-bold text-[var(--gray-700)]">
           <span className="h-2 w-2 rounded-full bg-[#0EA5E9]" />
           Premium Services
-        </div>
+        </div> */}
 
         <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)]">Services Marketplace</h1>
 

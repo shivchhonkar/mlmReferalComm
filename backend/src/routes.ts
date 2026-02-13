@@ -1,6 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import mongoose from "mongoose";
 import { z } from "zod";
+import rateLimit from "express-rate-limit";
 
 import { connectToDatabase } from "@/lib/db";
 import { env } from "@/lib/env";
@@ -12,7 +13,8 @@ import { distributeBusinessVolumeWithSession } from "@/lib/bvDistribution";
 import { buildReferralTree } from "@/lib/referralTree";
 import { getBusinessOpportunityEmailContent } from "@/lib/businessOpportunity";
 import { sendEmail } from "@/lib/email";
-import { upload, getFileUrl, importUpload } from "@/lib/upload";
+import { authValidation, sendValidationError, sendSuccessResponse, VALIDATION_MESSAGES, formatZodError } from "@/lib/validation";
+import { importUpload } from "@/lib/upload";
 import { processBulkServiceUpload, generateServiceImportTemplate } from "@/lib/bulkServiceImport";
 import { processBulkCategoryUpload, generateCategoryImportTemplate } from "@/lib/bulkCategoryImport";
 import path from "path";
@@ -31,6 +33,16 @@ import { SubcategoryModel } from "@/models/Subcategory";
 import { AnalyticsModel } from "@/models/Analytics";
 
 type AuthContext = { userId: string; role: UserRole; email: string };
+
+// Stricter rate limiting for auth endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 auth requests per windowMs
+  message: { error: "Too many authentication attempts, please try again later." },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+});
 
 function getTokenFromReq(req: Request) {
   const cookieToken = (req.cookies?.token as string | undefined) ?? undefined;
@@ -105,38 +117,23 @@ function clearAuthCookie(res: Response) {
 const DUMMY_PASSWORD_HASH = "$2b$12$npwxPAElS4BfdU.iS5LIFuqi0v31VhieuIsoP1t9cMORH152MK/3i";
 
 export function registerRoutes(app: Express) {
-  // Serve static files from uploads directory
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  // Apply stricter rate limiting to auth endpoints
+  app.use('/api/auth', authLimiter);
 
   // Auth
   app.post("/api/auth/register", async (req, res) => {
-    const schema = z.object({
-      mobile: z.string().min(10).max(15),
-      countryCode: z.string().default("+91"),
-      name: z.string().min(1),
-      email: z.string().email().optional(),
-      password: z.string().min(8),
-      acceptedTerms: z.literal(true),
-      referralCode: z
-        .string()
-        .optional()
-        .transform((v) => (typeof v === "string" ? v.trim() : v))
-        .transform((v) => (v ? v : undefined)),
-      fullName: z.string().min(1),
-    });
-
     try {
-      const body = schema.parse(req.body);
+      const body = authValidation.register.parse(req.body);
       await connectToDatabase();
 
       // Check if mobile already exists
       const existingMobile = await UserModel.findOne({ mobile: body.mobile }).select("_id");
-      if (existingMobile) return res.status(409).json({ error: "Mobile number already in use" });
+      if (existingMobile) return sendValidationError(res, VALIDATION_MESSAGES.MOBILE_EXISTS, 409);
 
       // Check if email already exists (if provided)
       if (body.email) {
         const existingEmail = await UserModel.findOne({ email: body.email.toLowerCase() }).select("_id");
-        if (existingEmail) return res.status(409).json({ error: "Email already in use" });
+        if (existingEmail) return sendValidationError(res, VALIDATION_MESSAGES.EMAIL_EXISTS, 409);
       }
 
       let parentId: mongoose.Types.ObjectId | null = null;
@@ -144,7 +141,7 @@ export function registerRoutes(app: Express) {
 
       if (body.referralCode) {
         const sponsor = await UserModel.findOne({ referralCode: body.referralCode }).select("_id");
-        if (!sponsor) return res.status(400).json({ error: "Invalid referral code" });
+        if (!sponsor) return sendValidationError(res, "Invalid referral code");
 
         const placement = await findBinaryPlacement({ sponsorId: sponsor._id });
         parentId = placement.parentId;
@@ -181,8 +178,7 @@ export function registerRoutes(app: Express) {
         }, 0);
       }
 
-      return res.status(201).json({ 
-        message: "Registration successful",
+      return sendSuccessResponse(res, {
         user: {
           _id: user._id,
           mobile: user.mobile,
@@ -192,66 +188,59 @@ export function registerRoutes(app: Express) {
           isVerified: user.isVerified,
           referralCode: user.referralCode,
         }
-      });
+      }, "Registration successful");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      return res.status(400).json({ error: msg });
+      if (err instanceof z.ZodError) {
+        return sendValidationError(res, formatZodError(err));
+      }
+      const msg = err instanceof Error ? err.message : VALIDATION_MESSAGES.SERVER_ERROR;
+      return sendValidationError(res, msg);
     }
   });
 
   // Login
-
   app.post("/api/auth/login", async (req, res) => {
-    const schema = z.object({ email: z.string().email(), password: z.string().min(1) });
-
     try {
-      const body = schema.parse(req.body);
+      const body = authValidation.login.parse(req.body);
       await connectToDatabase();
 
-      const user = await UserModel.findOne({ email: body.email.toLowerCase() });
+      const user = await UserModel.findOne({ mobile: body.mobile });
       if (!user) {
         await verifyPassword(body.password, DUMMY_PASSWORD_HASH);
-        return res.status(401).json({ error: "Invalid credentials" });
+        return sendValidationError(res, "Invalid mobile number or password", 401);
       }
 
-      // Check account status before verifying password
-      if (user.status === "deleted") {
-        return res.status(403).json({ error: "Account has been deleted" });
-      }
-      if (user.status === "suspended") {
-        return res.status(403).json({ error: "Account has been suspended by administrator" });
-      }
-      if (user.sessionExpiresAt && new Date(user.sessionExpiresAt) < new Date()) {
-        return res.status(403).json({ error: "Account session has expired" });
-      }
+      const isValidPassword = await verifyPassword(body.password, user.passwordHash);
+      if (!isValidPassword) return sendValidationError(res, "Invalid mobile number or password", 401);
 
-      const ok = await verifyPassword(body.password, user.passwordHash);
-      if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+      if (user.status === "deleted") return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_DELETED, 403);
+      if (user.status === "suspended") return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_SUSPENDED, 403);
 
-      // Update user activity status to active on successful login
-      await UserModel.findByIdAndUpdate(user._id, { 
-        activityStatus: "active",
-        lastLoginAt: new Date()
-      });
-
-      const token = await signAuthToken({ sub: user._id.toString(), role: user.role, ...(user.email && { email: user.email }) });
+      const token = await signAuthToken({ sub: user._id.toString(), role: user.role, email: user.email || undefined });
       setAuthCookie(res, token);
 
-      return res.json({
-        token,
+      await UserModel.findByIdAndUpdate(user._id, { 
+        lastLoginAt: new Date(),
+        activityStatus: "active"
+      });
+
+      return sendSuccessResponse(res, {
         user: {
-          id: user._id.toString(),
+          _id: user._id,
+          mobile: user.mobile,
           name: user.name,
-          fullName: user.fullName,
           email: user.email,
           role: user.role,
+          isVerified: user.isVerified,
           referralCode: user.referralCode,
-          parentUserId: user.parent?.toString() ?? null,
-        },
-      });
+        }
+      }, "Login successful");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      return res.status(400).json({ error: msg });
+      if (err instanceof z.ZodError) {
+        return sendValidationError(res, formatZodError(err));
+      }
+      const msg = err instanceof Error ? err.message : VALIDATION_MESSAGES.SERVER_ERROR;
+      return sendValidationError(res, msg);
     }
   });
 
@@ -362,14 +351,9 @@ export function registerRoutes(app: Express) {
 
   // Profile Management - Update Basic Info (Signup fields)
   app.put("/api/profile/basic", async (req, res) => {
-    const schema = z.object({
-      name: z.string().min(1).optional(),
-      email: z.string().email().optional(),
-    }).refine((v) => Object.keys(v).length > 0, "No fields to update");
-
     try {
       const ctx = await requireAuth(req);
-      const body = schema.parse(req.body);
+      const body = authValidation.updateProfile.parse(req.body);
       await connectToDatabase();
 
       // Check if email already exists (if updating email)
@@ -378,33 +362,32 @@ export function registerRoutes(app: Express) {
           email: body.email.toLowerCase(),
           _id: { $ne: ctx.userId }
         }).select("_id");
-        if (existingEmail) return res.status(409).json({ error: "Email already in use" });
+        if (existingEmail) return sendValidationError(res, VALIDATION_MESSAGES.EMAIL_EXISTS, 409);
       }
-
-      const updateData: any = {};
-      if (body.name) updateData.name = body.name;
-      if (body.email) updateData.email = body.email.toLowerCase();
 
       const user = await UserModel.findByIdAndUpdate(
         ctx.userId, 
-        updateData, 
+        body, 
         { new: true }
       );
 
-      if (!user) return res.status(404).json({ error: "User not found" });
+      if (!user) return sendValidationError(res, "User not found", 404);
 
-      return res.json({ 
-        message: "Basic profile updated successfully",
+      return sendSuccessResponse(res, {
         user: {
           id: user._id.toString(),
           name: user.name,
           email: user.email,
+          mobile: user.mobile,
         }
-      });
+      }, "Profile updated successfully");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      const status = msg === "Unauthorized" ? 401 : 400;
-      return res.status(status).json({ error: msg });
+      if (err instanceof z.ZodError) {
+        return sendValidationError(res, formatZodError(err));
+      }
+      const msg = err instanceof Error ? err.message : VALIDATION_MESSAGES.SERVER_ERROR;
+      const status = msg === VALIDATION_MESSAGES.UNAUTHORIZED ? 401 : 400;
+      return sendValidationError(res, msg, status);
     }
   });
 
@@ -483,71 +466,126 @@ export function registerRoutes(app: Express) {
     }
   });
 
-  // Profile Image Upload
-  app.post("/api/upload/profile-image", upload.single("image"), async (req, res) => {
+  // Profile Image Upload (Database Storage)
+  app.post("/api/upload/profile-image", async (req, res) => {
     try {
-      console.log('Profile image upload request received');
-      console.log('Request headers:', req.headers);
-      console.log('Request body:', req.body);
-      
       const ctx = await requireAuth(req);
       await connectToDatabase();
 
-      console.log('User authenticated:', ctx.userId);
-
-      if (!req.file) {
-        console.log('No file provided in request. Files:', req.files);
-        return res.status(400).json({ error: "No image provided" });
-      }
-
-      console.log('File received:', {
-        filename: req.file.filename,
-        originalname: req.file.originalname,
-        size: req.file.size,
-        mimetype: req.file.mimetype,
-        path: req.file.path
+      // Import multer for file processing
+      const multer = require('multer');
+      
+      // Configure multer to use memory storage (no file system)
+      const storage = multer.memoryStorage();
+      const upload = multer({
+        storage,
+        limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+        fileFilter: (req: any, file: Express.Multer.File, cb: any) => {
+          if (!file.mimetype.startsWith("image/")) {
+            return cb(new Error("Only image files are allowed"));
+          }
+          cb(null, true);
+        }
       });
 
-      // Get the file URL
-      const imageUrl = getFileUrl(req.file.filename);
-      console.log('Generated image URL:', imageUrl);
+      // Process the upload
+      upload.single("image")(req, res, async (err: any) => {
+        if (err) {
+          return res.status(400).json({ error: err.message });
+        }
 
-      // Update user's profileImage field
+        if (!req.file) {
+          return res.status(400).json({ error: "No image provided" });
+        }
+
+        try {
+          // Import image storage utilities
+          const { storeImageInDatabase } = await import("./lib/imageStorage");
+          
+          // Store image in database as base64
+          const imageDataUrl = await storeImageInDatabase(req.file.buffer, req.file.mimetype);
+
+          // Update user's profileImage field with base64 data
+          const user = await UserModel.findByIdAndUpdate(
+            ctx.userId,
+            { profileImage: imageDataUrl },
+            { new: true }
+          );
+
+          if (!user) {
+            return res.status(404).json({ error: "User not found" });
+          }
+
+          return res.json({ 
+            message: "Profile image uploaded successfully",
+            imageUrl: user.profileImage,
+            success: true
+          });
+        } catch (storageError: any) {
+          return res.status(400).json({ error: storageError.message });
+        }
+      });
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Unauthorized" ? 401 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  // Clear Profile Image (for fixing corrupted images)
+  app.post("/api/profile/clear-image", async (req, res) => {
+    try {
+      const ctx = await requireAuth(req);
+      await connectToDatabase();
+
+      // Clear the profile image
       const user = await UserModel.findByIdAndUpdate(
         ctx.userId,
-        { profileImage: imageUrl },
+        { $unset: { profileImage: "" } },
         { new: true }
       );
 
       if (!user) {
-        console.log('User not found:', ctx.userId);
         return res.status(404).json({ error: "User not found" });
       }
 
-      console.log('Profile image updated successfully for user:', ctx.userId, 'Image URL:', user.profileImage);
-
       return res.json({ 
-        message: "Profile image uploaded successfully",
-        imageUrl: user.profileImage,
+        message: "Profile image cleared successfully",
         success: true
       });
     } catch (err: unknown) {
-      console.error('Profile image upload error:', err);
-      
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Unauthorized" ? 401 : 400;
-      
-      // Ensure we always return JSON
-      return res.status(status).json({ error: msg, success: false });
+      return res.status(status).json({ error: msg });
     }
   });
 
   // Public services
   app.get("/api/services", async (_req, res) => {
     try {
-      await connectToDatabase();
-      const services = await ServiceModel.find({ status: "active" }).sort({ createdAt: -1 }).lean();
+      await connectToDatabase();     // test code 
+
+     console.log("MONGO URI:", process.env.MONGODB_URI || process.env.MONGO_URI);
+    console.log("Connected DB:", mongoose.connection.name);
+    console.log("Connected host:", mongoose.connection.host, "port:", mongoose.connection.port);
+    console.log("Service collection name:", ServiceModel.collection.name);
+
+    const total = await ServiceModel.countDocuments({});
+    const active = await ServiceModel.countDocuments({ status: "active" });
+    console.log("count total:", total, "count active:", active);
+
+    const sampleAny = await ServiceModel.findOne({}).lean();
+    console.log("sample doc:", sampleAny);
+
+    const services = await ServiceModel.find({ status: "active" }).sort({ createdAt: -1 }).lean();
+    console.log("services Object:", services);
+
+      //
+      // const services = await ServiceModel.find({ status: "active" }).sort({ createdAt: -1 }).lean();
       
+      console.log("services Object: ", services);
+
       // Ensure all services have required fields for frontend compatibility
       const processedServices = services.map(service => ({
         _id: service._id?.toString() || '',
@@ -1306,7 +1344,7 @@ This message has been saved to the database with ID: ${contact._id}`,
             html: adminEmailContent.html
           });
         } catch (emailError) {
-          console.error("Failed to send contact notification email:", emailError);
+          // Email error logged without exposing sensitive data
         }
       }, 0);
 
@@ -1390,18 +1428,13 @@ This message has been saved to the database with ID: ${contact._id}`,
   // Admin routes for slider management
   app.get("/api/admin/sliders", async (req: Request, res: Response) => {
     try {
-      console.log("GET /api/admin/sliders - Starting request");
       await requireRole(req, "admin");
-      console.log("GET /api/admin/sliders - Auth passed");
       await connectToDatabase();
-      console.log("GET /api/admin/sliders - DB connected");
       const sliders = await Slider.find()
         .sort({ order: 1 })
         .lean();
-      console.log("GET /api/admin/sliders - Found sliders:", sliders.length);
       return res.json({ sliders });
     } catch (err: unknown) {
-      console.error("GET /api/admin/sliders - Error:", err);
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 500;
       return res.status(status).json({ error: msg });
@@ -1443,29 +1476,26 @@ This message has been saved to the database with ID: ${contact._id}`,
   // Batch update slider orders
   app.put("/api/admin/sliders/reorder", async (req: Request, res: Response) => {
     try {
-      console.log('Reorder request received:', req.body);
       await requireRole(req, "admin");
       const reorderSchema = z.object({
         sliders: z.array(z.object({
-          id: z.string(),
+          id: z.string().min(1),
           order: z.number().int().min(0)
         }))
       });
       const body = reorderSchema.parse(req.body);
-      console.log('Parsed body:', body);
       await connectToDatabase();
 
       const bulkOps = body.sliders.map(({ id, order }) => ({
         updateOne: {
           filter: { _id: id },
-          update: { $set: { order } }
+          update: { order }
         }
       }));
 
       await Slider.bulkWrite(bulkOps);
       return res.json({ message: "Sliders reordered successfully" });
     } catch (err: unknown) {
-      console.error('Reorder error:', err);
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;
       return res.status(status).json({ error: msg });
@@ -1813,6 +1843,25 @@ This message has been saved to the database with ID: ${contact._id}`,
       if (!user) return res.status(404).json({ error: "User not found" });
 
       return res.json({ message: "User deleted successfully" });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.get("/api/admin/users/:id", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+
+      const user = await UserModel.findById(req.params.id)
+        .select("-passwordHash")
+        .populate("parent", "name email mobile");
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      return res.json(user);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;

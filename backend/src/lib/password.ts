@@ -1,9 +1,9 @@
 import bcrypt from "bcryptjs";
 
 export async function hashPassword(plainText: string) {
-  // Reduced cost factor for better performance while maintaining security
-  // 10 is a good balance between security and speed for most applications
-  const salt = await bcrypt.genSalt(10);
+  // Increased cost factor for better security
+  // 12 provides strong protection against brute-force attacks while maintaining reasonable performance
+  const salt = await bcrypt.genSalt(12);
   return bcrypt.hash(plainText, salt);
 }
 
