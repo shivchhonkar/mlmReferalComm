@@ -2,10 +2,20 @@
   "name": "mlmReferalComm-root",
   "private": true,
   "scripts": {
-    "start-root": "node server.mjs",
-    "dev": "concurrently -n backend,root -c \"green,blue\" \"npm --prefix backend run dev\" \"npm run start-root\"",
-    "build": "npm --prefix frontend run build && npm --prefix backend run build",
-    "start": "node server.mjs"
+    "dev:frontend": "node server.mjs",
+    "dev:backend": "npm --prefix backend run dev",
+
+    "start": "concurrently -n BACKEND,FRONTEND -c green,cyan \"npm run dev:backend\" \"npm run dev:frontend\"",
+
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+
+    "build": "npm run build:frontend && npm run build:backend",
+
+    "prod:backend": "npm --prefix backend run start",
+    "prod:frontend": "NODE_ENV=production node server.mjs",
+
+    "prod": "concurrently -n BACKEND,FRONTEND -c green,cyan \"npm run prod:backend\" \"npm run prod:frontend\""
   },
   "dependencies": {
     "express": "^4.19.2",
@@ -15,8 +25,8 @@
     "react-dom": "^19.2.3"
   },
   "devDependencies": {
-    "concurrently": "^9.0.0",
     "@types/react": "^19.2.9",
-    "@types/react-dom": "^19.2.3"
+    "@types/react-dom": "^19.2.3",
+    "concurrently": "^9.2.1"
   }
 }
