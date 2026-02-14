@@ -30,6 +30,7 @@ async function main() {
   const mobile = process.env.ADMIN_MOBILE;
   const fullName = process.env.ADMIN_NAME;
   const password = process.env.ADMIN_PASS || '';
+  const role = 'super_admin';
 
   const existing = await UserModel.findOne({
     role: { $in: ["super_admin", "admin"] },
@@ -56,7 +57,7 @@ async function main() {
         fullName,
         name: fullName,
         passwordHash,
-        role: "super_admin",
+        role: role,
         isVerified: true,
         isBlocked: false,
         status: "active",
