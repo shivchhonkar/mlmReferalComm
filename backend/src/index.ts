@@ -23,7 +23,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 const port = Number(process.env.PORT ?? 4000);
-const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:4001";
+const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:4001, https://sambhariyamarketing.com, https://www.sambhariyamarketing.com, http://sambhariyamarketing.com, http://www.sambhariyamarketing.com";
 
 // Security middleware
 app.use(helmet({
