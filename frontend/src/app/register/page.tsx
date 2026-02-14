@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
-import { Gift, ArrowLeft, UserPlus, User, Mail, LockKeyhole, Ticket } from "lucide-react";
+import { Gift, ArrowLeft, UserPlus, User, Mail, LockKeyhole, Ticket, Phone } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
 
@@ -15,6 +15,9 @@ export default function RegisterPage() {
   const dispatch = useAppDispatch();
 
   const [name, setName] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [countryCode, setCountryCode] = useState("+91");
+  const [mobile, setMobile] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
@@ -29,15 +32,78 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
+      // Validate fields before checking existence
+      if (!mobile.trim()) {
+        throw new Error("Please enter your mobile number");
+      }
+      if (!email.trim()) {
+        throw new Error("Please enter your email address");
+      }
+      if (!name.trim()) {
+        throw new Error("Please enter your name");
+      }
+      if (!fullName.trim()) {
+        throw new Error("Please enter your full name");
+      }
+      if (password.length < 8) {
+        throw new Error("Password must be at least 8 characters long");
+      }
+      if (!acceptedTerms) {
+        throw new Error("Please accept the terms and conditions");
+      }
+
+      // Check if mobile already exists
+      const checkMobileRes = await apiFetch("/api/auth/check-exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrPhone: mobile.trim() }),
+      });
+
+      const checkMobileBody = await readApiBody(checkMobileRes);
+      const checkMobileData = checkMobileBody.json as any;
+
+      if (checkMobileRes.ok && checkMobileData.exists) {
+        throw new Error(`The mobile number ${mobile} is already registered. Please use a different number or login to your existing account.`);
+      }
+
+      // Check if email already exists
+      const checkEmailRes = await apiFetch("/api/auth/check-exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrPhone: email.trim() }),
+      });
+
+      const checkEmailBody = await readApiBody(checkEmailRes);
+      const checkEmailData = checkEmailBody.json as any;
+
+      if (checkEmailRes.ok && checkEmailData.exists) {
+        throw new Error(`The email address ${email} is already registered. Please use a different email or login to your existing account.`);
+      }
+
+      // Proceed with registration
       const res = await apiFetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, referralCode, acceptedTerms }),
+        body: JSON.stringify({ 
+          name, 
+          fullName, 
+          mobile, 
+          email: email.trim(), 
+          password, 
+          referralCode, 
+          acceptedTerms,
+          countryCode
+        }),
       });
 
       const body = await readApiBody(res);
-      const data = body.json as { error?: string } | null;
-      if (!res.ok) throw new Error(data?.error ?? body.text ?? "Registration failed");
+      const data = body.json as { error?: string; message?: string } | null;
+      
+      if (!res.ok) {
+        // Extract user-friendly error message
+        const errorMsg = data?.error || data?.message || body.text || "Registration failed. Please check your information and try again.";
+        throw new Error(errorMsg);
+      }
 
       // Give browser a beat to persist the cookie (if your backend sets cookie)
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -130,7 +196,7 @@ export default function RegisterPage() {
                 {/* Name */}
                 <div className="space-y-2">
                   <label htmlFor="name" className="block text-sm font-bold text-[var(--gray-800)]">
-                    Full Name
+                    Name
                   </label>
                   <div className="relative">
                     <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--gray-500)]" />
@@ -143,6 +209,71 @@ export default function RegisterPage() {
                       placeholder="Enter your name"
                       className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
+                  </div>
+                </div>
+
+                {/* Full Name */}
+                <div className="space-y-2">
+                  <label htmlFor="fullName" className="block text-sm font-bold text-[var(--gray-800)]">
+                    Full Name (as per documents)
+                  </label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--gray-500)]" />
+                    <input
+                      id="fullName"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      required
+                      autoComplete="name"
+                      placeholder="Enter your full legal name"
+                      className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                    />
+                  </div>
+                </div>
+
+                {/* Mobile */}
+                <div className="space-y-2">
+                  <label htmlFor="mobile" className="block text-sm font-bold text-[var(--gray-800)]">
+                    Mobile Number
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative w-32">
+                      <Phone className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--gray-500)]" />
+                      <select
+                        value={countryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
+                        className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-2 py-3 text-sm text-[var(--gray-900)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition appearance-none"
+                      >
+                        <option value="+1">+1 (US)</option>
+                        <option value="+44">+44 (UK)</option>
+                        <option value="+91">+91 (IN)</option>
+                        <option value="+86">+86 (CN)</option>
+                        <option value="+81">+81 (JP)</option>
+                        <option value="+82">+82 (KR)</option>
+                        <option value="+65">+65 (SG)</option>
+                        <option value="+971">+971 (AE)</option>
+                        <option value="+61">+61 (AU)</option>
+                        <option value="+49">+49 (DE)</option>
+                        <option value="+33">+33 (FR)</option>
+                        <option value="+92">+92 (PK)</option>
+                        <option value="+880">+880 (BD)</option>
+                        <option value="+94">+94 (LK)</option>
+                        <option value="+977">+977 (NP)</option>
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <input
+                        id="mobile"
+                        value={mobile}
+                        onChange={(e) => setMobile(e.target.value)}
+                        type="tel"
+                        autoComplete="tel"
+                        required
+                        placeholder="Enter your mobile number"
+                        pattern="[0-9]{10,15}"
+                        className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                      />
+                    </div>
                   </div>
                 </div>
 

@@ -57,11 +57,12 @@ export default function ContactPage() {
         });
       }
     } catch (error) {
+      console.error('Contact form submission error:', error);
       setToast({ type: "error", message: "Network error. Please try again." });
     } finally {
       setIsSubmitting(false);
       // auto-hide toast
-      window.setTimeout(() => setToast(null), 4500);
+      globalThis.setTimeout(() => setToast(null), 4500);
     }
   };
 
@@ -99,7 +100,7 @@ export default function ContactPage() {
                 Email us
               </a>
               <a
-                href={`tel:${contact.phone.replace(/\s/g, "")}`}
+                href={`tel:${contact.phone.replaceAll(/\s/g, "")}`}
                 className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:shadow-md transition"
                 style={{ background: "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)" }}
               >
@@ -115,13 +116,12 @@ export default function ContactPage() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
         {/* Toast */}
         {toast && (
-          <div
+          <output
             className={`mb-6 rounded-2xl border px-4 py-3 shadow-sm flex items-start gap-3 ${
               toast.type === "success"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-900"
                 : "bg-red-50 border-red-200 text-red-900"
             }`}
-            role="status"
             aria-live="polite"
           >
             {toast.type === "success" ? (
@@ -130,7 +130,7 @@ export default function ContactPage() {
               <AlertTriangle className="h-5 w-5 mt-0.5" />
             )}
             <div className="text-sm font-semibold">{toast.message}</div>
-          </div>
+          </output>
         )}
 
         <div className="grid gap-8 lg:grid-cols-12">
@@ -257,7 +257,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-[var(--gray-900)]">Phone</div>
-                    <a className="text-sm text-[var(--gray-800)] hover:text-[var(--primary)] transition" href={`tel:${contact.phone.replace(/\s/g, "")}`}>
+                    <a className="text-sm text-[var(--gray-800)] hover:text-[var(--primary)] transition" href={`tel:${contact.phone.replaceAll(/\s/g, "")}`}>
                       {contact.phone}
                     </a>
                   </div>
@@ -296,7 +296,7 @@ export default function ContactPage() {
                 For urgent queries, call us during business hours.
               </p>
               <a
-                href={`tel:${contact.phone.replace(/\s/g, "")}`}
+                href={`tel:${contact.phone.replaceAll(/\s/g, "")}`}
                 className="mt-5 inline-flex items-center justify-center rounded-xl bg-white/15 border border-white/25 px-4 py-2.5 text-sm font-bold hover:bg-white/20 transition"
               >
                 {contact.phone}

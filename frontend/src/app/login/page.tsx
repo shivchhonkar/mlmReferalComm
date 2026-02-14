@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAppDispatch } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
-import { ArrowLeft, LockKeyhole, Mail, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, LockKeyhole, User, Eye, EyeOff } from "lucide-react";
 
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
 
@@ -14,7 +14,7 @@ export default function LoginPage() {
   const router = useRouter();
   const dispatch = useAppDispatch();
 
-  const [email, setEmail] = useState("");
+  const [emailOrPhone, setEmailOrPhone] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -26,15 +26,44 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      // Validate input
+      if (!emailOrPhone.trim()) {
+        throw new Error("Please enter your email address or phone number");
+      }
+      if (!password) {
+        throw new Error("Please enter your password");
+      }
+
+      // First check if user exists
+      const checkRes = await apiFetch("/api/auth/check-exists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrPhone: emailOrPhone.trim() }),
+      });
+
+      const checkBody = await readApiBody(checkRes);
+      const checkData = checkBody.json as any;
+
+      if (checkRes.ok && !checkData.exists) {
+        const isEmail = emailOrPhone.includes('@');
+        throw new Error(`No account found with this ${isEmail ? 'email address' : 'phone number'}. Please check your details or register for a new account.`);
+      }
+
+      // Proceed with login
       const res = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mobile:email, password }),
+        body: JSON.stringify({ emailOrPhone: emailOrPhone.trim(), password }),
       });
 
       const body = await readApiBody(res);
-      const data = body.json as any;
-      if (!res.ok) throw new Error(data?.error ?? body.text ?? "Login failed");
+      const data = body.json as { error?: string; message?: string } | null;
+      
+      if (!res.ok) {
+        // Extract user-friendly error message
+        const errorMsg = data?.error || data?.message || body.text || "Login failed. Please check your credentials and try again.";
+        throw new Error(errorMsg);
+      }
 
       // Give browser a beat to persist the cookie
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -112,21 +141,21 @@ export default function LoginPage() {
 
               {/* Form */}
               <form className="mt-6 space-y-4" onSubmit={onSubmit}>
-                {/* Email */}
+                {/* Email or Phone */}
                 <div className="space-y-2">
-                  <label htmlFor="email" className="block text-sm font-bold text-[var(--gray-800)]">
-                    Mobile
+                  <label htmlFor="emailOrPhone" className="block text-sm font-bold text-[var(--gray-800)]">
+                    Email or Phone Number
                   </label>
 
                   <div className="relative">
-                    <Mail className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--gray-500)]" />
+                    <User className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-[var(--gray-500)]" />
                     <input
-                      id="mobile"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      type="mobile"
-                      autoComplete="email"
-                      placeholder="enter mobile"
+                      id="emailOrPhone"
+                      value={emailOrPhone}
+                      onChange={(e) => setEmailOrPhone(e.target.value)}
+                      type="text"
+                      autoComplete="username"
+                      placeholder="Enter email or phone number"
                       required
                       className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-4 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
