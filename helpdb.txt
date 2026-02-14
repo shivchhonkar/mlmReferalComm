@@ -1,0 +1,24 @@
+to create admin user 
+
+root@srv803060:~/projects/mlmReferalComm/backend# npx ts-node scripts/create-super-admin.ts
+
+show all users:->
+>mongosh
+select db -- 
+> use sambhariyamarketing
+list collections
+> show collections
+
+
+See users :
+db.users.find().pretty()
+
+delete user:
+db.users.deleteOne({ email: "shiv@gmail.com" })
+db.users.deleteOne({ role: "super_admin" })
+db.users.deleteOne({ _id: ObjectId("USER_ID_HERE") })
+
+
+
+
+
