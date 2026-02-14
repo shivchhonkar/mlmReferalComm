@@ -8,6 +8,8 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import type { NextFunction, Request, Response } from "express";
+import "module-alias/register";
+
 
 const backendEnvPath = path.resolve(__dirname, "../.env");
 const repoRootEnvPath = path.resolve(__dirname, "../../.env");
