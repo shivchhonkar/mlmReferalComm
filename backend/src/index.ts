@@ -7,6 +7,8 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
+import "module-alias/register"
+
 import type { NextFunction, Request, Response } from "express";
 
 const backendEnvPath = path.resolve(__dirname, "../.env");
