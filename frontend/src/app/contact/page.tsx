@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Mail, Phone, Clock, MapPin, Send, CheckCircle2, AlertTriangle } from "lucide-react";
 import { apiFetch } from "@/lib/apiClient";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -13,7 +14,6 @@ export default function ContactPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   const contact = useMemo(
     () => ({
@@ -36,7 +36,6 @@ export default function ContactPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setToast(null);
     setIsSubmitting(true);
 
     try {
@@ -47,22 +46,17 @@ export default function ContactPage() {
       });
 
       if (response.ok) {
-        setToast({ type: "success", message: "Thanks! Your message has been sent successfully." });
+        showSuccessToast("Thanks! Your message has been sent successfully.");
         resetForm();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        setToast({
-          type: "error",
-          message: errorData?.error || "Failed to send message. Please try again.",
-        });
+        showErrorToast(errorData?.error || "Failed to send message. Please try again.");
       }
     } catch (error) {
       console.error('Contact form submission error:', error);
-      setToast({ type: "error", message: "Network error. Please try again." });
+      showErrorToast("Network error. Please try again.");
     } finally {
       setIsSubmitting(false);
-      // auto-hide toast
-      globalThis.setTimeout(() => setToast(null), 4500);
     }
   };
 
@@ -114,25 +108,6 @@ export default function ContactPage() {
 
       {/* Body */}
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-10">
-        {/* Toast */}
-        {toast && (
-          <output
-            className={`mb-6 rounded-2xl border px-4 py-3 shadow-sm flex items-start gap-3 ${
-              toast.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                : "bg-red-50 border-red-200 text-red-900"
-            }`}
-            aria-live="polite"
-          >
-            {toast.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5 mt-0.5" />
-            ) : (
-              <AlertTriangle className="h-5 w-5 mt-0.5" />
-            )}
-            <div className="text-sm font-semibold">{toast.message}</div>
-          </output>
-        )}
-
         <div className="grid gap-8 lg:grid-cols-12">
           {/* Form */}
           <div className="lg:col-span-7">

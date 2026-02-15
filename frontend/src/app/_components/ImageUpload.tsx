@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
+import { showErrorToast } from "@/lib/toast";
 
 interface ImageUploadProps {
   onImageSelect: (imageUrl: string) => void;
@@ -41,7 +42,7 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
     const imageFiles = files.filter(file => file.type.startsWith('image/'));
     
     if (imageFiles.length === 0) {
-      alert('Please select image files only');
+      showErrorToast('Please select image files only');
       return;
     }
 
@@ -49,7 +50,7 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
     
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
-      alert('Image size should be less than 5MB');
+      showErrorToast('Image size should be less than 5MB');
       return;
     }
 
@@ -62,7 +63,7 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
       onImageSelect(compressedImage);
     } catch (error) {
       console.error('Error processing image:', error);
-      alert('Failed to process image');
+      showErrorToast('Failed to process image');
     } finally {
       setIsUploading(false);
     }

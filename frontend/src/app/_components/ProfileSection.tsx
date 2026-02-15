@@ -17,6 +17,7 @@ import {
 import { useAppSelector, useAppDispatch } from "@/store/hooks";
 import { clearUserProfile } from "@/store/slices/userSlice";
 import { apiFetch } from "@/lib/apiClient";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 type AnyUser = {
   name?: string | null;
@@ -137,8 +138,10 @@ export default function ProfileSection() {
   const handleLogout = async () => {
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
+      showSuccessToast("Logged out successfully");
     } catch (error) {
       console.error("Logout error:", error);
+      showErrorToast("Failed to logout. Please try again.");
     } finally {
       dispatch(clearUserProfile());
       if (typeof window !== "undefined") {

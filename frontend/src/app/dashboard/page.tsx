@@ -18,12 +18,13 @@ import {
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem } from "@/store/slices/cartSlice";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 type MeResponse = {
   user: {
     id: string;
     email: string;
-    role: "admin" | "user";
+    role: "super_admin" | "admin" | "moderator" | "user";
     referralCode: string;
     parent: string | null;
   };
@@ -101,7 +102,10 @@ export default function DashboardPage() {
     setBusy(true);
     try {
       await apiFetch("/api/auth/logout", { method: "POST" });
+      showSuccessToast("Logged out successfully");
       window.location.href = "/login";
+    } catch (error) {
+      showErrorToast("Failed to logout. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -122,9 +126,12 @@ export default function DashboardPage() {
       const json = body.json as any;
       if (!res.ok) throw new Error(json?.error ?? body.text ?? "Purchase failed");
 
+      showSuccessToast("Service purchased successfully!");
       await loadAll();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
+      showErrorToast(errorMsg);
     } finally {
       setBusy(false);
     }
@@ -187,7 +194,9 @@ export default function DashboardPage() {
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 text-white">
                 <BarChart3 className="h-4 w-4" />
               </span>
-              <span className="text-sm font-semibold text-zinc-800">Admin / User Dashboard</span>
+              <span className="text-sm font-semibold text-zinc-800">
+                {["super_admin", "admin", "moderator"].includes(me?.role || "") ? "Admin Dashboard" : "User Dashboard"}
+              </span>
             </div>
 
             <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
@@ -205,14 +214,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-wrap gap-3">
-            {me?.role === "admin" ? (
+            {["super_admin", "admin", "moderator"].includes(me?.role || "") ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50"
                 prefetch={false}
-                href="/admin/services"
+                href="/admin"
               >
                 <Settings2 className="h-4 w-4" />
-                Manage Services
+                Admin Panel
               </Link>
             ) : null}
 

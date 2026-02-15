@@ -1,3 +1,5 @@
+import { showErrorToast } from './toast';
+
 const rawBase = process.env.NEXT_PUBLIC_API_BASE_URL;
 const useProxy = process.env.NEXT_PUBLIC_API_PROXY !== "false";
 
@@ -45,3 +47,44 @@ export async function readApiBody(res: Response): Promise<{ json?: unknown; text
 
   return { text };
 }
+
+// Enhanced API fetch with automatic error handling and toast notifications
+interface ApiFetchWithToastOptions extends RequestInit {
+  skipErrorToast?: boolean; // Set to true to skip automatic error toast
+  customErrorMessage?: string; // Override default error message
+}
+
+export async function apiFetchWithToast(
+  input: string,
+  options: ApiFetchWithToastOptions = {}
+): Promise<Response> {
+  const { skipErrorToast, customErrorMessage, ...init } = options;
+
+  try {
+    const response = await apiFetch(input, init);
+
+    // If response is not OK and we should show toast, handle error
+    if (!response.ok && !skipErrorToast) {
+      const body = await readApiBody(response.clone());
+      const data = body.json as any;
+      
+      const errorMessage = customErrorMessage || 
+        data?.error || 
+        data?.message || 
+        body.text || 
+        `Request failed with status ${response.status}`;
+
+      showErrorToast(errorMessage);
+    }
+
+    return response;
+  } catch (error) {
+    // Handle network errors
+    if (!skipErrorToast) {
+      const errorMessage = customErrorMessage || "Server not responding. Please check your connection.";
+      showErrorToast(errorMessage);
+    }
+    throw error;
+  }
+}
+

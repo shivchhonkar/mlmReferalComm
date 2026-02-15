@@ -3,16 +3,15 @@
 import { useState } from "react";
 import { apiFetch } from "@/lib/apiClient";
 import { CheckCircle2, AlertTriangle, Mail, Send } from "lucide-react";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 export default function BusinessOpportunityForm() {
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<{ type: "success" | "error"; message: string } | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
-    setResult(null);
 
     try {
       const res = await apiFetch("/api/business-opportunity/request", {
@@ -24,22 +23,17 @@ export default function BusinessOpportunityForm() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error ?? "Request failed");
 
-      setResult({
-        type: "success",
-        message: json.emailed
-          ? "Sent! Please check your inbox."
-          : "Saved! Email sending is not configured yet on this server.",
-      });
-
+      const successMsg = json.emailed
+        ? "Sent! Please check your inbox."
+        : "Saved! Email sending is not configured yet on this server.";
+      
+      showSuccessToast(successMsg);
       setEmail("");
     } catch (err: unknown) {
-      setResult({
-        type: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      showErrorToast(errorMsg);
     } finally {
       setBusy(false);
-      window.setTimeout(() => setResult(null), 4500);
     }
   }
 
@@ -86,25 +80,6 @@ export default function BusinessOpportunityForm() {
             {busy ? "Sending..." : "Send Details"}
           </button>
         </div>
-
-        {result && (
-          <div
-            className={`rounded-2xl border px-4 py-3 shadow-sm flex items-start gap-3 ${
-              result.type === "success"
-                ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                : "bg-red-50 border-red-200 text-red-900"
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            {result.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5 mt-0.5" />
-            ) : (
-              <AlertTriangle className="h-5 w-5 mt-0.5" />
-            )}
-            <div className="text-sm font-semibold">{result.message}</div>
-          </div>
-        )}
 
         <p className="text-xs text-[var(--gray-600)]">
           We respect your privacy. You can unsubscribe anytime.

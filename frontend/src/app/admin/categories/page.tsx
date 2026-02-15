@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { FolderOpen, Plus, Trash2, Search, ChevronDown, ChevronUp, RefreshCw, AlertCircle } from "lucide-react";
 import AdminCategoryUpload from "./AdminCategoryUpload";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface Category {
   _id: string;
@@ -185,9 +186,12 @@ export default function CategoriesPage() {
       const response = await fetch(`/api/admin/categories/${categoryId}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Failed to delete category");
 
+      showSuccessToast("Category deleted successfully");
       await refreshAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
     }
   };
 
@@ -199,6 +203,7 @@ export default function CategoriesPage() {
       const response = await fetch(`/api/admin/subcategories/${subcategoryId}`, { method: "DELETE" });
       if (!response.ok) throw new Error("Failed to delete subcategory");
 
+      showSuccessToast("Subcategory deleted successfully");
       await refreshAll();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");

@@ -1,6 +1,7 @@
 {
   "name": "mlmReferalComm-root",
   "private": true,
+  "version": "1.1",
   "scripts": {
     "dev:frontend": "node server.mjs",
     "dev:backend": "npm --prefix backend run dev",

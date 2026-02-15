@@ -6,6 +6,7 @@ import { Package, ShoppingCart, ShieldCheck, Sparkles } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearCart, removeItem, updateQty } from "@/store/slices/cartSlice";
+import { showInfoToast } from "@/lib/toast";
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
 
 export default function CartPage() {
@@ -232,7 +233,7 @@ export default function CartPage() {
                   type="button"
                   onClick={() => {
                     // Placeholder: integrate checkout / payment later
-                    alert("Checkout coming soon! We'll notify you when payment processing is live.");
+                    showInfoToast("Checkout coming soon! We'll notify you when payment processing is live.");
                   }}
                 >
                   Proceed to Checkout

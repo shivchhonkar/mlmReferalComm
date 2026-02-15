@@ -7,6 +7,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { Gift, ArrowLeft, UserPlus, User, Mail, LockKeyhole, Ticket, Phone } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
 
@@ -34,22 +35,28 @@ export default function RegisterPage() {
     try {
       // Validate fields before checking existence
       if (!mobile.trim()) {
-        throw new Error("Please enter your mobile number");
+        showErrorToast("Please enter your mobile number");
+        return;
       }
       if (!email.trim()) {
-        throw new Error("Please enter your email address");
+        showErrorToast("Please enter your email address");
+        return;
       }
       if (!name.trim()) {
-        throw new Error("Please enter your name");
+        showErrorToast("Please enter your name");
+        return;
       }
       if (!fullName.trim()) {
-        throw new Error("Please enter your full name");
+        showErrorToast("Please enter your full name");
+        return;
       }
       if (password.length < 8) {
-        throw new Error("Password must be at least 8 characters long");
+        showErrorToast("Password must be at least 8 characters long");
+        return;
       }
       if (!acceptedTerms) {
-        throw new Error("Please accept the terms and conditions");
+        showErrorToast("Please accept the terms and conditions");
+        return;
       }
 
       // Check if mobile already exists
@@ -63,7 +70,8 @@ export default function RegisterPage() {
       const checkMobileData = checkMobileBody.json as any;
 
       if (checkMobileRes.ok && checkMobileData.exists) {
-        throw new Error(`The mobile number ${mobile} is already registered. Please use a different number or login to your existing account.`);
+        showErrorToast(`The mobile number ${mobile} is already registered. Please use a different number or login to your existing account.`);
+        return;
       }
 
       // Check if email already exists
@@ -77,7 +85,8 @@ export default function RegisterPage() {
       const checkEmailData = checkEmailBody.json as any;
 
       if (checkEmailRes.ok && checkEmailData.exists) {
-        throw new Error(`The email address ${email} is already registered. Please use a different email or login to your existing account.`);
+        showErrorToast(`The email address ${email} is already registered. Please use a different email or login to your existing account.`);
+        return;
       }
 
       // Proceed with registration
@@ -102,8 +111,11 @@ export default function RegisterPage() {
       if (!res.ok) {
         // Extract user-friendly error message
         const errorMsg = data?.error || data?.message || body.text || "Registration failed. Please check your information and try again.";
-        throw new Error(errorMsg);
+        showErrorToast(errorMsg);
+        return;
       }
+
+      showSuccessToast("Registration successful! Redirecting...");
 
       // Give browser a beat to persist the cookie (if your backend sets cookie)
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -124,7 +136,9 @@ export default function RegisterPage() {
       router.push(userRole === "admin" ? "/admin" : "/dashboard");
       router.refresh();
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : String(err));
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      setError(errorMsg);
+      showErrorToast(errorMsg);
     } finally {
       setLoading(false);
     }

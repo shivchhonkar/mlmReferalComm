@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { useRouter } from "next/navigation";
 import { User, FileCheck, Upload, Plus, Trash2, Calendar, Briefcase, CreditCard, Users, MapPin } from "lucide-react";
+import { showSuccessToast, showErrorToast, showWarningToast } from "@/lib/toast";
 
 interface KYCData {
   fullName: string;
@@ -140,6 +141,7 @@ export default function KYCPage() {
 
   const handleSubmit = async () => {
     if (!validateStep(currentStep)) {
+      showWarningToast("Please fill in all required fields");
       setError("Please fill in all required fields");
       return;
     }
@@ -161,9 +163,12 @@ export default function KYCPage() {
         throw new Error(errorData.error || "Failed to submit KYC");
       }
 
+      showSuccessToast("KYC information submitted successfully!");
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
     } finally {
       setLoading(false);
     }

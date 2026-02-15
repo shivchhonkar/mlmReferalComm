@@ -12,6 +12,7 @@ import {
   RefreshCw,
   AlertCircle,
 } from "lucide-react";
+import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface Service {
   _id: string;
@@ -216,6 +217,7 @@ export default function ServiceApprovalPage() {
 
       if (!response.ok) throw new Error("Failed to delete service");
 
+      showSuccessToast("Service deleted successfully");
       pingAdminUpdate();
       await fetchPendingServices();
     } catch (err) {

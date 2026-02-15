@@ -8,34 +8,31 @@ import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import type { NextFunction, Request, Response } from "express";
-import "module-alias/register";
 
 const backendEnvPath = path.resolve(__dirname, "../.env");
 const repoRootEnvPath = path.resolve(__dirname, "../../.env");
 
-// Load env from backend/.env if exists else repo root .env
 dotenv.config({ path: fs.existsSync(backendEnvPath) ? backendEnvPath : repoRootEnvPath });
+
 
 const app = express();
 
-// Trust proxy for rate limiting + secure cookies when behind nginx
-app.set("trust proxy", 1);
+// Trust proxy for rate limiting when behind reverse proxy/load balancer
+app.set('trust proxy', 1);
 
-// ✅ IMPORTANT: API default should be 4001 (your nginx proxies /api -> 4001)
-const port = Number(process.env.PORT ?? 4001);
+const port = Number(process.env.PORT ?? 4000);
+const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com";
 
-// ===== Security middleware =====
-app.use(
-  helmet({
-    contentSecurityPolicy: false, // disable CSP for now; enable later if needed
-    crossOriginEmbedderPolicy: false,
-  })
-);
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP temporarily to debug
+  crossOriginEmbedderPolicy: false,
+}));
 
-// ===== Rate limiting =====
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 1000, // limit each IP to 1000 requests per windowMs (increased for development)
   message: { error: "Too many requests from this IP, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -45,68 +42,38 @@ app.use(limiter);
 
 // Stricter rate limiting for auth endpoints
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // limit each IP to 5 auth requests per windowMs
   message: { error: "Too many authentication attempts, please try again later." },
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true,
 });
 
-// ===== CORS (robust) =====
-// Exact allowed origins (comma-separated)
-const corsOrigin =
-  process.env.CORS_ORIGIN ??
-  "http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com";
-
-// Optional hostname allowlist (helps avoid issues like :443, etc.)
-const corsOriginHosts =
-  process.env.CORS_ORIGIN_HOSTS ??
-  "localhost,sambhariyamarketing.com,www.sambhariyamarketing.com";
-
-const allowedOrigins = new Set(
-  corsOrigin
-    .split(",")
-    .map((o) => o.trim())
-    .filter(Boolean)
-);
-
-const allowedHostnames = new Set(
-  corsOriginHosts
-    .split(",")
-    .map((h) => h.trim())
-    .filter(Boolean)
-);
+// Support multiple CORS origins (comma-separated)
+const allowedOrigins = corsOrigin.split(",").map(o => o.trim());
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (curl, server-to-server, some apps)
+      // Allow requests with no origin for development tools and mobile apps
       if (!origin) return callback(null, true);
-
-      // 1) Exact origin match
-      if (allowedOrigins.has(origin)) return callback(null, true);
-
-      // 2) Hostname match fallback (handles cases like https://domain:443)
-      try {
-        const { hostname } = new URL(origin);
-        if (allowedHostnames.has(hostname)) return callback(null, true);
-      } catch {
-        // ignore parse errors
+      
+      // Strict origin validation for production
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"), false);
       }
-
-      return callback(new Error("Not allowed by CORS"), false);
     },
     credentials: true,
-    optionsSuccessStatus: 200,
+    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
   })
 );
-
-// Body + cookies
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
-// Serve static files from uploads directory (with permissive CORS for assets)
+// Serve static files from the uploads directory with CORS headers (for imports only)
 const uploadsPath = path.join(process.cwd(), "uploads");
 app.use("/uploads", cors(), express.static(uploadsPath));
 
@@ -122,24 +89,22 @@ async function main() {
   const { registerRoutes } = await import("./routes");
   registerRoutes(app);
 
-  // ✅ Apply authLimiter only to auth routes (after routes registered OR before, both ok)
-  // If your auth routes are under /api/auth, this will apply correctly.
-  app.use("/api/auth", authLimiter);
-
-  // Always return JSON for errors
+  // Always return JSON for errors so the frontend can safely parse them.
+  // This also handles body-parser JSON errors and other thrown exceptions.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
     const message = err instanceof Error ? err.message : "Internal Server Error";
+    // Log errors without sensitive information
     console.error(`[Server] Error: ${message}`);
     res.status(400).json({ error: message });
   });
 
   app.listen(port, "0.0.0.0", () => {
-    console.log(`[Server] API listening on http://localhost:${port}`);
+    console.log(`[Server] ReferGrow API listening on http://localhost:${port}`);
   });
 }
 
 main().catch((err) => {
-  console.error(`[Server] Startup error: ${err instanceof Error ? err.message : "Unknown error"}`);
+  console.error(`[Server] Startup error: ${err instanceof Error ? err.message : 'Unknown error'}`);
   process.exit(1);
 });
