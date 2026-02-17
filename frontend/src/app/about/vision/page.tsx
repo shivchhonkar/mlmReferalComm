@@ -27,7 +27,7 @@ export default function VisionPage() {
             </div>
 
             <div className="space-y-1">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
                 Our Vision
               </h1>
               <p className="text-sm text-[var(--gray-700)] max-w-3xl">
@@ -47,7 +47,7 @@ export default function VisionPage() {
                 key={i.label}
                 className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-5 py-4"
               >
-                <div className="text-sm font-extrabold text-[var(--gray-900)]">{i.label}</div>
+                <div className="text-sm  text-[var(--gray-900)]">{i.label}</div>
                 <div className="mt-1 text-xs text-[var(--gray-600)]">{i.value}</div>
               </div>
             ))}
@@ -86,7 +86,7 @@ export default function VisionPage() {
                 <div className="mx-auto mb-4 h-14 w-14 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] flex items-center justify-center">
                   <Infinity className="h-7 w-7 text-[var(--primary)]" />
                 </div>
-                <h3 className="font-extrabold text-lg text-[var(--gray-900)]">Unlimited Depth</h3>
+                <h3 className=" text-lg text-[var(--gray-900)]">Unlimited Depth</h3>
                 <p className="mt-2 text-sm text-[var(--gray-700)]">
                   No arbitrary limits on network growth
                 </p>
@@ -96,7 +96,7 @@ export default function VisionPage() {
                 <div className="mx-auto mb-4 h-14 w-14 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] flex items-center justify-center">
                   <BarChart3 className="h-7 w-7 text-[var(--primary)]" />
                 </div>
-                <h3 className="font-extrabold text-lg text-[var(--gray-900)]">Real-Time Updates</h3>
+                <h3 className=" text-lg text-[var(--gray-900)]">Real-Time Updates</h3>
                 <p className="mt-2 text-sm text-[var(--gray-700)]">
                   Instant reflection of all changes
                 </p>
@@ -106,7 +106,7 @@ export default function VisionPage() {
                 <div className="mx-auto mb-4 h-14 w-14 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] flex items-center justify-center">
                   <Lock className="h-7 w-7 text-[var(--primary)]" />
                 </div>
-                <h3 className="font-extrabold text-lg text-[var(--gray-900)]">Secure & Fair</h3>
+                <h3 className=" text-lg text-[var(--gray-900)]">Secure & Fair</h3>
                 <p className="mt-2 text-sm text-[var(--gray-700)]">
                   Built with security and fairness at core
                 </p>
@@ -116,7 +116,7 @@ export default function VisionPage() {
             {/* Bottom CTA */}
             <div className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-6 sm:p-8 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
               <div>
-                <h3 className="text-lg font-extrabold text-[var(--gray-900)]">
+                <h3 className="text-lg  text-[var(--gray-900)]">
                   Want to see BV in action?
                 </h3>
                 <p className="mt-1 text-sm text-[var(--gray-700)]">
@@ -127,7 +127,7 @@ export default function VisionPage() {
               <Link
                 href="/services"
                 prefetch={false}
-                className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md"
+                className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm  text-white shadow-sm transition hover:shadow-md"
                 style={{ background: brandGradient }}
               >
                 Explore Services

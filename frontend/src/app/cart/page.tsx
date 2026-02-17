@@ -1,21 +1,77 @@
 "use client";
 
+import React, { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Package, ShoppingCart, ShieldCheck, Sparkles } from "lucide-react";
+
+import CheckoutDrawer from "./CheckoutDrawer";
 
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearCart, removeItem, updateQty } from "@/store/slices/cartSlice";
-import { showInfoToast } from "@/lib/toast";
+import { showErrorToast } from "@/lib/toast";
+
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
+
+/**
+ * ✅ Only this component uses useSearchParams()
+ * ✅ Parent wraps this component with <Suspense />
+ */
+function CartCheckoutParamHandler({
+  onOpenCheckout,
+}: {
+  onOpenCheckout: () => void;
+}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const user = useAppSelector((s) => s.user.profile);
+
+  // Auto open checkout when user returns from login/register with ?checkout=1
+  useEffect(() => {
+    const shouldOpen = searchParams.get("checkout") === "1";
+    if (shouldOpen && user) onOpenCheckout();
+  }, [searchParams, user, onOpenCheckout]);
+
+  // If user visits /cart?checkout=1 but not logged in -> redirect to login
+  useEffect(() => {
+    const shouldOpen = searchParams.get("checkout") === "1";
+    if (shouldOpen && !user) {
+      const next = encodeURIComponent("/cart?checkout=1");
+      router.replace(`/login?next=${next}`);
+    }
+  }, [searchParams, user, router]);
+
+  return null;
+}
 
 export default function CartPage() {
   const dispatch = useAppDispatch();
+  const router = useRouter();
+
   const cart = useAppSelector((s) => s.cart);
-  const items = Object.values(cart.items);
+  const user = useAppSelector((s) => s.user.profile);
+
+  const items = useMemo(() => Object.values(cart.items), [cart.items]);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+  function handleCheckoutClick() {
+    if (!user) {
+      showErrorToast("Please login or signup to continue checkout.");
+      const next = encodeURIComponent("/cart?checkout=1");
+      router.push(`/login?next=${next}`);
+      return;
+    }
+    setCheckoutOpen(true);
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      {/* ✅ REQUIRED: Suspense boundary for useSearchParams */}
+      <Suspense fallback={null}>
+        <CartCheckoutParamHandler onOpenCheckout={() => setCheckoutOpen(true)} />
+      </Suspense>
+
       {/* Top accent band */}
       <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
@@ -27,20 +83,24 @@ export default function CartPage() {
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-teal-600 text-white">
                 <ShoppingCart className="h-4 w-4" />
               </span>
-              <span className="text-sm font-semibold text-zinc-800">Shopping Cart</span>
+              <span className="text-sm font-semibold text-zinc-800">
+                Shopping Cart
+              </span>
             </div>
 
-            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+            <h1 className="mt-4 text-3xl  tracking-tight text-zinc-900 sm:text-4xl">
               Your Cart{" "}
               <span className="text-zinc-500">
-                ({cart.totalQuantity} {cart.totalQuantity === 1 ? "item" : "items"})
+                ({cart.totalQuantity}{" "}
+                {cart.totalQuantity === 1 ? "item" : "items"})
               </span>
             </h1>
+
             <p className="mt-2 max-w-2xl text-base text-zinc-600 sm:text-lg">
               Review your selected services and proceed when you’re ready.
             </p>
 
-            {/* Mini trust row (matches home vibe) */}
+            {/* Mini trust row */}
             <div className="mt-5 flex flex-wrap gap-3">
               <div className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700 shadow-sm">
                 <ShieldCheck className="h-4 w-4 text-emerald-600" />
@@ -66,10 +126,12 @@ export default function CartPage() {
         {items.length === 0 ? (
           <div className="rounded-3xl border border-zinc-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow">
-              <ShoppingCart className="h-10 w-10"  />
+              <ShoppingCart className="h-10 w-10" />
             </div>
 
-            <h3 className="text-2xl font-extrabold text-zinc-900 sm:text-3xl">Your Cart is Empty</h3>
+            <h3 className="text-2xl  text-zinc-900 sm:text-3xl">
+              Your Cart is Empty
+            </h3>
             <p className="mx-auto mt-3 max-w-md text-base text-zinc-600 sm:text-lg">
               Browse services and start earning through referrals and trusted providers.
             </p>
@@ -78,8 +140,8 @@ export default function CartPage() {
               <Link
                 prefetch={false}
                 href="/services"
-                className="mt-2 inline-flex px-6 items-center justify-center gap-2 h-12 rounded-xl text-sm font-extrabold text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ background: brandGradient }}
+                className="mt-2 inline-flex px-6 items-center justify-center gap-2 h-12 rounded-xl text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                style={{ background: brandGradient }}
               >
                 <Package className="h-5 w-5" />
                 Explore Services
@@ -137,7 +199,12 @@ export default function CartPage() {
                       aria-label="Remove item"
                       title="Remove"
                     >
-                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="h-5 w-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
                         <path
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -168,7 +235,9 @@ export default function CartPage() {
                       </button>
 
                       <div className="min-w-16 border-x border-zinc-200 bg-zinc-50 px-5 py-3 text-center">
-                        <span className="text-base font-extrabold text-zinc-900">{item.quantity}</span>
+                        <span className="text-base  text-zinc-900">
+                          {item.quantity}
+                        </span>
                       </div>
 
                       <button
@@ -190,8 +259,10 @@ export default function CartPage() {
 
                     {/* Subtotal */}
                     <div className="rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-right">
-                      <div className="text-xs font-semibold text-zinc-600">Subtotal</div>
-                      <div className="text-xl font-extrabold text-zinc-900">
+                      <div className="text-xs font-semibold text-zinc-600">
+                        Subtotal
+                      </div>
+                      <div className="text-xl  text-zinc-900">
                         {formatINR(item.price * item.quantity)}
                       </div>
                     </div>
@@ -203,7 +274,9 @@ export default function CartPage() {
             {/* Order Summary */}
             <div className="h-fit rounded-3xl border border-emerald-200 bg-white p-7 shadow-sm lg:sticky lg:top-8">
               <div className="mb-6 flex items-center justify-between">
-                <div className="text-lg font-extrabold text-zinc-900">Order Summary</div>
+                <div className="text-lg  text-zinc-900">
+                  Order Summary
+                </div>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                   {cart.totalQuantity} items
                 </span>
@@ -211,30 +284,35 @@ export default function CartPage() {
 
               <div className="space-y-3">
                 <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <span className="text-sm font-semibold text-zinc-600">Items</span>
-                  <span className="text-sm font-extrabold text-zinc-900">{cart.totalQuantity}</span>
+                  <span className="text-sm font-semibold text-zinc-600">
+                    Items
+                  </span>
+                  <span className="text-sm  text-zinc-900">
+                    {cart.totalQuantity}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3">
-                  <span className="text-sm font-semibold text-zinc-600">Subtotal</span>
-                  <span className="text-sm font-extrabold text-zinc-900">{formatINR(cart.totalAmount)}</span>
+                  <span className="text-sm font-semibold text-zinc-600">
+                    Subtotal
+                  </span>
+                  <span className="text-sm  text-zinc-900">
+                    {formatINR(cart.totalAmount)}
+                  </span>
                 </div>
 
                 <div className="mt-2 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
                   <p className="text-xs font-semibold text-zinc-700">
-                    Tip: Checkout will be enabled once payment integration is live.
+                    Tip: Checkout is available. Payment will be integrated later.
                   </p>
                 </div>
               </div>
 
               <div className="mt-6 space-y-3">
                 <button
-                  className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-xl"
+                  className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-xl"
                   type="button"
-                  onClick={() => {
-                    // Placeholder: integrate checkout / payment later
-                    showInfoToast("Checkout coming soon! We'll notify you when payment processing is live.");
-                  }}
+                  onClick={handleCheckoutClick}
                 >
                   Proceed to Checkout
                 </button>
@@ -259,6 +337,8 @@ export default function CartPage() {
           </div>
         )}
       </div>
+
+      <CheckoutDrawer open={checkoutOpen} onClose={() => setCheckoutOpen(false)} />
     </div>
   );
 }

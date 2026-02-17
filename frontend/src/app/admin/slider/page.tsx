@@ -243,7 +243,7 @@ export default function AdminSliderPage() {
               <span className="text-sm font-semibold text-zinc-800">Admin</span>
             </div>
 
-            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+            <h1 className="mt-4 text-3xl  tracking-tight text-zinc-900 sm:text-4xl">
               Slider Management
             </h1>
             <p className="mt-2 text-sm text-zinc-600">
@@ -253,7 +253,7 @@ export default function AdminSliderPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/admin"
             >
@@ -262,7 +262,7 @@ export default function AdminSliderPage() {
             </Link>
 
             <Link
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/admin/services"
             >
@@ -270,7 +270,7 @@ export default function AdminSliderPage() {
             </Link>
 
             <Link
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/dashboard"
             >
@@ -293,7 +293,7 @@ export default function AdminSliderPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
               <Plus className="h-5 w-5" />
             </div>
-            <h2 className="text-xl font-extrabold text-zinc-900">Create New Slider</h2>
+            <h2 className="text-xl  text-zinc-900">Create New Slider</h2>
           </div>
 
           <form onSubmit={createSlider} className="space-y-4">
@@ -340,7 +340,7 @@ export default function AdminSliderPage() {
               <button
                 type="submit"
                 disabled={busy}
-                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-60"
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-60"
               >
                 {busy ? "Creating..." : "Create Slider"}
               </button>
@@ -355,7 +355,7 @@ export default function AdminSliderPage() {
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-emerald-600 text-white shadow">
                 <ImageIcon className="h-5 w-5" />
               </div>
-              <h2 className="text-xl font-extrabold text-zinc-900">All Sliders</h2>
+              <h2 className="text-xl  text-zinc-900">All Sliders</h2>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -369,7 +369,7 @@ export default function AdminSliderPage() {
               <button
                 onClick={refreshSliders}
                 disabled={isRefreshing}
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                 title="Refresh all sliders"
                 type="button"
               >
@@ -407,7 +407,7 @@ export default function AdminSliderPage() {
                       />
                     </div>
 
-                    <span className="max-w-28 truncate text-xs font-extrabold text-zinc-800">
+                    <span className="max-w-28 truncate text-xs  text-zinc-800">
                       {slider.title || `Slider ${index + 1}`}
                     </span>
 
@@ -470,7 +470,7 @@ export default function AdminSliderPage() {
                         />
                       ) : (
                         <div>
-                          <h3 className="mb-1 text-lg font-extrabold text-zinc-900">{slider.title}</h3>
+                          <h3 className="mb-1 text-lg  text-zinc-900">{slider.title}</h3>
                           {slider.description ? (
                             <p className="mb-2 text-sm text-zinc-600">{slider.description}</p>
                           ) : null}
@@ -503,7 +503,7 @@ export default function AdminSliderPage() {
                         <button
                           onClick={() => moveSliderUp(index)}
                           disabled={index === 0}
-                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-extrabold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs  text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                           title="Move up"
                           type="button"
                         >
@@ -512,7 +512,7 @@ export default function AdminSliderPage() {
                         <button
                           onClick={() => moveSliderDown(index)}
                           disabled={index === sliders.length - 1}
-                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-extrabold text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+                          className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs  text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
                           title="Move down"
                           type="button"
                         >

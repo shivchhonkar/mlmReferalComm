@@ -77,7 +77,7 @@ function StatCard({
         </span>
         <span className="text-xs text-zinc-500">{label}</span>
       </div>
-      <div className="text-3xl font-extrabold text-zinc-900">{value}</div>
+      <div className="text-3xl  text-zinc-900">{value}</div>
       <div className="mt-1 text-sm text-zinc-600">{label}</div>
     </div>
   );
@@ -266,7 +266,7 @@ export default function ServiceApprovalPage() {
         {/* Header */}
         <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-4xl font-extrabold text-zinc-900 mb-2">Service Approval</h1>
+            <h1 className="text-4xl  text-zinc-900 mb-2">Service Approval</h1>
             <p className="text-sm text-zinc-600">
               Review and approve or reject pending service listings
             </p>
@@ -319,7 +319,7 @@ export default function ServiceApprovalPage() {
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-sky-100">
               <Clock className="h-8 w-8 text-zinc-500" />
             </div>
-            <h3 className="text-lg font-extrabold text-zinc-900 mb-1">No Pending Services</h3>
+            <h3 className="text-lg  text-zinc-900 mb-1">No Pending Services</h3>
             <p className="text-sm text-zinc-600">All services have been reviewed. Great job!</p>
           </div>
         ) : (
@@ -360,7 +360,7 @@ export default function ServiceApprovalPage() {
 
                     {/* Content */}
                     <div className="p-6">
-                      <h3 className="text-lg font-extrabold text-zinc-900 mb-1 line-clamp-1">
+                      <h3 className="text-lg  text-zinc-900 mb-1 line-clamp-1">
                         {service.name}
                       </h3>
                       <p className="text-sm text-zinc-600 mb-4 line-clamp-2">
@@ -369,7 +369,7 @@ export default function ServiceApprovalPage() {
 
                       <div className="flex items-center justify-between mb-4">
                         <div>
-                          <div className="text-xl font-extrabold text-zinc-900">
+                          <div className="text-xl  text-zinc-900">
                             ₹{service.price.toLocaleString()}
                           </div>
                           <div className="text-xs text-zinc-500">BV: {service.businessVolume}</div>
@@ -482,7 +482,7 @@ export default function ServiceApprovalPage() {
         {showRejectModal && selectedService && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
             <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-2xl">
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-2">Reject Service</h2>
+              <h2 className="text-xl  text-zinc-900 mb-2">Reject Service</h2>
               <p className="text-sm text-zinc-600 mb-4">
                 Please provide a reason for rejecting{" "}
                 <span className="font-bold text-zinc-900">“{selectedService.name}”</span>
@@ -500,7 +500,7 @@ export default function ServiceApprovalPage() {
                 <button
                   onClick={() => rejectService(selectedService._id, rejectionReason.trim())}
                   disabled={!rejectionReason.trim() || busyId === selectedService._id}
-                  className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-red-700 transition disabled:opacity-50"
+                  className="flex-1 rounded-2xl bg-red-600 px-4 py-3 text-sm  text-white hover:bg-red-700 transition disabled:opacity-50"
                 >
                   {busyId === selectedService._id ? "Rejecting..." : "Reject"}
                 </button>
@@ -511,7 +511,7 @@ export default function ServiceApprovalPage() {
                     setSelectedService(null);
                     setRejectionReason("");
                   }}
-                  className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-extrabold text-zinc-800 hover:shadow-md transition"
+                  className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm  text-zinc-800 hover:shadow-md transition"
                 >
                   Cancel
                 </button>

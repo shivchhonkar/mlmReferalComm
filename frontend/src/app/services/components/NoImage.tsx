@@ -1,6 +1,6 @@
 
 export const NoImage = () => (
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" role="img" aria-label="No image available">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" role="img" aria-label="No image available">
   <defs>
     <linearGradient id="bg" x1="120" y1="120" x2="680" y2="680" gradientUnits="userSpaceOnUse">
       <stop stopColor="#22C55E"/>
@@ -18,10 +18,10 @@ export const NoImage = () => (
   </defs>
 
   {/*<!-- Background -->*/}
-  <rect x="60" y="60" width="680" height="680" rx="72" fill="url(#bg)" filter="url(#shadow)"/>
+  {/* <rect x="60" y="60" width="680" height="680" rx="72" fill="url(#bg)" filter="url(#shadow)"/> */}
 
   {/*<!-- Inner card -->*/}
-  <rect x="140" y="170" width="520" height="420" rx="44" fill="#ffffff" fillOpacity="0.92"/>
+  {/* <rect x="140" y="170" width="520" height="420" rx="44" fill="#ffffff" fillOpacity="0.92"/> */}
   <rect x="140" y="170" width="520" height="420" rx="44" fill="none" stroke="#E5E7EB" strokeWidth="6"/>
 
   {/* Simple image icon */}

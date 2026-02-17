@@ -81,7 +81,7 @@ export default function SuccessStoriesPage() {
             </div>
 
             <div className="space-y-1">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
                 Success Stories
               </h1>
               <p className="text-sm text-[var(--gray-700)] max-w-2xl">
@@ -111,7 +111,7 @@ export default function SuccessStoriesPage() {
                   </div>
 
                   <div className="min-w-0">
-                    <h3 className="text-lg font-extrabold text-[var(--gray-900)]">{s.name}</h3>
+                    <h3 className="text-lg  text-[var(--gray-900)]">{s.name}</h3>
                     <p className="text-sm text-[var(--gray-600)]">{s.roleLine}</p>
                   </div>
                 </div>
@@ -121,10 +121,10 @@ export default function SuccessStoriesPage() {
                 </p>
 
                 <div className="flex flex-wrap gap-3 pt-1">
-                  <div className={`rounded-xl border px-3 py-1 text-xs font-extrabold ${accentBg(s.accent)}`}>
+                  <div className={`rounded-xl border px-3 py-1 text-xs  ${accentBg(s.accent)}`}>
                     {s.earned}
                   </div>
-                  <div className="rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-900)]">
+                  <div className="rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs  text-[var(--gray-900)]">
                     {s.referrals}
                   </div>
                 </div>
@@ -136,7 +136,7 @@ export default function SuccessStoriesPage() {
         {/* CTA */}
         <div className="mt-10 rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8 text-center">
-            <h2 className="text-2xl sm:text-3xl font-extrabold text-[var(--gray-900)]">
+            <h2 className="text-2xl sm:text-3xl  text-[var(--gray-900)]">
               Ready to write your success story?
             </h2>
             <p className="mt-2 text-sm text-[var(--gray-700)]">
@@ -147,7 +147,7 @@ export default function SuccessStoriesPage() {
               <Link
                 href="/register"
                 prefetch={false}
-                className="inline-flex items-center justify-center h-12 rounded-xl px-7 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md"
+                className="inline-flex items-center justify-center h-12 rounded-xl px-7 text-sm  text-white shadow-sm transition hover:shadow-md"
                 style={{ background: brandGradient }}
               >
                 Get Started
@@ -156,7 +156,7 @@ export default function SuccessStoriesPage() {
               <Link
                 href="/services"
                 prefetch={false}
-                className="inline-flex items-center justify-center h-12 rounded-xl px-7 text-sm font-extrabold border border-[var(--gray-200)] bg-[var(--gray-50)] text-[var(--gray-900)] hover:bg-white transition"
+                className="inline-flex items-center justify-center h-12 rounded-xl px-7 text-sm  border border-[var(--gray-200)] bg-[var(--gray-50)] text-[var(--gray-900)] hover:bg-white transition"
               >
                 Browse Services
               </Link>

@@ -27,7 +27,7 @@ export default function OurStoryPage() {
             </div>
 
             <div className="space-y-1">
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
                 Our Story
               </h1>
               <p className="text-sm text-[var(--gray-700)] max-w-3xl">
@@ -44,11 +44,11 @@ export default function OurStoryPage() {
           <div className="h-1 w-full" style={{ background: brandGradient }} />
           <div className="p-6 sm:p-8 space-y-5">
             <p className="text-[var(--gray-800)] leading-relaxed">
-              <span className="font-extrabold" style={{ color: "#0EA5E9" }}>
+              <span className="" style={{ color: "#0EA5E9" }}>
                 ReferGrow
               </span>{" "}
               is built around a simple yet powerful idea: reward community growth using{" "}
-              <span className="font-extrabold text-[var(--gray-900)]">Business Volume (BV)</span> so every purchase can
+              <span className=" text-[var(--gray-900)]">Business Volume (BV)</span> so every purchase can
               contribute to structured, level-wise income.
             </p>
 
@@ -73,7 +73,7 @@ export default function OurStoryPage() {
                   className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-5"
                 >
                   <b.icon className="h-5 w-5 text-[var(--primary)]" />
-                  <div className="mt-3 text-sm font-extrabold text-[var(--gray-900)]">{b.title}</div>
+                  <div className="mt-3 text-sm  text-[var(--gray-900)]">{b.title}</div>
                   <div className="mt-1 text-xs text-[var(--gray-600)]">{b.desc}</div>
                 </div>
               ))}
@@ -93,7 +93,7 @@ export default function OurStoryPage() {
               </div>
 
               <div>
-                <h3 className="text-lg font-extrabold text-[var(--gray-900)]">Community first</h3>
+                <h3 className="text-lg  text-[var(--gray-900)]">Community first</h3>
                 <p className="mt-1 text-sm text-[var(--gray-700)]">
                   We empower every member to grow through collaboration and a clear earning structure.
                 </p>
@@ -111,7 +111,7 @@ export default function OurStoryPage() {
               </div>
 
               <div>
-                <h3 className="text-lg font-extrabold text-[var(--gray-900)]">Transparency</h3>
+                <h3 className="text-lg  text-[var(--gray-900)]">Transparency</h3>
                 <p className="mt-1 text-sm text-[var(--gray-700)]">
                   Every BV distribution and income calculation is designed to be clear and verifiable.
                 </p>
@@ -124,14 +124,14 @@ export default function OurStoryPage() {
         <div className="rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h3 className="text-xl font-extrabold text-[var(--gray-900)]">Want to explore services?</h3>
+              <h3 className="text-xl  text-[var(--gray-900)]">Want to explore services?</h3>
               <p className="mt-1 text-sm text-[var(--gray-700)]">Browse our services and start generating BV.</p>
             </div>
 
             <Link
               href="/services"
               prefetch={false}
-              className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md"
+              className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm  text-white shadow-sm transition hover:shadow-md"
               style={{ background: brandGradient }}
             >
               View Services

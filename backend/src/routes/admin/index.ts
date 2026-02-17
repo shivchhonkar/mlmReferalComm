@@ -18,6 +18,7 @@ import { IncomeLogModel } from "@/models/IncomeLog";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { ContactModel } from "@/models/Contact";
 import { Slider } from "@/models/Slider";
+import mongoose from "mongoose";
 
 /**
  * Register all admin routes
@@ -304,28 +305,61 @@ export function registerAdminRoutes(app: Express) {
 
   app.put("/api/admin/users/:id/status", async (req: Request, res: Response) => {
     try {
-      await requireRole(req, "super_admin");
-      const body = z.object({
-        status: z.enum(["active", "suspended", "deleted"])
-      }).parse(req.body);
+      // ✅ allow admin + super_admin (and you can decide if moderator should be allowed)
+      const ctx = await requireAuth(req);
+
+      if (!["admin", "super_admin"].includes(ctx.role)) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      const { id } = req.params;
+
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: "Invalid user id" });
+      }
+
+      const body = z
+        .object({
+          status: z.enum(["active", "suspended", "deleted"]),
+        })
+        .parse(req.body);
 
       await connectToDatabase();
 
-      const user = await UserModel.findByIdAndUpdate(
-        req.params.id,
+      const targetUser = await UserModel.findById(id).select("role status");
+      if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+      // ✅ admin restrictions
+      if (ctx.role === "admin") {
+        // admin cannot change admin/super_admin accounts
+        if (["admin", "super_admin"].includes(targetUser.role)) {
+          return res.status(403).json({
+            error: "Admin cannot change status of Admin/Super Admin users",
+          });
+        }
+      }
+
+      // Optional safety: prevent changing self to deleted/suspended
+      // if (String(ctx.userId) === String(id) && body.status !== "active") {
+      //   return res.status(400).json({ error: "You cannot change your own status" });
+      // }
+
+      const updated = await UserModel.findByIdAndUpdate(
+        id,
         { $set: { status: body.status } },
         { new: true, runValidators: true }
-      ).select("-passwordHash");
+      )
+        .select("-passwordHash")
+        .populate("parent", "name email mobile");
 
-      if (!user) return res.status(404).json({ error: "User not found" });
-
-      return res.json({ message: "User status updated successfully", user });
+      return res.json({ message: "User status updated successfully", user: updated });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;
       return res.status(status).json({ error: msg });
     }
   });
+
 
   // Update user referral parent (only super_admin can assign parent to users without one)
   app.put("/api/admin/users/:id/referral", async (req: Request, res: Response) => {
@@ -514,8 +548,8 @@ export function registerAdminRoutes(app: Express) {
       .object({
         name: z.string().min(1).optional(),
         slug: z.string().min(1).optional(),
-        image: z.string().url({ message: "Invalid URL format" }).optional(),
-        gallery: z.array(z.string().url({ message: "Invalid URL format" })).optional(),
+        image: z.string().optional(),//z.string().url({ message: "Invalid URL format" }).optional(),
+        gallery: z.string().optional(), //z.array(z.string().url({ message: "Invalid URL format" })).optional(),
         price: z.number().min(0).optional(),
         originalPrice: z.number().min(0).optional(),
         currency: z.enum(["INR", "USD"]).optional(),
@@ -544,6 +578,87 @@ export function registerAdminRoutes(app: Express) {
       return res.status(status).json({ error: msg });
     }
   });
+
+  /**
+ * =========================================================
+ * ✅ UPDATE USER
+ * PUT /api/admin/users/:id
+ * =========================================================
+ */
+
+  app.put("/api/admin/users/:id", async (req: Request, res: Response) => {
+  try {
+    // Must be admin/super_admin/moderator? (your rule says admin routes)
+    // If you want only admin & super_admin, change to requireSuperAdminOrAdmin(req)
+    await requireAdminRole(req);
+
+    const ctx = await requireAuth(req);
+
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return res.status(400).json({ error: "Invalid user id" });
+    }
+
+    const body = z.object({
+      name: z.string().min(1).optional(),
+      fullName: z.string().min(2).optional(),
+      email: z.string().email().optional(),
+      mobile: z.string().min(10).optional(),
+      countryCode: z.string().optional(),
+
+      // only super_admin can update role
+      role: z.enum(["super_admin", "admin", "moderator", "user"]).optional(),
+
+      // allow status changes
+      status: z.enum(["active", "suspended", "deleted"]).optional(),
+      activityStatus: z.enum(["active", "inactive"]).optional(),
+      kycStatus: z.enum(["pending", "submitted", "verified", "rejected"]).optional(),
+    }).refine(v => Object.keys(v).length > 0, "No fields to update")
+      .parse(req.body);
+
+    await connectToDatabase();
+
+    const adminUser = await UserModel.findById(ctx.userId).select("role");
+    if (!adminUser) return res.status(401).json({ error: "Unauthorized" });
+
+    const targetUser = await UserModel.findById(req.params.id);
+    if (!targetUser) return res.status(404).json({ error: "User not found" });
+
+    //  Prevent non-super-admin from editing super_admin
+    if (targetUser.role === "super_admin" && adminUser.role !== "super_admin") {
+      return res.status(403).json({ error: "Only Super Admin can modify Super Admin" });
+    }
+
+    //  Only super_admin can change role
+    if (body.role && adminUser.role !== "super_admin") {
+      delete (body as any).role;
+    }
+
+    // Optional: keep fullName in sync if name updated
+    if (body.name && !body.fullName) {
+      (body as any).fullName = body.name;
+    }
+
+    const updated = await UserModel.findByIdAndUpdate(
+      req.params.id,
+      { $set: body },
+      { new: true, runValidators: true }
+    )
+      .select("-passwordHash")
+      .populate("parent", "name email mobile");
+
+    return res.json({ message: "User updated successfully", user: updated });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Bad request";
+    const status =
+      msg === "Forbidden" ? 403 :
+      msg.includes("Unauthorized") ? 401 :
+      msg.includes("Invalid user id") ? 400 :
+      400;
+
+    return res.status(status).json({ error: msg });
+  }
+});
+
 
   app.delete("/api/admin/services/:id", async (req: Request, res: Response) => {
     try {

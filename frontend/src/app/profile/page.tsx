@@ -114,8 +114,67 @@ export default function ProfilePage() {
     enableTCS: false,
   });
 
+  // ---------------------------
+  // ✅ Frontend validation: companyEmail + website
+  // ---------------------------
+  const [companyErrors, setCompanyErrors] = useState<{
+    companyEmail?: string;
+    website?: string;
+  }>({});
+
+  // Same strict-ish email pattern as backend error output (good enough for FE validation)
+  const emailRegex =
+    /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$/;
+
+  function isValidEmail(v: string) {
+    const s = v.trim();
+    if (!s) return true; // optional
+    return emailRegex.test(s);
+  }
+
+  function normalizeWebsite(v: string) {
+    const s = v.trim();
+    if (!s) return "";
+    // If user types "billint.com" or "www.billint.com" -> add https://
+    if (!/^https?:\/\//i.test(s)) return `https://${s}`;
+    return s;
+  }
+
+  function isValidUrl(v: string) {
+    const s = v.trim();
+    if (!s) return true; // optional
+    try {
+      const url = new URL(s);
+      return url.protocol === "http:" || url.protocol === "https:";
+    } catch {
+      return false;
+    }
+  }
+
+  function validateCompanyInfo(next?: typeof companyInfo) {
+    const values = next ?? companyInfo;
+    const nextErrors: { companyEmail?: string; website?: string } = {};
+
+    const emailVal = values.companyEmail?.trim() ?? "";
+    if (emailVal && !isValidEmail(emailVal)) {
+      nextErrors.companyEmail = "Please enter a valid email (e.g. support@company.com).";
+    }
+
+    const siteVal = values.website?.trim() ?? "";
+    if (siteVal) {
+      const normalized = normalizeWebsite(siteVal);
+      if (!isValidUrl(normalized)) {
+        nextErrors.website = "Please enter a valid website URL (e.g. https://example.com).";
+      }
+    }
+
+    setCompanyErrors(nextErrors);
+    return nextErrors;
+  }
+
   useEffect(() => {
     loadProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadProfile = async () => {
@@ -165,6 +224,9 @@ export default function ProfilePage() {
       if (data.user.profileImage) {
         setImagePreview(data.user.profileImage);
       }
+
+      // validate company fields once (so existing invalid values show immediately)
+      setTimeout(() => validateCompanyInfo(), 0);
     } catch (error) {
       console.error("Failed to load profile:", error);
     } finally {
@@ -225,7 +287,9 @@ export default function ProfilePage() {
       }
     } catch (error) {
       console.error("Failed to upload image:", error);
-      showErrorToast(`Failed to upload profile image: ${error instanceof Error ? error.message : "Unknown error"}`);
+      showErrorToast(
+        `Failed to upload profile image: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     }
   };
 
@@ -260,12 +324,26 @@ export default function ProfilePage() {
   };
 
   const saveCompanyInfo = async () => {
+    // ✅ validate before saving
+    const errs = validateCompanyInfo();
+    if (Object.keys(errs).length > 0) {
+      showErrorToast("Please fix Company Email / Website before saving");
+      return;
+    }
+
+    // ✅ normalize before sending
+    const payload = {
+      ...companyInfo,
+      companyEmail: companyInfo.companyEmail.trim(),
+      website: companyInfo.website ? normalizeWebsite(companyInfo.website) : "",
+    };
+
     setSaving(true);
     try {
       const res = await apiFetch("/api/profile/business", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(companyInfo),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -389,7 +467,7 @@ export default function ProfilePage() {
                             ? imagePreview
                             : imagePreview.startsWith("/uploads")
                             ? `http://localhost:4000${imagePreview}`
-                            : imagePreview // base64 data URL
+                            : imagePreview
                         }
                         alt="Profile"
                         className="h-20 w-20 rounded-full object-cover"
@@ -411,7 +489,7 @@ export default function ProfilePage() {
               </div>
 
               <div>
-                <h1 className="text-xl font-extrabold text-zinc-900 sm:text-2xl">{profile?.name}</h1>
+                <h1 className="text-xl  text-zinc-900 sm:text-2xl">{profile?.name}</h1>
                 <p className="text-sm text-zinc-600">{profile?.email}</p>
                 <p className="text-sm text-zinc-500">{profile?.mobile}</p>
               </div>
@@ -421,7 +499,7 @@ export default function ProfilePage() {
               {profileImage && (
                 <button
                   onClick={uploadProfileImage}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-2.5 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-2.5 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
                 >
                   <Upload className="h-4 w-4" />
                   Upload Image
@@ -491,7 +569,7 @@ export default function ProfilePage() {
           {/* Basic Info */}
           {activeSection === "basic" && (
             <div>
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Basic Information</h2>
+              <h2 className="text-xl  text-zinc-900 mb-6">Basic Information</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Full Name</label>
@@ -517,7 +595,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveBasicInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -529,7 +607,7 @@ export default function ProfilePage() {
           {/* Company */}
           {activeSection === "company" && (
             <div>
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Company Information</h2>
+              <h2 className="text-xl  text-zinc-900 mb-6">Company Information</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Name</label>
@@ -549,23 +627,74 @@ export default function ProfilePage() {
                     className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 focus:bg-white"
                   />
                 </div>
+
+                {/* ✅ Company Email with validation */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Company Email</label>
                   <input
                     type="email"
                     value={companyInfo.companyEmail}
-                    onChange={(e) => setCompanyInfo({ ...companyInfo, companyEmail: e.target.value })}
-                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
+                    onChange={(e) => {
+                      const next = { ...companyInfo, companyEmail: e.target.value };
+                      setCompanyInfo(next);
+                      validateCompanyInfo(next);
+                    }}
+                    onBlur={() => {
+                      const trimmed = companyInfo.companyEmail.trim();
+                      if (trimmed !== companyInfo.companyEmail) {
+                        const next = { ...companyInfo, companyEmail: trimmed };
+                        setCompanyInfo(next);
+                        validateCompanyInfo(next);
+                      } else {
+                        validateCompanyInfo();
+                      }
+                    }}
+                    className={[
+                      "w-full rounded-2xl border bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:ring-2 focus:bg-white",
+                      companyErrors.companyEmail
+                        ? "border-red-300 focus:border-red-400 focus:ring-red-500/20"
+                        : "border-zinc-200 focus:border-sky-400 focus:ring-sky-500/20",
+                    ].join(" ")}
                   />
+                  {companyErrors.companyEmail ? (
+                    <p className="mt-1.5 text-xs font-semibold text-red-600">{companyErrors.companyEmail}</p>
+                  ) : null}
                 </div>
+
+                {/* ✅ Website with validation + normalization */}
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Website</label>
                   <input
                     type="url"
                     value={companyInfo.website}
-                    onChange={(e) => setCompanyInfo({ ...companyInfo, website: e.target.value })}
-                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
+                    onChange={(e) => {
+                      const next = { ...companyInfo, website: e.target.value };
+                      setCompanyInfo(next);
+                      validateCompanyInfo(next);
+                    }}
+                    onBlur={() => {
+                      const normalized = normalizeWebsite(companyInfo.website);
+                      if (normalized !== companyInfo.website) {
+                        const next = { ...companyInfo, website: normalized };
+                        setCompanyInfo(next);
+                        validateCompanyInfo(next);
+                      } else {
+                        validateCompanyInfo();
+                      }
+                    }}
+                    placeholder="https://example.com"
+                    className={[
+                      "w-full rounded-2xl border bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:ring-2 focus:bg-white",
+                      companyErrors.website
+                        ? "border-red-300 focus:border-red-400 focus:ring-red-500/20"
+                        : "border-zinc-200 focus:border-sky-400 focus:ring-sky-500/20",
+                    ].join(" ")}
                   />
+                  {companyErrors.website ? (
+                    <p className="mt-1.5 text-xs font-semibold text-red-600">{companyErrors.website}</p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-zinc-500">Tip: include https://</p>
+                  )}
                 </div>
               </div>
 
@@ -583,7 +712,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveCompanyInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -595,7 +724,7 @@ export default function ProfilePage() {
           {/* Address */}
           {activeSection === "address" && (
             <div>
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Address Information</h2>
+              <h2 className="text-xl  text-zinc-900 mb-6">Address Information</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Billing Address</label>
@@ -642,7 +771,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveAddressInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -654,7 +783,7 @@ export default function ProfilePage() {
           {/* Business Settings */}
           {activeSection === "business" && (
             <div>
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Business Settings</h2>
+              <h2 className="text-xl  text-zinc-900 mb-6">Business Settings</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Type</label>
@@ -703,7 +832,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveBusinessSettings}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}
@@ -715,7 +844,7 @@ export default function ProfilePage() {
           {/* Tax */}
           {activeSection === "tax" && (
             <div>
-              <h2 className="text-xl font-extrabold text-zinc-900 mb-6">Tax & Compliance</h2>
+              <h2 className="text-xl  text-zinc-900 mb-6">Tax & Compliance</h2>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">GSTIN</label>
@@ -764,7 +893,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveTaxSettings}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
                   {saving ? "Saving..." : "Save Changes"}

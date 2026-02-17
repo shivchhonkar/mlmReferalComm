@@ -122,7 +122,7 @@ export default function ImageSlider({
           <div className="text-center max-w-4xl">
 
             {/* Heading */}
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl font-extrabold text-white mb-4 sm:mb-6 leading-tight tracking-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl  text-white mb-4 sm:mb-6 leading-tight tracking-tight">
               <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
                 Build Smarter Networks. Scale Without Limits.
               </span>
@@ -241,7 +241,7 @@ export default function ImageSlider({
           <div className="relative z-10 flex flex-col items-center justify-center w-full min-h-full px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-10 md:py-12">
             <div className="text-center max-w-4xl space-y-2 sm:space-y-3 md:space-y-4">
               {/* Heading */}
-              <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl xl:text-6xl font-extrabold text-white leading-tight tracking-tight">
+              <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl xl:text-6xl  text-white leading-tight tracking-tight">
                 <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
                   Build Smarter Networks. Scale Without Limits.
                 </span>

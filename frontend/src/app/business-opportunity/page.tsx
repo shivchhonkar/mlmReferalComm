@@ -14,7 +14,7 @@ export default function BusinessOpportunityPage() {
                 Referral • BV • Commission
               </div> */}
 
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
                 Business Opportunity
               </h1>
 
@@ -39,7 +39,7 @@ export default function BusinessOpportunityPage() {
                       <Briefcase className="h-6 w-6" />
                     </div>
                     <div className="leading-tight">
-                      <div className="text-sm font-extrabold text-[var(--gray-900)]">Start earning</div>
+                      <div className="text-sm  text-[var(--gray-900)]">Start earning</div>
                       <div className="text-xs text-[var(--gray-600)]">Track referrals & BV in dashboard</div>
                     </div>
                   </div>
@@ -63,7 +63,7 @@ export default function BusinessOpportunityPage() {
                   <TrendingUp className="h-6 w-6 text-[var(--primary)]" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-xl font-extrabold text-[var(--gray-900)]">How it works</h2>
+                  <h2 className="text-xl  text-[var(--gray-900)]">How it works</h2>
                   <p className="text-sm text-[var(--gray-700)] leading-relaxed">
                     Income is calculated from <span className="font-bold">Business Volume (BV)</span>. Every service has a BV
                     value—repurchases generate BV again, compounding your earnings over time.
@@ -85,7 +85,7 @@ export default function BusinessOpportunityPage() {
                   <IndianRupee className="h-6 w-6 text-[var(--primary)]" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-extrabold text-[var(--gray-900)]">Commission structure</h2>
+                  <h2 className="text-xl  text-[var(--gray-900)]">Commission structure</h2>
                   <p className="mt-1 text-sm text-[var(--gray-700)]">
                     Level-wise commission distributed as a decreasing percentage of BV.
                   </p>
@@ -122,7 +122,7 @@ export default function BusinessOpportunityPage() {
         {/* Form */}
         <div className="rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm overflow-hidden">
           <div className="p-6 sm:p-8 border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
-            <h2 className="text-xl font-extrabold text-[var(--gray-900)]">Request details</h2>
+            <h2 className="text-xl  text-[var(--gray-900)]">Request details</h2>
             <p className="mt-1 text-sm text-[var(--gray-700)]">
               Enter your email and we’ll send the complete plan, BV rules, and commission breakdown.
             </p>
@@ -163,7 +163,7 @@ export default function BusinessOpportunityPage() {
                 <f.icon className="h-6 w-6" />
               </div>
 
-              <h3 className={`mt-4 text-lg font-extrabold ${f.highlight ? "text-emerald-700" : "text-[var(--gray-900)]"}`}>
+              <h3 className={`mt-4 text-lg  ${f.highlight ? "text-emerald-700" : "text-[var(--gray-900)]"}`}>
                 {f.title}
               </h3>
               <p className="mt-2 text-sm text-[var(--gray-700)]">{f.desc}</p>

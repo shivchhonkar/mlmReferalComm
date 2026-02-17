@@ -24,7 +24,7 @@ export default function ServicesClient({ services }: { services: Service[] }) {
               Premium Services
             </div>
 
-            <h2 className="text-3xl font-extrabold text-[var(--gray-900)]">Services Marketplace</h2>
+            <h2 className="text-3xl  text-[var(--gray-900)]">Services Marketplace</h2>
             <p className="text-[var(--gray-700)]">
               Choose services to generate <span className="font-bold">Business Volume (BV)</span> and grow your referral income.
             </p>

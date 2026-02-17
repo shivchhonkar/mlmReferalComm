@@ -56,7 +56,7 @@ function SectionTitle({
   title: string;
 }) {
   return (
-    <h2 className="mb-6 flex items-center gap-3 text-2xl font-extrabold text-zinc-900">
+    <h2 className="mb-6 flex items-center gap-3 text-2xl  text-zinc-900">
       <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
         <Icon className="h-5 w-5" />
       </span>
@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
       <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-zinc-50">
         <div className="mx-auto max-w-3xl px-6 py-14">
           <div className="rounded-3xl border border-red-200 bg-red-50 p-8 shadow-sm">
-            <h2 className="text-xl font-extrabold text-red-800 mb-2">
+            <h2 className="text-xl  text-red-800 mb-2">
               Error loading analytics
             </h2>
             <p className="text-sm text-red-600">{error}</p>
@@ -188,7 +188,7 @@ export default function AnalyticsPage() {
       <div className="mx-auto max-w-7xl px-6 py-12">
         {/* Header */}
         <div className="mb-10">
-          <h1 className="text-4xl font-extrabold text-zinc-900">
+          <h1 className="text-4xl  text-zinc-900">
             Analytics Dashboard
           </h1>
           <p className="mt-2 text-sm text-zinc-600">
@@ -244,7 +244,7 @@ export default function AnalyticsPage() {
                     <Icon className="w-6 h-6" />
                   </span>
 
-                  <p className="text-3xl font-extrabold text-zinc-900">
+                  <p className="text-3xl  text-zinc-900">
                     {card.value.toLocaleString()}
                   </p>
                   <p className="text-sm text-zinc-600">{card.label}</p>
@@ -273,7 +273,7 @@ export default function AnalyticsPage() {
                   className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:shadow-lg transition"
                 >
                   <Icon className="w-7 h-7 text-sky-600 mb-4" />
-                  <p className="text-2xl font-extrabold text-zinc-900">
+                  <p className="text-2xl  text-zinc-900">
                     {s.value.toLocaleString()}
                   </p>
                   <p className="text-sm text-zinc-600">{s.label}</p>
@@ -299,7 +299,7 @@ export default function AnalyticsPage() {
                   className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm hover:shadow-lg transition"
                 >
                   <Icon className="w-7 h-7 text-emerald-600 mb-4" />
-                  <p className="text-2xl font-extrabold text-zinc-900">
+                  <p className="text-2xl  text-zinc-900">
                     {q.value.toLocaleString()}
                   </p>
                   <p className="text-sm text-zinc-600">{q.label}</p>
@@ -311,7 +311,7 @@ export default function AnalyticsPage() {
 
         {/* Summary */}
         <div className="rounded-3xl border border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 p-10 shadow-sm">
-          <h2 className="text-2xl font-extrabold text-zinc-900 mb-8">
+          <h2 className="text-2xl  text-zinc-900 mb-8">
             Platform Summary
           </h2>
 
@@ -328,7 +328,7 @@ export default function AnalyticsPage() {
                     <Icon className="w-8 h-8 text-sky-600" />
                   </div>
 
-                  <p className="text-3xl font-extrabold text-zinc-900">
+                  <p className="text-3xl  text-zinc-900">
                     {x.value.toLocaleString()}
                   </p>
                   <p className="text-sm text-zinc-600">{x.label}</p>

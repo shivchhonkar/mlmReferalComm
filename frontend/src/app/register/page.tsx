@@ -161,7 +161,7 @@ export default function RegisterPage() {
           <Link
             prefetch={false}
             href="/login"
-            className="text-sm font-extrabold text-[var(--primary)] hover:underline"
+            className="text-sm  text-[var(--primary)] hover:underline"
           >
             Already have an account? Sign in
           </Link>
@@ -184,12 +184,12 @@ export default function RegisterPage() {
                   <UserPlus className="h-7 w-7" />
                 </div>
 
-                {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-700)]">
+                {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs  text-[var(--gray-700)]">
                   <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
                   Create your account
                 </div> */}
 
-                <h1 className="text-2xl font-extrabold text-[var(--gray-900)]">
+                <h1 className="text-2xl  text-[var(--gray-900)]">
                   Join ReferGrow
                 </h1>
                 <p className="text-sm text-[var(--gray-700)]">
@@ -370,7 +370,7 @@ export default function RegisterPage() {
                   />
                   <span className="text-[var(--gray-700)]">
                     I accept the{" "}
-                    <span className="font-extrabold text-[var(--primary)]">Terms &amp; Conditions</span>
+                    <span className=" text-[var(--primary)]">Terms &amp; Conditions</span>
                   </span>
                 </label>
 
@@ -378,7 +378,7 @@ export default function RegisterPage() {
                 <button
                   disabled={loading}
                   type="submit"
-                  className="mt-1 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm font-extrabold text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="mt-1 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ background: brandGradient }}
                 >
                   {loading ? (

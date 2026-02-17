@@ -5,8 +5,13 @@ import authRoutes from "@/routes/authRoutes";
 import userRoutes from "@/routes/userRoutes";
 import serviceRoutes from "@/routes/serviceRoutes";
 import purchaseRoutes from "@/routes/purchaseRoutes";
+import ordersRoutes from "@/routes/ordersRoutes";
 import incomeRoutes from "@/routes/incomeRoutes";
-import referralRoutes from "@/routes/referralRoutes";
+// import referralRoutes from "@/routes/referralRoutes";
+import referralRoutes from "@/routes/referralGetRoutes";
+import referralListRoutes from "@/routes/referralListRoutes";
+import referralSearchRoutes from "@/routes/referralSearchRoutes";
+// import referralRoutes from ""
 import businessOpportunityRoutes from "@/routes/businessOpportunityRoutes";
 import contactRoutes from "@/routes/contactRoutes";
 import sliderRoutes from "@/routes/sliderRoutes";
@@ -59,12 +64,17 @@ export function registerRoutes(app: Express) {
   
   // Purchase management and BV distribution
   app.use("/api/purchases", purchaseRoutes);
+  app.use("/api/orders", ordersRoutes);
 
   // Income tracking and history
   app.use("/api/income", incomeRoutes);
 
   // Referral tree visualization
   app.use("/api/referrals", referralRoutes);
+  app.use("/api/referrals/list", referralListRoutes);
+  
+  app.use("/api/referrals/search", referralSearchRoutes);
+  
 
   // ============================================================================
   // ADMIN ROUTES

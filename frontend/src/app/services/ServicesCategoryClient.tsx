@@ -87,7 +87,7 @@ export default function ServicesCategoryClient({
           Premium Services
         </div> */}
 
-        <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)]">Services Marketplace</h1>
+        <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)]">Services Marketplace</h1>
 
         <p className="text-[var(--gray-700)] max-w-3xl">
           Choose services to generate <span className="font-bold">Business Volume (BV)</span> and grow your referral income.
@@ -110,7 +110,7 @@ export default function ServicesCategoryClient({
         <div className="h-1 w-full bg-gradient-to-r from-[#22C55E] to-[#0EA5E9]" />
 
         <div className="p-5 sm:p-6 space-y-5 pt-0">
-          <div className="flex items-center gap-2 text-sm font-extrabold text-[var(--gray-900)]">
+          <div className="flex items-center gap-2 text-sm  text-[var(--gray-900)]">
             <SlidersHorizontal className="h-4 w-4 text-[#0EA5E9]" />
             Search & Filter
           </div>
@@ -178,7 +178,7 @@ export default function ServicesCategoryClient({
             >
               All Categories
               <span
-                className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs font-extrabold ${selectedCategory === null ? "bg-white/25 text-white" : "bg-[var(--gray-100)] text-[var(--gray-700)]"
+                className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs  ${selectedCategory === null ? "bg-white/25 text-white" : "bg-[var(--gray-100)] text-[var(--gray-700)]"
                   }`}
               >
                 {services.length}
@@ -201,7 +201,7 @@ export default function ServicesCategoryClient({
                 >
                   {cat.name}
                   <span
-                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs font-extrabold ${active ? "bg-white/25 text-white" : "bg-[var(--gray-100)] text-[var(--gray-700)]"
+                    className={`inline-flex h-6 min-w-6 items-center justify-center rounded-full text-xs  ${active ? "bg-white/25 text-white" : "bg-[var(--gray-100)] text-[var(--gray-700)]"
                       }`}
                   >
                     {count}
@@ -214,8 +214,8 @@ export default function ServicesCategoryClient({
           {/* Results line */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--gray-200)] pt-4">
             <div className="text-sm font-semibold text-[var(--gray-700)]">
-              <span className="font-extrabold text-[var(--gray-900)]">{filteredServices.length}</span> of{" "}
-              <span className="font-extrabold text-[var(--gray-900)]">{services.length}</span> services found
+              <span className=" text-[var(--gray-900)]">{filteredServices.length}</span> of{" "}
+              <span className=" text-[var(--gray-900)]">{services.length}</span> services found
             </div>
 
             {searchTerm.trim() && (
@@ -248,11 +248,11 @@ export default function ServicesCategoryClient({
               ) : (
                 <div className="rounded-2xl border border-[var(--gray-200)] bg-white p-5 shadow-sm flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-extrabold text-[var(--gray-900)]">{category.name}</h2>
+                    <h2 className="text-lg  text-[var(--gray-900)]">{category.name}</h2>
                     <p className="text-sm text-[var(--gray-600)]">{category.code}</p>
                   </div>
                   <div className="text-right">
-                    <div className="text-xl font-extrabold text-[#0EA5E9]">{categoryServices.length}</div>
+                    <div className="text-xl  text-[#0EA5E9]">{categoryServices.length}</div>
                     <p className="text-sm text-[var(--gray-600)]">Services</p>
                   </div>
                 </div>
@@ -279,7 +279,7 @@ export default function ServicesCategoryClient({
             <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--gray-50)] border border-[var(--gray-200)]">
               <Package className="h-8 w-8 text-[var(--gray-600)]" />
             </div>
-            <h3 className="text-lg font-extrabold text-[var(--gray-900)]">No Services Found</h3>
+            <h3 className="text-lg  text-[var(--gray-900)]">No Services Found</h3>
             <p className="mt-2 text-[var(--gray-700)] max-w-md mx-auto">
               {searchTerm.trim() ? "Try adjusting your search terms." : "Check back soon for new services!"}
             </p>

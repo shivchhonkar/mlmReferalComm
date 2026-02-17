@@ -117,7 +117,7 @@ function ResetPasswordForm() {
                   <KeyRound className="h-7 w-7" />
                 </div>
 
-                <h1 className="text-2xl font-extrabold text-[var(--gray-900)]">
+                <h1 className="text-2xl  text-[var(--gray-900)]">
                   Reset Password
                 </h1>
                 <p className="text-sm text-[var(--gray-700)]">
@@ -215,7 +215,7 @@ function ResetPasswordForm() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full rounded-xl font-extrabold text-white shadow-sm py-3 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full rounded-xl  text-white shadow-sm py-3 text-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{
                     background: loading ? "var(--gray-400)" : brandGradient,
                   }}
@@ -228,13 +228,13 @@ function ResetPasswordForm() {
               <div className="mt-6 text-center space-y-2">
                 <p className="text-sm text-[var(--gray-700)]">
                   Didn't receive OTP?{" "}
-                  <Link prefetch={false} href="/forgot-password" className="font-extrabold text-[var(--primary)] hover:underline">
+                  <Link prefetch={false} href="/forgot-password" className=" text-[var(--primary)] hover:underline">
                     Resend
                   </Link>
                 </p>
                 <p className="text-sm text-[var(--gray-700)]">
                   Remember your password?{" "}
-                  <Link prefetch={false} href="/login" className="font-extrabold text-[var(--primary)] hover:underline">
+                  <Link prefetch={false} href="/login" className=" text-[var(--primary)] hover:underline">
                     Sign in
                   </Link>
                 </p>

@@ -384,7 +384,7 @@ export default function ProfileSection() {
                   <Link
                     href="/register"
                     onClick={closeMenu}
-                    className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm font-extrabold text-white shadow-sm hover:shadow-md transition"
+                    className="inline-flex w-full items-center justify-center rounded-xl px-4 py-2.5 text-sm  text-white shadow-sm hover:shadow-md transition"
                     style={{ background: brandGradient }}
                   >
                     Create Account

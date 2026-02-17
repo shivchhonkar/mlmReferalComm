@@ -48,7 +48,7 @@ export default function BusinessOpportunityForm() {
         </div>
 
         <div>
-          <h3 className="text-lg font-extrabold text-[var(--gray-900)]">Get more information</h3>
+          <h3 className="text-lg  text-[var(--gray-900)]">Get more information</h3>
           <p className="mt-1 text-sm text-[var(--gray-700)]">
             We’ll email you complete details about BV rules, earnings, and how to start.
           </p>
@@ -71,7 +71,7 @@ export default function BusinessOpportunityForm() {
           </div>
 
           <button
-            className="inline-flex items-center justify-center gap-2 h-12 rounded-xl px-6 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center gap-2 h-12 rounded-xl px-6 text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
             style={{ background: "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)" }}
             disabled={busy}
             type="submit"

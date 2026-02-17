@@ -31,12 +31,12 @@ export default function AboutPage() {
       <div className="border-b border-[var(--gray-200)] bg-white">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-10">
           <div className="space-y-3">
-            {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs font-extrabold text-[var(--gray-700)]">
+            {/* <div className="inline-flex items-center gap-2 rounded-full border border-[var(--gray-200)] bg-[var(--gray-50)] px-3 py-1 text-xs  text-[var(--gray-700)]">
               <span className="h-2 w-2 rounded-full bg-[var(--primary)]" />
               Learn more about ReferGrow
             </div> */}
 
-            <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+            <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
               About <span className="text-[var(--primary)]">Sambhariya</span>
             </h1>
 
@@ -56,7 +56,7 @@ export default function AboutPage() {
                 key={i.k}
                 className="rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] px-5 py-4"
               >
-                <div className="text-sm font-extrabold text-[var(--gray-900)]">{i.k}</div>
+                <div className="text-sm  text-[var(--gray-900)]">{i.k}</div>
                 <div className="mt-1 text-xs text-[var(--gray-600)]">{i.v}</div>
               </div>
             ))}
@@ -93,7 +93,7 @@ export default function AboutPage() {
                   </div>
 
                   <div className="mt-5 space-y-2">
-                    <h2 className="text-lg font-extrabold text-[var(--gray-900)]">
+                    <h2 className="text-lg  text-[var(--gray-900)]">
                       {title}
                     </h2>
                     <p className="text-sm text-[var(--gray-700)] leading-relaxed">
@@ -111,7 +111,7 @@ export default function AboutPage() {
             {/* Bottom CTA */}
             <div className="mt-10 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-6 sm:p-8 flex flex-col md:flex-row gap-4 md:items-center md:justify-between">
               <div>
-                <h3 className="text-lg font-extrabold text-[var(--gray-900)]">
+                <h3 className="text-lg  text-[var(--gray-900)]">
                   Ready to get started?
                 </h3>
                 <p className="mt-1 text-sm text-[var(--gray-700)]">
@@ -123,7 +123,7 @@ export default function AboutPage() {
                 <Link
                   href="/register"
                   prefetch={false}
-                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold text-white shadow-sm transition hover:shadow-md"
+                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm  text-white shadow-sm transition hover:shadow-md"
                   style={{ background: brandGradient }}
                 >
                   Create Account
@@ -132,7 +132,7 @@ export default function AboutPage() {
                 <Link
                   href="/services"
                   prefetch={false}
-                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm font-extrabold border border-[var(--gray-200)] bg-white text-[var(--gray-800)] hover:bg-[var(--gray-50)] transition"
+                  className="inline-flex items-center justify-center h-12 rounded-xl px-6 text-sm  border border-[var(--gray-200)] bg-white text-[var(--gray-800)] hover:bg-[var(--gray-50)] transition"
                 >
                   Browse Services
                 </Link>

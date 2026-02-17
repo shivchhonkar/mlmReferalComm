@@ -20,7 +20,7 @@ export default function LandingHero() {
               Referral • Growth • Services Marketplace
             </span> */}
 
-            <h1 className="mt-0 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-gray-900">
+            <h1 className="mt-0 text-3xl sm:text-4xl lg:text-5xl  tracking-tight text-gray-900">
               Grow your business with{" "}
               <span className="bg-gradient-to-r from-emerald-600 to-sky-600 bg-clip-text text-transparent">
                 referrals & trusted services

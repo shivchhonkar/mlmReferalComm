@@ -17,7 +17,7 @@ export default function ServicesGrid({ services }: ServicesGridProps) {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--gray-50)] border border-[var(--gray-200)]">
             <div className="text-2xl">📦</div>
           </div>
-          <h3 className="text-2xl font-extrabold text-[var(--gray-900)]">No Services Available</h3>
+          <h3 className="text-2xl text-[var(--gray-900)]">No Services Available</h3>
           <p className="mt-2 text-[var(--gray-700)] max-w-md mx-auto">
             We’re updating our service catalog. Please check back soon.
           </p>

@@ -130,7 +130,7 @@ export default function AdminPage() {
               <span className="text-sm font-semibold text-zinc-800">{roleDisplay.badgeText}</span>
             </div>
 
-            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+            <h1 className="mt-4 text-3xl  tracking-tight text-zinc-900 sm:text-4xl">
               {roleDisplay.title}
             </h1>
             <p className="mt-2 text-sm text-zinc-600">
@@ -140,7 +140,7 @@ export default function AdminPage() {
 
           <Link
             href="/dashboard"
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Dashboard
@@ -162,12 +162,12 @@ export default function AdminPage() {
                     <Icon className="h-6 w-6 text-emerald-700" />
                   </div>
 
-                  <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-extrabold text-zinc-600 ring-1 ring-zinc-200 transition group-hover:bg-white">
+                  <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs  text-zinc-600 ring-1 ring-zinc-200 transition group-hover:bg-white">
                     Open →
                   </span>
                 </div>
 
-                <h3 className="text-lg font-extrabold text-zinc-900">{c.title}</h3>
+                <h3 className="text-lg  text-zinc-900">{c.title}</h3>
                 <p className="mt-2 text-sm text-zinc-600">{c.desc}</p>
 
                 <div className="mt-6 h-1 w-full rounded-full bg-gradient-to-r from-emerald-200/70 via-teal-200/70 to-sky-200/70 opacity-0 transition group-hover:opacity-100" />
@@ -182,26 +182,26 @@ export default function AdminPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-sky-50">
               <BarChart3 className="h-5 w-5 text-emerald-700" />
             </div>
-            <h2 className="text-lg font-extrabold text-zinc-900">Quick Overview</h2>
+            <h2 className="text-lg  text-zinc-900">Quick Overview</h2>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
               <Users className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
               <p className="text-xs font-semibold text-zinc-600">Total Users</p>
-              <p className="mt-1 text-2xl font-extrabold text-zinc-900">-</p>
+              <p className="mt-1 text-2xl  text-zinc-900">-</p>
             </div>
 
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
               <Settings className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
               <p className="text-xs font-semibold text-zinc-600">Active Services</p>
-              <p className="mt-1 text-2xl font-extrabold text-zinc-900">-</p>
+              <p className="mt-1 text-2xl  text-zinc-900">-</p>
             </div>
 
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
               <BarChart3 className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
               <p className="text-xs font-semibold text-zinc-600">Total Revenue</p>
-              <p className="mt-1 text-2xl font-extrabold text-zinc-900">-</p>
+              <p className="mt-1 text-2xl  text-zinc-900">-</p>
             </div>
           </div>
 

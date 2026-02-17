@@ -23,6 +23,7 @@ router.get("/me", async (req, res) => {
         id: user._id.toString(),
         name: user.name,
         email: user.email,
+        mobile: user.mobile,
         role: user.role,
         referralCode: user.referralCode,
         profileImage: user.profileImage,
@@ -141,8 +142,8 @@ router.put("/profile/business", async (req, res) => {
   const schema = z.object({
     businessName: z.string().optional(),
     companyPhone: z.string().optional(),
-    companyEmail: z.string().email({ message: "Invalid email format" }).optional(),
-    website: z.string().url({ message: "Invalid URL format" }).optional(),
+    companyEmail: z.string().optional(), //z.string().email({ message: "Invalid email format" }).optional(),
+    website: z.string().optional(), //z.string().url({ message: "Invalid URL format" }).optional(),
     billingAddress: z.string().optional(),
     state: z.string().optional(),
     pincode: z.string().optional(),
@@ -456,3 +457,5 @@ router.put("/kyc", async (req, res) => {
 });
 
 export default router;
+
+

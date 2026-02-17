@@ -192,14 +192,14 @@ export default function SettingsPage() {
       onClick={onClick}
       type="button"
       className={[
-        "relative inline-flex h-8 w-14 items-center rounded-full transition-colors",
+        "relative inline-flex h-6 w-14 items-center rounded-full transition-colors",
         checked ? "bg-gradient-to-r from-emerald-600 to-sky-600" : "bg-zinc-300",
       ].join(" ")}
       aria-pressed={checked}
     >
       <span
         className={[
-          "inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform",
+          "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
           checked ? "translate-x-7" : "translate-x-1",
         ].join(" ")}
       />
@@ -221,7 +221,7 @@ export default function SettingsPage() {
               <span className="text-sm font-semibold text-zinc-800">Preferences</span>
             </div>
 
-            <h1 className="mt-4 text-3xl font-extrabold tracking-tight text-zinc-900 sm:text-4xl">
+            <h1 className="mt-4 text-3xl  tracking-tight text-zinc-900 sm:text-4xl">
               Settings
             </h1>
             <p className="mt-2 text-sm text-zinc-600">
@@ -232,7 +232,7 @@ export default function SettingsPage() {
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
             >
               Back to Dashboard
             </Link>
@@ -272,7 +272,7 @@ export default function SettingsPage() {
                       <Icon className="h-5 w-5" />
                     </span>
                     <div className="flex-1">
-                      <div className="font-extrabold">{tab.label}</div>
+                      <div className="">{tab.label}</div>
                       <div className="text-xs text-zinc-500">
                         {tab.id === "account"
                           ? "Security & access"
@@ -296,7 +296,7 @@ export default function SettingsPage() {
               {activeTab === "account" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-extrabold text-zinc-900">Account Settings</h2>
+                    <h2 className="text-2xl text-zinc-900">Account Settings</h2>
                     <p className="mt-2 text-sm text-zinc-600">
                       Update security options and account details.
                     </p>
@@ -305,7 +305,7 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-extrabold text-zinc-900">Two-Factor Authentication</h3>
+                        <h5 className="text-zinc-900">Two-Factor Authentication</h5>
                         <p className="text-sm text-zinc-600 mt-1">
                           Add an extra layer of security to your account
                         </p>
@@ -314,23 +314,23 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="border-t border-zinc-200 pt-6">
-                      <h3 className="font-extrabold text-zinc-900 mb-3">Change Password</h3>
+                      <h3 className=" text-zinc-900 mb-3">Change Password</h3>
                       <button
                         type="button"
                         onClick={() => setShowPasswordModal(true)}
-                        className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                        className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
                       >
                         Update Password
                       </button>
                     </div>
 
                     <div className="border-t border-zinc-200 pt-6">
-                      <h3 className="font-extrabold text-zinc-900 mb-2">Email Address</h3>
+                      <h3 className=" text-zinc-900 mb-2">Email Address</h3>
                       <p className="text-zinc-600 mb-4">{userEmail}</p>
                       <button
                         type="button"
                         onClick={() => setShowEmailModal(true)}
-                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm font-extrabold text-sky-700 transition hover:bg-sky-100"
+                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm  text-sky-700 transition hover:bg-sky-100"
                       >
                         Change Email
                       </button>
@@ -343,7 +343,7 @@ export default function SettingsPage() {
               {activeTab === "notifications" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-extrabold text-zinc-900">Notification Preferences</h2>
+                    <h2 className="text-2xl  text-zinc-900">Notification Preferences</h2>
                     <p className="mt-2 text-sm text-zinc-600">
                       Choose what you want to receive and where.
                     </p>
@@ -377,7 +377,7 @@ export default function SettingsPage() {
                         className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition"
                       >
                         <div>
-                          <h3 className="font-extrabold text-zinc-900">{item.title}</h3>
+                          <h5 className="text-zinc-600">{item.title}</h5>
                           <p className="text-sm text-zinc-600 mt-1">{item.desc}</p>
                         </div>
                         <Toggle
@@ -394,7 +394,7 @@ export default function SettingsPage() {
               {activeTab === "privacy" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-extrabold text-zinc-900">Privacy Settings</h2>
+                    <h2 className="text-2xl  text-zinc-900">Privacy Settings</h2>
                     <p className="mt-2 text-sm text-zinc-600">
                       Control what others can see.
                     </p>
@@ -403,7 +403,7 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-extrabold text-zinc-900">Private Profile</h3>
+                        <h5 className=" text-zinc-900">Private Profile</h5>
                         <p className="text-sm text-zinc-600 mt-1">
                           Only show your profile to connections
                         </p>
@@ -412,10 +412,10 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="border-t border-zinc-200 pt-6">
-                      <h3 className="font-extrabold text-zinc-900 mb-3">Blocked Users</h3>
+                      <h5 className=" text-zinc-900 mb-3">Blocked Users</h5>
                       <button
                         type="button"
-                        className="rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm font-extrabold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                        className="rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
                       >
                         Manage Blocked Users
                       </button>
@@ -428,7 +428,7 @@ export default function SettingsPage() {
               {activeTab === "data" && (
                 <div className="space-y-8">
                   <div>
-                    <h2 className="text-2xl font-extrabold text-zinc-900">Data & Privacy</h2>
+                    <h2 className="text-2xl  text-zinc-900">Data & Privacy</h2>
                     <p className="mt-2 text-sm text-zinc-600">
                       Manage how data is collected and exported.
                     </p>
@@ -437,7 +437,7 @@ export default function SettingsPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-extrabold text-zinc-900">Data Collection</h3>
+                        <h5 className=" text-zinc-900">Data Collection</h5>
                         <p className="text-sm text-zinc-600 mt-1">Allow us to collect usage data</p>
                       </div>
                       <Toggle checked={settings.dataCollection} onClick={() => handleToggle("dataCollection")} />
@@ -445,33 +445,33 @@ export default function SettingsPage() {
 
                     <div className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 hover:bg-white transition">
                       <div>
-                        <h3 className="font-extrabold text-zinc-900">Analytics Data</h3>
+                        <h5 className=" text-zinc-900">Analytics Data</h5>
                         <p className="text-sm text-zinc-600 mt-1">Help us improve with analytics</p>
                       </div>
                       <Toggle checked={settings.analyticsData} onClick={() => handleToggle("analyticsData")} />
                     </div>
 
                     <div className="border-t border-zinc-200 pt-6">
-                      <h3 className="font-extrabold text-zinc-900 mb-2">Export Your Data</h3>
+                      <h5 className=" text-zinc-900 mb-2">Export Your Data</h5>
                       <p className="text-zinc-600 text-sm mb-4">
                         Download all your personal data in JSON format
                       </p>
                       <button
                         type="button"
-                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm font-extrabold text-sky-700 transition hover:bg-sky-100"
+                        className="rounded-2xl border border-sky-200 bg-sky-50 px-6 py-3 text-sm  text-sky-700 transition hover:bg-sky-100"
                       >
                         Download Data
                       </button>
                     </div>
 
                     <div className="border-t border-zinc-200 pt-6">
-                      <h3 className="font-extrabold text-zinc-900 mb-2">Delete Account</h3>
+                      <h3 className=" text-zinc-900 mb-2">Delete Account</h3>
                       <p className="text-zinc-600 text-sm mb-4">
                         Permanently delete your account and all associated data
                       </p>
                       <button
                         type="button"
-                        className="rounded-2xl bg-red-600 px-6 py-3 text-sm font-extrabold text-white shadow-sm transition hover:bg-red-700"
+                        className="rounded-2xl bg-red-600 px-6 py-3 text-sm  text-white shadow-sm transition hover:bg-red-700"
                       >
                         Delete Account
                       </button>
@@ -484,7 +484,7 @@ export default function SettingsPage() {
               <div className="mt-10 border-t border-zinc-200 pt-8">
                 <button
                   type="button"
-                  className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-8 py-3 text-sm font-extrabold text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                  className="w-full sm:w-auto rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-8 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
                 >
                   Save Changes
                 </button>
@@ -506,7 +506,7 @@ export default function SettingsPage() {
                     <Lock className="h-6 w-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-extrabold text-zinc-900">Change Password</h2>
+                    <h2 className="text-xl  text-zinc-900">Change Password</h2>
                     <p className="text-sm text-zinc-500">Update your account password</p>
                   </div>
                 </div>
@@ -606,7 +606,7 @@ export default function SettingsPage() {
                     <Mail className="h-6 w-6" />
                   </div>
                   <div>
-                    <h2 className="text-xl font-extrabold text-zinc-900">Change Email</h2>
+                    <h2 className="text-xl  text-zinc-900">Change Email</h2>
                     <p className="text-sm text-zinc-500">Update your email address</p>
                   </div>
                 </div>

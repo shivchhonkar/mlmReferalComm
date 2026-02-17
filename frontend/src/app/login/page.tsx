@@ -134,7 +134,7 @@ export default function LoginPage() {
                   <LockKeyhole className="h-7 w-7" />
                 </div>
 
-                <h1 className="text-2xl font-extrabold text-[var(--gray-900)]">
+                <h1 className="text-2xl  text-[var(--gray-900)]">
                   Welcome Back
                 </h1>
                 <p className="text-sm text-[var(--gray-700)]">
@@ -223,7 +223,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm font-extrabold text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{ background: brandGradient }}
                 >
                   {loading ? (
@@ -259,7 +259,7 @@ export default function LoginPage() {
                   <Link
                     prefetch={false}
                     href="/register"
-                    className="font-extrabold text-[var(--primary)] hover:underline"
+                    className=" text-[var(--primary)] hover:underline"
                   >
                     Create one now
                   </Link>

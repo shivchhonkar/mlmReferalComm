@@ -31,7 +31,7 @@ export default function LandingContentSections() {
     <section className="bg-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-14">
         <div className="text-center max-w-2xl mx-auto">
-          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+          <h2 className="text-2xl sm:text-3xl  text-gray-900">
             Everything you need to grow with referrals
           </h2>
           <p className="mt-3 text-gray-700">
@@ -58,7 +58,7 @@ export default function LandingContentSections() {
         <div className="mt-14 rounded-2xl border border-gray-200 bg-gradient-to-r from-emerald-50 to-sky-50 p-8">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
             <div>
-              <h3 className="text-xl font-extrabold text-gray-900">Start earning in 3 simple steps</h3>
+              <h3 className="text-xl  text-gray-900">Start earning in 3 simple steps</h3>
               <p className="mt-2 text-sm text-gray-700">
                 Register, share your referral code, and earn commission on every successful referral.
               </p>

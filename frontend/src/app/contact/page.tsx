@@ -17,11 +17,11 @@ export default function ContactPage() {
 
   const contact = useMemo(
     () => ({
-      email: "refergrow.official@gmail.com",
+      email: process.env.EMAIL,
       phone: process.env.PHONE || "+91 90457 86127",
-      hours: "Monday – Saturday: 10:00 AM – 6:00 PM IST",
-      addressLine1: "Sambhariya Marketing",
-      addressLine2: "India",
+      hours: process.env.BUSINESS_HOURS, //"Monday – Saturday: 10:00 AM – 6:00 PM IST",
+      addressLine:process.env.LOCATION,
+      // addressLine2: "India",
     }),
     []
   );
@@ -77,7 +77,7 @@ export default function ContactPage() {
                 Support • Sales • Queries
               </div> */}
 
-              <h1 className="text-3xl sm:text-4xl font-extrabold text-[var(--gray-900)] tracking-tight">
+              <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">
                 Contact Us
               </h1>
               <p className="text-[var(--gray-700)] max-w-2xl">
@@ -113,7 +113,7 @@ export default function ContactPage() {
           <div className="lg:col-span-7">
             <div className="rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm overflow-hidden">
               <div className="p-6 sm:p-8 border-b border-[var(--gray-200)] bg-[var(--gray-50)]">
-                <h2 className="text-xl font-extrabold text-[var(--gray-900)]">Send us a message</h2>
+                <h2 className="text-xl  text-[var(--gray-900)]">Send us a message</h2>
                 <p className="mt-2 text-sm text-[var(--gray-700)]">
                   Share your query and our team will get back to you.
                 </p>
@@ -208,7 +208,7 @@ export default function ContactPage() {
           {/* Info */}
           <div className="lg:col-span-5 space-y-6">
             <div className="rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm p-6 sm:p-8">
-              <h2 className="text-xl font-extrabold text-[var(--gray-900)]">Get in Touch</h2>
+              <h2 className="text-xl  text-[var(--gray-900)]">Get in Touch</h2>
               <p className="mt-2 text-sm text-[var(--gray-700)]">
                 Reach out via email/phone or during business hours.
               </p>
@@ -254,8 +254,8 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <div className="text-sm font-bold text-[var(--gray-900)]">Location</div>
-                    <div className="text-sm text-[var(--gray-700)]">{contact.addressLine1}</div>
-                    <div className="text-sm text-[var(--gray-700)]">{contact.addressLine2}</div>
+                    <div className="text-sm text-[var(--gray-700)]">{contact.addressLine}</div>
+                    {/* <div className="text-sm text-[var(--gray-700)]">{contact.addressLine2}</div> */}
                   </div>
                 </div>
               </div>
@@ -266,7 +266,7 @@ export default function ContactPage() {
               className="rounded-2xl p-6 sm:p-8 text-white shadow-sm"
               style={{ background: "linear-gradient(135deg, #0EA5E9 0%, #22C55E 100%)" }}
             >
-              <h3 className="text-lg font-extrabold">Need faster support?</h3>
+              <h3 className="text-lg ">Need faster support?</h3>
               <p className="mt-2 text-sm text-white/90">
                 For urgent queries, call us during business hours.
               </p>
