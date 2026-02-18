@@ -39,7 +39,7 @@ const orderSchema = new Schema(
     },
 
     payment: {
-      mode: { type: String, enum: ["COD", "RAZORPAY"], default: "COD" },
+      mode: { type: String, enum: ["COD", "CASH", "RAZORPAY"], default: "COD" },
       status: { type: String, enum: ["PENDING", "PAID", "FAILED"], default: "PENDING" },
 
       // later Razorpay

@@ -1,11 +1,12 @@
 import Link from "next/link";
 
-export default function CheckoutSuccessPage({
+export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams?: { orderId?: string };
+  searchParams?: Promise<{ orderId?: string }>;
 }) {
-  const orderId = searchParams?.orderId;
+  const params: { orderId?: string } = await (searchParams ?? Promise.resolve({}));
+  const orderId = typeof params.orderId === "string" ? params.orderId : undefined;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">

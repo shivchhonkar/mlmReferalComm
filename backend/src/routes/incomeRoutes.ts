@@ -12,7 +12,7 @@ router.get("/", async (req, res) => {
     await connectToDatabase();
 
     const incomes = await IncomeModel.find({ toUser: ctx.userId })
-      .populate("fromUser", "email referralCode")
+      .populate("fromUser", "email referralCode fullname name")
       .populate("purchase")
       .sort({ createdAt: -1 })
       .limit(100);

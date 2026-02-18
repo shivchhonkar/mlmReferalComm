@@ -24,14 +24,19 @@ type ActiveDistributionRule = {
   decayEnabled: boolean;
 };
 
-async function getActiveDistributionRule(session: mongoose.ClientSession): Promise<ActiveDistributionRule> {
-  const rule = await DistributionRuleModel.findOne({ isActive: true })
+function sessionOpt(session: mongoose.ClientSession | null | undefined): { session?: mongoose.ClientSession } {
+  return session != null ? { session } : {};
+}
+
+async function getActiveDistributionRule(session?: mongoose.ClientSession | null): Promise<ActiveDistributionRule> {
+  const query = DistributionRuleModel.findOne({ isActive: true })
     .sort({ createdAt: -1 })
-    .select("basePercentage decayEnabled")
-    .session(session);
+    .select("basePercentage decayEnabled");
+  if (session) query.session(session);
+  const rule = await query;
 
   // Default behavior when no rule is configured:
-  // Level 1 = 5% of BV, each next level = 50% of previous.
+  // Commission structure: Level 1 = 5% of BV, Level 2 = 2.5%, Level 3 = 1.25%, Level 4 = 0.625%, Level 5+ = 50% of previous.
   if (!rule) return { basePercentage: 0.05, decayEnabled: true };
 
   const basePercentage = Number(rule.basePercentage);
@@ -44,17 +49,19 @@ async function getActiveDistributionRule(session: mongoose.ClientSession): Promi
 
 async function distributeBusinessVolumeInSession(options: {
   userObjectId: mongoose.Types.ObjectId;
-  serviceObjectId: mongoose.Types.ObjectId;
+  /** Service _id (string CUID in your schema) */
+  serviceId: string;
   purchaseObjectId?: mongoose.Types.ObjectId;
-  session: mongoose.ClientSession;
+  session?: mongoose.ClientSession | null;
 }): Promise<DistributeBVResult> {
-  const { userObjectId, serviceObjectId, purchaseObjectId, session } = options;
+  const { userObjectId, serviceId, purchaseObjectId, session } = options;
+  const opts = sessionOpt(session);
 
   const rule = await getActiveDistributionRule(session);
 
-  const service = await ServiceModel.findById(serviceObjectId)
-    .select("businessVolume status bv isActive")
-    .session(session);
+  const serviceQuery = ServiceModel.findById(serviceId).select("businessVolume status bv isActive");
+  if (session) serviceQuery.session(session);
+  const service = await serviceQuery;
 
   if (!service) throw new Error("Service not found");
 
@@ -65,7 +72,9 @@ async function distributeBusinessVolumeInSession(options: {
   const bv = (service.businessVolume ?? legacyService.bv) as number;
   if (!Number.isFinite(bv) || bv < 0) throw new Error("Service has invalid BV");
 
-  const buyer = await UserModel.findById(userObjectId).select("parent").session(session);
+  const buyerQuery = UserModel.findById(userObjectId).select("parent");
+  if (session) buyerQuery.session(session);
+  const buyer = await buyerQuery;
   if (!buyer) throw new Error("User not found");
 
   let parentId = buyer.parent ? new mongoose.Types.ObjectId(buyer.parent) : null;
@@ -123,7 +132,9 @@ async function distributeBusinessVolumeInSession(options: {
       throw new Error("Referral chain too deep or corrupt");
     }
 
-    const parent = await UserModel.findById(parentId).select("parent").session(session);
+    const parentQuery = UserModel.findById(parentId).select("parent");
+    if (session) parentQuery.session(session);
+    const parent = await parentQuery;
     parentId = parent?.parent ? new mongoose.Types.ObjectId(parent.parent) : null;
 
     level += 1;
@@ -135,11 +146,11 @@ async function distributeBusinessVolumeInSession(options: {
   }
 
   if (logs.length > 0) {
-    await IncomeLogModel.insertMany(logs, { session });
+    await IncomeLogModel.insertMany(logs, opts);
   }
 
   if (purchaseObjectId && incomes.length > 0) {
-    await IncomeModel.insertMany(incomes, { session });
+    await IncomeModel.insertMany(incomes, opts);
   }
 
   return {
@@ -152,13 +163,16 @@ async function distributeBusinessVolumeInSession(options: {
 /**
  * Distribute Business Volume (BV) income up the referral chain.
  *
+ * Commission structure (default when no rule configured):
+ * - Level 1: 5% of BV
+ * - Level 2: 2.5% of BV
+ * - Level 3: 1.25% of BV
+ * - Level 4: 0.625% of BV
+ * - Level 5+: 50% of previous level
+ *
  * Rules:
  * - Input: userId, serviceId
- * - Fetch service BV
- * - Traverse referral parents upward
- * - Level 1 gets 5% of BV
- * - Each next level gets half of previous
- * - Stop when parent is null
+ * - Fetch service BV, traverse referral parents upward
  * - Store income logs in MongoDB
  * - Use MongoDB transaction to ensure consistency
  */
@@ -169,25 +183,33 @@ export async function distributeBusinessVolume(options: {
   await connectToDatabase();
 
   const userObjectId = asObjectId(options.userId, "userId");
-  const serviceObjectId = asObjectId(options.serviceId, "serviceId");
-
-  const session = await mongoose.startSession();
 
   try {
-    let result: DistributeBVResult | null = null;
-
-    await session.withTransaction(async () => {
-      result = await distributeBusinessVolumeInSession({
-        userObjectId,
-        serviceObjectId,
-        session,
+    const session = await mongoose.startSession();
+    try {
+      let result: DistributeBVResult | null = null;
+      await session.withTransaction(async () => {
+        result = await distributeBusinessVolumeInSession({
+          userObjectId,
+          serviceId: options.serviceId,
+          session,
+        });
       });
-    });
-
-    if (!result) throw new Error("Transaction failed");
-    return result;
-  } finally {
-    session.endSession();
+      if (!result) throw new Error("Transaction failed");
+      return result;
+    } finally {
+      session.endSession();
+    }
+  } catch (err: any) {
+    const msg = err?.message ?? "";
+    if (msg.includes("replica set") || msg.includes("Transaction numbers")) {
+      return distributeBusinessVolumeInSession({
+        userObjectId,
+        serviceId: options.serviceId,
+        session: null,
+      });
+    }
+    throw err;
   }
 }
 
@@ -199,18 +221,17 @@ export async function distributeBusinessVolumeWithSession(options: {
   userId: string;
   serviceId: string;
   purchaseId?: string;
-  session: mongoose.ClientSession;
+  session?: mongoose.ClientSession | null;
 }): Promise<DistributeBVResult> {
   const userObjectId = asObjectId(options.userId, "userId");
-  const serviceObjectId = asObjectId(options.serviceId, "serviceId");
   const purchaseObjectId = options.purchaseId
     ? asObjectId(options.purchaseId, "purchaseId")
     : undefined;
 
   return distributeBusinessVolumeInSession({
     userObjectId,
-    serviceObjectId,
+    serviceId: options.serviceId,
     purchaseObjectId,
-    session: options.session,
+    session: options.session ?? undefined,
   });
 }

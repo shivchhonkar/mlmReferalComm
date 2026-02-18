@@ -1,12 +1,15 @@
 import express from "express";
+import mongoose from "mongoose";
 
 import { OrderModel } from "../models/Order";
 import { PurchaseModel } from "../models/Purchase";
+import { IncomeModel } from "../models/Income";
 import { UserModel } from "../models/User";
-import { ServiceModel } from "../models/Service"; // ✅ make sure this exists
+import { ServiceModel } from "../models/Service";
 
 import { requireAuth } from "@/middleware/auth";
 import { connectToDatabase } from "@/lib/db";
+import { distributeBusinessVolumeWithSession } from "@/lib/bvDistribution";
 
 const router = express.Router();
 
@@ -87,7 +90,11 @@ router.post("/", async (req, res) => {
     const user = await UserModel.findById(ctx.userId);
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
-    const { customer, items, payment } = req.body ?? {};
+    const body = req.body ?? {};
+    const { customer, items, payment } = body;
+    // Support both nested payment and top-level fallbacks (for proxy/parsing edge cases)
+    const paymentModeRaw = payment?.mode ?? body.paymentMode;
+    const paymentStatusRaw = payment?.status ?? body.paymentStatus;
 
     // ---- Basic validation
     if (!customer?.fullName || String(customer.fullName).trim().length < 2) {
@@ -160,9 +167,15 @@ router.post("/", async (req, res) => {
     const computedTotalQuantity = normalizedItems.reduce((s: number, i: any) => s + i.quantity, 0);
     const computedTotalAmount = normalizedItems.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
 
-    // ---- Create Order
-    const order = await OrderModel.create({
-      user: user._id, // ✅ user is ObjectId in users collection
+    const paymentMode =
+      paymentModeRaw === "RAZORPAY" ? "RAZORPAY"
+      : paymentModeRaw === "CASH" ? "CASH"
+      : "COD";
+    const paymentStatus =
+      paymentMode === "CASH" || paymentStatusRaw === "PAID" ? "PAID" : "PENDING";
+
+    const orderDoc = {
+      user: user._id,
       customer: {
         fullName: String(customer.fullName).trim(),
         mobile,
@@ -177,49 +190,162 @@ router.post("/", async (req, res) => {
       },
       status: "PENDING",
       payment: {
-        mode: payment?.mode === "RAZORPAY" ? "RAZORPAY" : "COD",
-        status: "PENDING",
+        mode: paymentMode,
+        status: paymentStatus,
       },
-    });
+    };
 
-    // ---- Create Purchases
-    // ✅ Your services use string _id, so Purchase.service should be String in schema.
-    // If your Purchase schema is still ObjectId, change it to String to match services.
-    const purchasesToInsert: any[] = [];
+    const runWithSession = async (session: mongoose.ClientSession | null) => {
+      const createOpts = session ? { session } : {};
+      const [order] = await OrderModel.create([orderDoc], createOpts);
 
-    for (const it of normalizedItems) {
-      for (let k = 0; k < it.quantity; k++) {
-        purchasesToInsert.push({
-          user: user._id,
-          service: it.service, // ✅ string id like "svc004invoice"
-          bv: it.bv,
+      const purchasesToInsert: { user: mongoose.Types.ObjectId; service: string; bv: number; order: mongoose.Types.ObjectId }[] = [];
+      for (const it of normalizedItems) {
+        for (let k = 0; k < it.quantity; k++) {
+          purchasesToInsert.push({
+            user: user._id,
+            service: it.service,
+            bv: it.bv,
+            order: order._id,
+          });
+        }
+      }
+
+      const createdPurchases = await PurchaseModel.insertMany(purchasesToInsert, createOpts);
+
+      for (const purchase of createdPurchases) {
+        await distributeBusinessVolumeWithSession({
+          userId: String(user._id),
+          serviceId: purchase.service,
+          purchaseId: String(purchase._id),
+          session,
         });
       }
-    }
 
-    if (purchasesToInsert.length > 0) {
-      await PurchaseModel.insertMany(purchasesToInsert);
-    }
+      return { order, purchasesCreated: createdPurchases.length };
+    };
 
-    return res.status(201).json({
-      message: "Order created",
-      order: {
-        id: String(order._id),
-        status: order.status,
-        payment: order.payment,
-        totalAmount: order?.totals?.totalAmount,
-        totalQuantity: order?.totals?.totalQuantity,
-        createdAt: order.createdAt,
-        purchasesCreated: purchasesToInsert.length,
-      },
-    });
+    try {
+      const session = await mongoose.startSession();
+      try {
+        const result = await session.withTransaction(async () => runWithSession(session));
+        const order = result!.order;
+        return res.status(201).json({
+          message: "Order created",
+          order: {
+            id: String(order._id),
+            status: order.status,
+            payment: order.payment,
+            totalAmount: order?.totals?.totalAmount,
+            totalQuantity: order?.totals?.totalQuantity,
+            createdAt: order.createdAt,
+            purchasesCreated: result!.purchasesCreated,
+          },
+        });
+      } finally {
+        session.endSession();
+      }
+    } catch (txErr: any) {
+      const msg = String(txErr?.message ?? "");
+      if (msg.includes("replica set") || msg.includes("Transaction numbers")) {
+        const result = await runWithSession(null);
+        const order = result.order;
+        return res.status(201).json({
+          message: "Order created",
+          order: {
+            id: String(order._id),
+            status: order.status,
+            payment: order.payment,
+            totalAmount: order?.totals?.totalAmount,
+            totalQuantity: order?.totals?.totalQuantity,
+            createdAt: order.createdAt,
+            purchasesCreated: result.purchasesCreated,
+          },
+        });
+      }
+      throw txErr;
+    }
   } catch (err: any) {
     if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
       return res.status(401).json({ error: "Unauthorized" });
     }
 
     console.error("orders POST error:", err);
-    return res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: err?.message || "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/orders/:id/status
+ * Body: { status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" }
+ * - When status is CANCELLED: reverse referral income (delete Income records for this order's purchases).
+ */
+router.patch("/:id/status", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order id" });
+    }
+
+    const { status } = req.body ?? {};
+    const allowed = ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED"];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: "Invalid status. Use one of: " + allowed.join(", ") });
+    }
+
+    const user = await UserModel.findById(ctx.userId).select("role").lean();
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const order = await OrderModel.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const isAdmin = isAdminRole((user as any).role);
+    if (!isAdmin && String(order.user) !== String(ctx.userId)) {
+      return res.status(403).json({ message: "You can only update your own orders" });
+    }
+
+    if (status === "CANCELLED") {
+      const runCancel = async (session: mongoose.ClientSession | null) => {
+        const opts = session ? { session } : {};
+        const findQuery = PurchaseModel.find({ order: orderId }).select("_id");
+        if (session) findQuery.session(session);
+        const purchases = await findQuery.lean();
+        const purchaseIds = purchases.map((p: any) => p._id);
+        if (purchaseIds.length > 0) {
+          await IncomeModel.deleteMany({ purchase: { $in: purchaseIds } }, opts);
+        }
+        await OrderModel.updateOne({ _id: orderId }, { $set: { status: "CANCELLED" } }, opts);
+      };
+      try {
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(() => runCancel(session));
+        } finally {
+          session.endSession();
+        }
+      } catch (txErr: any) {
+        const msg = String(txErr?.message ?? "");
+        if (msg.includes("replica set") || msg.includes("Transaction numbers")) {
+          await runCancel(null);
+        } else {
+          throw txErr;
+        }
+      }
+    } else {
+      await OrderModel.updateOne({ _id: orderId }, { $set: { status } });
+    }
+
+    const updated = await OrderModel.findById(orderId).lean();
+    return res.json({ message: "Order status updated", order: updated });
+  } catch (err: any) {
+    if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("orders PATCH status error:", err);
+    return res.status(500).json({ message: err?.message || "Internal server error" });
   }
 });
 

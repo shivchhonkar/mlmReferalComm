@@ -22,6 +22,9 @@ import {
   RefreshCw,
   Star,
   ArrowUpDown,
+  CheckCircle,
+  XCircle,
+  Clock,
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import AdminServiceUpload from "./AdminServiceUpload";
@@ -31,14 +34,17 @@ type Service = {
   name: string;
   price: number;
   businessVolume: number;
-  status: "active" | "inactive";
+  status: "pending_approval" | "approved" | "rejected" | "active" | "inactive" | "out_of_stock";
   createdAt: string;
 
   slug?: string;
   image?: string;
   shortDescription?: string;
-  categoryId?: string;
+  description?: string;
+  categoryId?: string | { _id: string; name: string; code: string };
   isFeatured?: boolean;
+  tags?: string[];
+  rejectionReason?: string;
 };
 
 type MeResponse = {
@@ -157,7 +163,9 @@ export default function AdminServicesPage() {
   const canManage = useMemo(() => ADMIN_ROLES.has(String(meRole ?? "")), [meRole]);
 
   const [services, setServices] = useState<Service[]>([]);
-  const [activeTab, setActiveTab] = useState<"manage" | "upload">("manage");
+  const [pendingServices, setPendingServices] = useState<Service[]>([]);
+  const [pendingPagination, setPendingPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [activeTab, setActiveTab] = useState<"manage" | "upload" | "approvals">("manage");
 
   // UI
   const [error, setError] = useState<string | null>(null);
@@ -196,11 +204,17 @@ export default function AdminServicesPage() {
   const [editShortDescription, setEditShortDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editIsFeatured, setEditIsFeatured] = useState(false);
-  const [editStatus, setEditStatus] = useState<"active" | "inactive">("active");
+  const [editStatus, setEditStatus] = useState<"active" | "pending_approval" | "inactive" | "approved" | "rejected" | "out_of_stock">("active");
 
   // Delete modal
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
+
+  // Approval modal
+  const [rejectModalOpen, setRejectModalOpen] = useState(false);
+  const [selectedServiceForReject, setSelectedServiceForReject] = useState<Service | null>(null);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [busyApprovalId, setBusyApprovalId] = useState<string | null>(null);
 
   // async function loadMe() {
   //   try {
@@ -225,11 +239,31 @@ export default function AdminServicesPage() {
     }
   }
 
+  async function loadPendingServices(page = 1) {
+    setError(null);
+    try {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+      });
+      const res = await apiFetch(`/api/admin/services/pending?${params}`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.error ?? "Failed to load pending services");
+      setPendingServices(json.services ?? []);
+      setPendingPagination(json.pagination ?? { page: 1, limit: 10, total: 0, pages: 0 });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   useEffect(() => {
     setMeRole(user?.role)
     load();
+    if (activeTab === "approvals") {
+      loadPendingServices();
+    }
     console.log('user?.role: ', user?.role,'---', user);
-  }, [user]);
+  }, [user, activeTab]);
 
   // ---- Create modal handlers
   function openCreate() {
@@ -281,7 +315,7 @@ export default function AdminServicesPage() {
           shortDescription: shortDescription || undefined,
           categoryId: categoryId || undefined,
           isFeatured,
-          status: "active",
+          status: canManage ? "active" : "pending_approval", // Non-admins need approval
         }),
       });
 
@@ -291,6 +325,9 @@ export default function AdminServicesPage() {
       resetCreateForm();
       setCreateOpen(false);
       await load();
+      if (activeTab === "approvals") {
+        await loadPendingServices();
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -311,7 +348,7 @@ export default function AdminServicesPage() {
     setEditBusinessVolume(service.businessVolume ?? "");
     setEditImage(service.image ?? "");
     setEditShortDescription(service.shortDescription ?? "");
-    setEditCategoryId(service.categoryId ?? "");
+    setEditCategoryId(service._id ?? "");
     setEditIsFeatured(Boolean(service.isFeatured));
     setEditStatus(service.status ?? "active");
     setEditOpen(true);
@@ -438,8 +475,9 @@ export default function AdminServicesPage() {
     const active = services.filter((s) => s.status === "active").length;
     const inactive = services.filter((s) => s.status === "inactive").length;
     const featured = services.filter((s) => s.isFeatured).length;
-    return { total, active, inactive, featured };
-  }, [services]);
+    const pending = pendingPagination.total;
+    return { total, active, inactive, featured, pending };
+  }, [services, pendingPagination]);
 
   const filteredSorted = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -564,7 +602,7 @@ export default function AdminServicesPage() {
           </div>
 
           {/* Quick stats */}
-          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+          <div className="mt-6 grid gap-3 sm:grid-cols-5">
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-xs font-semibold text-slate-500">Total Services</div>
               <div className="mt-1 text-2xl text-slate-900">{stats.total}</div>
@@ -576,6 +614,10 @@ export default function AdminServicesPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-xs font-semibold text-slate-500">Inactive</div>
               <div className="mt-1 text-2xl text-slate-700">{stats.inactive}</div>
+            </div>
+            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
+              <div className="text-xs font-semibold text-yellow-700">Pending Approval</div>
+              <div className="mt-1 text-2xl text-yellow-700">{stats.pending}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <div className="text-xs font-semibold text-slate-500">Featured</div>
@@ -608,7 +650,7 @@ export default function AdminServicesPage() {
                 <div className="relative">
                   <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+                    className="w-full rounded-2xl border border-slate-200 bg-white !pl-12 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
                     placeholder="Search services..."
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
@@ -643,7 +685,7 @@ export default function AdminServicesPage() {
                 <div className="relative">
                   <ArrowUpDown className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
                   <select
-                    className="w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 py-3 text-sm font-semibold text-slate-800 outline-none"
+                    className="w-full rounded-2xl border border-slate-200 bg-white !pl-10 pr-3 py-3 text-sm font-semibold text-slate-800 outline-none"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as any)}
                   >
@@ -661,7 +703,7 @@ export default function AdminServicesPage() {
             </div>
           </div>
 
-          {/* Tabs (upload only) */}
+          {/* Tabs */}
           <div className="mt-6 flex gap-2 border-b border-slate-200">
             <button
               onClick={() => setActiveTab("manage")}
@@ -674,6 +716,26 @@ export default function AdminServicesPage() {
             >
               <ClipboardList className="h-4 w-4" />
               Manage
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab("approvals");
+                loadPendingServices();
+              }}
+              className={cn(
+                "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors relative",
+                activeTab === "approvals"
+                  ? "border-emerald-600 text-emerald-700"
+                  : "border-transparent text-slate-600 hover:text-slate-900"
+              )}
+            >
+              <Clock className="h-4 w-4" />
+              Approvals
+              {pendingPagination.total > 0 && (
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[18px]">
+                  {pendingPagination.total}
+                </span>
+              )}
             </button>
             <button
               onClick={() => setActiveTab("upload")}
@@ -704,6 +766,152 @@ export default function AdminServicesPage() {
 
         {activeTab === "upload" ? (
           <AdminServiceUpload />
+        ) : activeTab === "approvals" ? (
+          <div className="mt-2">
+            {pendingServices.length === 0 ? (
+              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-sky-100">
+                  <Clock className="h-8 w-8 text-zinc-500" />
+                </div>
+                <h3 className="text-lg font-semibold text-zinc-900 mb-1">No Pending Services</h3>
+                <p className="text-sm text-zinc-600">All services have been reviewed. Great job!</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pendingServices.map((s) => {
+                    const isBusy = busyApprovalId === s._id;
+                    const categoryName = typeof s.categoryId === "object" ? s.categoryId?.name : s.categoryId;
+
+                    return (
+                      <div
+                        key={s._id}
+                        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="inline-flex items-center rounded-full bg-yellow-50 border border-yellow-200 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Pending
+                          </span>
+                        </div>
+
+                        <div className="mt-4">
+                          <ServiceImage src={s.image} name={s.name} />
+                        </div>
+
+                        <div className="mt-4">
+                          <div className="text-base font-bold text-slate-900">{s.name}</div>
+                          <div className="mt-1 text-sm text-slate-600 line-clamp-2">
+                            {s.shortDescription || s.description || "No description provided."}
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-end justify-between">
+                          <div>
+                            <div className="text-lg font-extrabold text-slate-900">
+                              {formatINR(s.price)}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              BV: {s.businessVolume} {categoryName ? `• ${categoryName}` : ""}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center gap-2">
+                          <button
+                            onClick={async () => {
+                              setBusyApprovalId(s._id);
+                              try {
+                                const res = await apiFetch(`/api/admin/services/${s._id}/approve`, {
+                                  method: "PUT",
+                                });
+                                const json = await res.json();
+                                if (!res.ok) throw new Error(json?.error ?? "Failed to approve");
+                                await loadPendingServices(pendingPagination.page);
+                                await load();
+                              } catch (e: unknown) {
+                                setError(e instanceof Error ? e.message : String(e));
+                              } finally {
+                                setBusyApprovalId(null);
+                              }
+                            }}
+                            disabled={isBusy || !canManage}
+                            className={cn(
+                              "flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
+                              canManage ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-300 cursor-not-allowed"
+                            )}
+                          >
+                            <CheckCircle className="h-4 w-4" />
+                            {isBusy ? "Working..." : "Approve"}
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setSelectedServiceForReject(s);
+                              setRejectModalOpen(true);
+                            }}
+                            disabled={isBusy || !canManage}
+                            className={cn(
+                              "flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
+                              canManage ? "bg-red-600 hover:bg-red-700" : "bg-slate-300 cursor-not-allowed"
+                            )}
+                          >
+                            <XCircle className="h-4 w-4" />
+                            Reject
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Pagination */}
+                {pendingPagination.pages > 1 && (
+                  <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-sm text-slate-700">
+                        Showing{" "}
+                        <span className="font-bold">
+                          {(pendingPagination.page - 1) * pendingPagination.limit + 1}
+                        </span>{" "}
+                        to{" "}
+                        <span className="font-bold">
+                          {Math.min(pendingPagination.page * pendingPagination.limit, pendingPagination.total)}
+                        </span>{" "}
+                        of <span className="font-bold">{pendingPagination.total}</span> results
+                      </p>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            const newPage = Math.max(1, pendingPagination.page - 1);
+                            loadPendingServices(newPage);
+                          }}
+                          disabled={pendingPagination.page === 1}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:shadow-md transition disabled:opacity-50"
+                        >
+                          Previous
+                        </button>
+                        <span className="px-3 text-sm font-semibold text-zinc-700">
+                          Page {pendingPagination.page} of {pendingPagination.pages}
+                        </span>
+                        <button
+                          onClick={() => {
+                            const newPage = Math.min(pendingPagination.pages, pendingPagination.page + 1);
+                            loadPendingServices(newPage);
+                          }}
+                          disabled={pendingPagination.page === pendingPagination.pages}
+                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:shadow-md transition disabled:opacity-50"
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         ) : (
           <div className="mt-2">
             {loading ? (
@@ -768,7 +976,7 @@ export default function AdminServicesPage() {
                         </div>
                         <div className="text-xs text-slate-500">
                           Category:{" "}
-                          <span className="font-semibold">{s.categoryId || "—"}</span>
+                          <span className="font-semibold">{s._id || "—"}</span>
                         </div>
                       </div>
 
@@ -1151,6 +1359,88 @@ export default function AdminServicesPage() {
           <div className="mt-2">
             Are you sure you want to delete{" "}
             <span className="font-semibold">{deleteTarget?.name}</span>?
+          </div>
+        </div>
+      </Modal>
+
+      {/* Reject Modal */}
+      <Modal
+        open={rejectModalOpen}
+        title="Reject Service"
+        subtitle="Please provide a reason for rejection"
+        onClose={() => {
+          if (busyApprovalId) return;
+          setRejectModalOpen(false);
+          setSelectedServiceForReject(null);
+          setRejectionReason("");
+        }}
+        busy={!!busyApprovalId}
+        footer={
+          <>
+            <button
+              onClick={() => {
+                if (busyApprovalId) return;
+                setRejectModalOpen(false);
+                setSelectedServiceForReject(null);
+                setRejectionReason("");
+              }}
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
+              disabled={!!busyApprovalId}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={async () => {
+                if (!selectedServiceForReject || !rejectionReason.trim()) return;
+                setBusyApprovalId(selectedServiceForReject._id);
+                try {
+                  const res = await apiFetch(`/api/admin/services/${selectedServiceForReject._id}/reject`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ reason: rejectionReason.trim() }),
+                  });
+                  const json = await res.json();
+                  if (!res.ok) throw new Error(json?.error ?? "Failed to reject");
+                  setRejectModalOpen(false);
+                  setSelectedServiceForReject(null);
+                  setRejectionReason("");
+                  await loadPendingServices(pendingPagination.page);
+                  await load();
+                } catch (e: unknown) {
+                  setError(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setBusyApprovalId(null);
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+              disabled={!!busyApprovalId || !rejectionReason.trim() || !canManage}
+            >
+              <XCircle className="h-4 w-4" />
+              {busyApprovalId ? "Rejecting..." : "Reject"}
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div className="font-bold">Rejecting: {selectedServiceForReject?.name}</div>
+            <div className="mt-1 text-xs">This action will mark the service as rejected.</div>
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
+              Rejection Reason *
+            </label>
+            <textarea
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-red-200"
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Enter rejection reason (e.g., Invalid documents, Wrong category, Pricing mismatch...)"
+              rows={4}
+              disabled={!!busyApprovalId}
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Tip: Use clear reasons like "Invalid documents", "Wrong category", "Pricing mismatch", etc.
+            </p>
           </div>
         </div>
       </Modal>

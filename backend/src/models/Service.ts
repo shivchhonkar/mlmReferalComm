@@ -39,10 +39,17 @@ const serviceSchema = new Schema(
     // Service status
     status: { 
       type: String, 
-      enum: ["active", "inactive", "out_of_stock"], 
-      default: "active", 
+      enum: ["pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"], 
+      default: "pending_approval", 
       index: true 
     },
+    
+    // Approval tracking
+    approvedAt: { type: Date },
+    approvedBy: { type: String, ref: "User" },
+    rejectedAt: { type: Date },
+    rejectedBy: { type: String, ref: "User" },
+    rejectionReason: { type: String },
     
     // Featured flag for highlighting
     isFeatured: { type: Boolean, default: false },

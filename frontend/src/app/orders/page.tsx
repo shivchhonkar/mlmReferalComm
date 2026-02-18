@@ -20,7 +20,7 @@ import {
 
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { formatINR } from "@/lib/format";
-import { showErrorToast } from "@/lib/toast";
+import { showErrorToast, showSuccessToast } from "@/lib/toast";
 
 type ApiOrderItem = {
   service?: string; // e.g. "svc004invoice"
@@ -45,7 +45,7 @@ type ApiTotals = {
 };
 
 type ApiPayment = {
-  mode?: "COD" | "RAZORPAY";
+  mode?: "COD" | "CASH" | "RAZORPAY";
   status?: "PENDING" | "PAID" | "FAILED";
 };
 
@@ -109,6 +109,7 @@ export default function OrdersPage() {
 
   const [filter, setFilter] = useState<"all" | UiStatus>("all");
   const [openId, setOpenId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   // ✅ UX improvements
   const [query, setQuery] = useState("");
@@ -148,7 +149,7 @@ export default function OrdersPage() {
           (o.customer?.address && String(o.customer.address).trim()) ||
           (o.customer?.email && `Email: ${o.customer.email}`) ||
           (o.customer?.mobile && `Mobile: ${o.customer.mobile}`) ||
-          "—";
+          "";
 
         return {
           id,
@@ -172,6 +173,26 @@ export default function OrdersPage() {
       setOrders([]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function cancelOrder(orderId: string) {
+    setCancellingId(orderId);
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+      const body = await readApiBody(res);
+      const data = body.json as { message?: string; error?: string };
+      if (!res.ok) throw new Error(data?.error ?? data?.message ?? "Failed to cancel order");
+      showSuccessToast("Order cancelled. Referral earnings for this order have been reversed.");
+      await loadOrders();
+    } catch (err: any) {
+      showErrorToast(err?.message ?? "Failed to cancel order");
+    } finally {
+      setCancellingId(null);
     }
   }
 
@@ -330,7 +351,7 @@ export default function OrdersPage() {
 
         {/* Stats */}
         <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="text-xs font-bold text-zinc-500">Total Orders</div>
             <div className="mt-1 text-2xl  text-zinc-900">{stats.count}</div>
           </div>
@@ -343,7 +364,7 @@ export default function OrdersPage() {
               ["cancelled", "Cancelled", "bg-red-600"] as const,
             ] as const
           ).map(([key, label, dot]) => (
-            <div key={key} className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <div key={key} className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between">
                 <div className="text-xs font-bold text-zinc-500">{label}</div>
                 <span className={["h-2.5 w-2.5 rounded-full", dot].join(" ")} />
@@ -356,7 +377,7 @@ export default function OrdersPage() {
         </div>
 
         {/* Toolbar: Filters + Search + Page size */}
-        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             {/* Filters */}
             <div className="flex gap-2 overflow-x-auto pb-1">
@@ -384,15 +405,20 @@ export default function OrdersPage() {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               {/* Search */}
-              <div className="relative w-full sm:w-80">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+             <div className="relative w-full sm:w-80">
+                <div className="pointer-events-none absolute inset-y-0 left-4 flex items-center">
+                  <Search className="h-4 w-4 text-zinc-400" />
+                </div>
+
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search orders, customer, items..."
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-2.5 pl-10 pr-3 text-sm font-semibold text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-200/60"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 py-2.5 !pl-12 pr-3 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 outline-none transition focus:border-emerald-300 focus:bg-white focus:ring-2 focus:ring-emerald-200/60"
                 />
               </div>
+
+
 
               {/* Page size */}
               <div className="flex items-center gap-2">
@@ -402,6 +428,7 @@ export default function OrdersPage() {
                   onChange={(e) => setPageSize(Number(e.target.value) as 10 | 20 | 50)}
                   className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-sm  text-zinc-800 shadow-sm outline-none transition hover:bg-zinc-50"
                 >
+                  <option value={5}>5</option>
                   <option value={10}>10</option>
                   <option value={20}>20</option>
                   <option value={50}>50</option>
@@ -473,12 +500,12 @@ export default function OrdersPage() {
 
         {/* Orders */}
         {loading ? (
-          <div className="rounded-3xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto inline-block h-12 w-12 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
             <p className="mt-4 text-sm font-semibold text-zinc-600">Loading orders...</p>
           </div>
         ) : pageSlice.length === 0 ? (
-          <div className="rounded-3xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
+          <div className="rounded-2xl border border-zinc-200 bg-white p-12 text-center shadow-sm">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-sky-50">
               <ShoppingBag className="h-8 w-8 text-emerald-700" />
             </div>
@@ -503,7 +530,7 @@ export default function OrdersPage() {
               return (
                 <div
                   key={order.id}
-                  className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   {/* Top bar */}
                   <div className="flex flex-col gap-3 border-b border-zinc-200 bg-gradient-to-r from-zinc-50 to-white px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -520,6 +547,12 @@ export default function OrdersPage() {
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
+                      {order.paymentStatus === "PAID" && (
+                        <div className="inline-flex items-center gap-2 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800">
+                          <CheckCircle className="h-4 w-4" />
+                          Paid
+                        </div>
+                      )}
                       <div
                         className={[
                           "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm ",
@@ -531,12 +564,23 @@ export default function OrdersPage() {
                       </div>
 
                       <button
-                        className="rounded-2xl border border-emerald-200 bg-white px-5 py-2 text-sm  text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+                        className="rounded-2xl border border-emerald-200 bg-white px-5 py-2 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50"
                         type="button"
                         onClick={() => setOpenId((prev) => (prev === order.id ? null : order.id))}
                       >
                         {isOpen ? "Hide Details" : "View Details"}
                       </button>
+
+                      {order.status === "pending" && (
+                        <button
+                          className="rounded-2xl border border-red-200 bg-white px-5 py-2 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-60"
+                          type="button"
+                          disabled={cancellingId === order.id}
+                          onClick={() => cancelOrder(order.id)}
+                        >
+                          {cancellingId === order.id ? "Cancelling…" : "Cancel order"}
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -581,13 +625,18 @@ export default function OrdersPage() {
 
                       {order.paymentMode ? (
                         <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1">
-                          Payment: <span className=" text-zinc-900">{order.paymentMode}</span>
+                          Payment: <span className=" text-zinc-900">{order.paymentMode === "CASH" ? "Cash" : order.paymentMode === "RAZORPAY" ? "Razorpay" : "COD"}</span>
                         </span>
                       ) : null}
 
                       {order.paymentStatus ? (
-                        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1">
-                          Status: <span className=" text-zinc-900">{order.paymentStatus}</span>
+                        <span className={[
+                          "rounded-full border px-3 py-1 font-medium",
+                          order.paymentStatus === "PAID"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                            : "border-zinc-200 bg-zinc-50 text-zinc-900",
+                        ].join(" ")}>
+                          {order.paymentStatus === "PAID" ? "Paid" : order.paymentStatus}
                         </span>
                       ) : null}
                     </div>
@@ -612,10 +661,10 @@ export default function OrdersPage() {
                               <span className="font-semibold text-zinc-600">Email:</span>{" "}
                               <span className="font-bold text-zinc-900">{raw?.customer?.email ?? "—"}</span>
                             </div>
-                            <div className="pt-2">
+                            {raw?.customer?.address&&<div className="pt-2">
                               <span className="font-semibold text-zinc-600">Address:</span>{" "}
-                              <span className="font-semibold text-zinc-900">{raw?.customer?.address ?? "—"}</span>
-                            </div>
+                              <span className="font-semibold text-zinc-900">{raw?.customer?.address ?? ""}</span>
+                            </div>}
                             {raw?.customer?.notes ? (
                               <div className="pt-2">
                                 <span className="font-semibold text-zinc-600">Notes:</span>{" "}
@@ -637,15 +686,15 @@ export default function OrdersPage() {
                               return (
                                 <div
                                   key={`${order.id}-${idx}`}
-                                  className="flex items-start justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3"
+                                  className="flex items-start justify-between gap-3 border border-zinc-200 bg-zinc-50 px-4 py-3"
                                 >
                                   <div className="min-w-0">
                                     <div className="truncate text-sm  text-zinc-900">
                                       {it.name ?? it.service ?? "Service"}
                                     </div>
                                     <div className="mt-0.5 text-xs font-semibold text-zinc-600">
-                                      Qty: {qty} • {formatINR(price)}
-                                      {typeof it.bv === "number" ? ` • ${it.bv} BV` : ""}
+                                      Qty: {qty} • Rate {formatINR(price)}
+                                      {/* {typeof it.bv === "number" ? ` • ${it.bv} BV` : ""} */}
                                     </div>
                                   </div>
                                   <div className="shrink-0 text-sm  text-zinc-900">

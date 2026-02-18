@@ -3,9 +3,10 @@ import mongoose, { Schema, type InferSchemaType, type Model } from "mongoose";
 const purchaseSchema = new Schema(
   {
     user: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    // service: { type: Schema.Types.ObjectId, ref: "Service", required: true },
     service: { type: String, ref: "Service", required: true },
     bv: { type: Number, required: true, min: 0 },
+    /** When set, this purchase was created from an order; used to reverse income on order cancel */
+    order: { type: Schema.Types.ObjectId, ref: "Order", default: null, index: true },
   },
   { timestamps: true }
 );

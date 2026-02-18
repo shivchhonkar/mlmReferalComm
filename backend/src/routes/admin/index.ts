@@ -494,7 +494,7 @@ export function registerAdminRoutes(app: Express) {
       businessVolume: z.number().min(0),
       shortDescription: z.string().max(200).optional(),
       description: z.string().optional(),
-      status: z.enum(["active", "inactive", "out_of_stock"]).default("active"),
+      status: z.enum(["pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
       isFeatured: z.boolean().default(false),
       categoryId: z.string().optional(),
       tags: z.array(z.string()).optional(),
@@ -529,7 +529,7 @@ export function registerAdminRoutes(app: Express) {
         businessVolume: body.businessVolume,
         shortDescription: body.shortDescription,
         description: body.description,
-        status: body.status,
+        status: body.status || "pending_approval", // Default to pending_approval if not specified
         isFeatured: body.isFeatured,
         categoryId: body.categoryId,
         tags: body.tags,
@@ -949,7 +949,7 @@ export function registerAdminRoutes(app: Express) {
         req.params.id,
         {
           $set: {
-            status: "approved",
+            status: "active", // Approved services become active so they show on public page
             approvedAt: new Date(),
             approvedBy: ctx.userId
           }

@@ -8,7 +8,10 @@ const router = Router();
 router.get("/", async (_req, res) => {
   try {
     await connectToDatabase();
-    const services = await ServiceModel.find({ status: "active" }).sort({ createdAt: -1 }).lean();
+    // Show services that are active OR approved (approved services become active)
+    const services = await ServiceModel.find({ 
+      status: { $in: ["active", "approved"] } 
+    }).sort({ createdAt: -1 }).lean();
     
     // Ensure all services have required fields for frontend compatibility
     const processedServices = services.map(service => ({

@@ -11,6 +11,8 @@ import {
   MapPin,
   NotebookText,
   ShieldCheck,
+  Banknote,
+  Clock,
 } from "lucide-react";
 
 import { formatINR } from "@/lib/format";
@@ -63,12 +65,16 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     notes: "",
   });
 
-  // Prefill only when drawer opens (and only once per open)
+  // Payment: Cash received (services only, no COD/shipping) or Pay later
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "pay_later">("cash");
+
+  // Prefill only when drawer opens (and only once per open). Reset payment to "Cash received" each time.
   useEffect(() => {
     if (!open) {
       setDidPrefill(false);
       return;
     }
+    setPaymentMethod("cash"); // each new checkout defaults to Cash received
     if (didPrefill) return;
 
     const profileName = safeString(user?.name);
@@ -100,6 +106,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
     setLoading(true);
     try {
+      const isCashPaid = paymentMethod === "cash";
       const payload = {
         user: {
           id: (user as any)?.id || user?._id || undefined,
@@ -126,9 +133,12 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           totalAmount: cart.totalAmount,
         },
         payment: {
-          mode: "COD", // later: "RAZORPAY"
-          status: "PENDING", // later: "PAID"
+          mode: isCashPaid ? "CASH" : "COD",
+          status: isCashPaid ? "PAID" : "PENDING",
         },
+        // Top-level fallbacks so backend can read payment even if nested payment is missing
+        paymentMode: isCashPaid ? "CASH" : "COD",
+        paymentStatus: isCashPaid ? "PAID" : "PENDING",
       };
 
       const res = await apiFetch("/api/orders", {
@@ -185,13 +195,12 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  No payment now
+                  Services only • No shipping
                 </span>
               </div>
 
               <p className="mt-1 text-sm font-semibold text-zinc-600">
-                Confirm details, then place the order. Razorpay will be added
-                later.
+                Confirm details and payment. Commission is generated on each order for your referral network.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -276,7 +285,49 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               </div>
 
-              {/* Email */}
+              {/* Payment method: Cash received / Pay later */}
+            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+              <div className="text-sm font-semibold text-zinc-900">
+                Payment
+              </div>
+              <p className="mt-1 text-xs text-zinc-600">
+                Services only — no COD or shipping. Select when payment is received.
+              </p>
+              <div className="mt-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cash")}
+                  className={`flex flex-1 items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition ${
+                    paymentMethod === "cash"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
+                  }`}
+                >
+                  <Banknote className="h-5 w-5 shrink-0" />
+                  <div>
+                    <span className="block font-semibold">Cash received</span>
+                    <span className="block text-xs opacity-90">Mark order as paid</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("pay_later")}
+                  className={`flex flex-1 items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition ${
+                    paymentMethod === "pay_later"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
+                  }`}
+                >
+                  <Clock className="h-5 w-5 shrink-0" />
+                  <div>
+                    <span className="block font-semibold">Pay later</span>
+                    <span className="block text-xs opacity-90">Pending payment</span>
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Email */}
               <div>
                 <label className="text-xs font-semibold text-zinc-600">
                   Email (optional)
@@ -304,7 +355,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                   <div className="flex items-center gap-2">
                     <MapPin className="h-4 w-4 text-zinc-400" />
                     <span className="text-xs font-bold text-zinc-500">
-                      Delivery / Service location
+                      Service location or notes
                     </span>
                   </div>
                   <textarea
@@ -388,8 +439,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
             <div className="mt-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
               <p className="text-xs font-semibold text-zinc-700">
-                Tip: This creates a pending order. Later you’ll redirect to
-                Razorpay and mark it paid.
+                Commission is distributed by BV: Level 1 → 5%, Level 2 → 2.5%, Level 3 → 1.25%, Level 4 → 0.625%, Level 5+ → 50% of previous.
               </p>
             </div>
           </div>
