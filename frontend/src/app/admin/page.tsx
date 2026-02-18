@@ -115,7 +115,7 @@ export default function AdminPage() {
       title: "Users & Compliance",
       cards: [
         { href: "/admin/users", title: "User Management", desc: "Create, manage and monitor user accounts and roles", icon: Users },
-        { href: "/admin/service-approval", title: "Service Approval", desc: "Review and approve or reject service listings", icon: UserCheck },
+        // { href: "/admin/service-approval", title: "Service Approval", desc: "Review and approve or reject service listings", icon: UserCheck },
         { href: "/admin/kyc", title: "KYC Management", desc: "Review and approve user KYC submissions", icon: FileCheck },
       ],
     },
