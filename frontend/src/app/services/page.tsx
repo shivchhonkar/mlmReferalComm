@@ -38,10 +38,8 @@ async function getCategories() {
   try {
     const url = apiUrl("/api/categories");
     const absoluteUrl = await toAbsolute(url);
-
     const res = await fetch(absoluteUrl, { cache: "no-store" });
     if (!res.ok) return [];
-
     const data = await res.json();
     return (data.categories as Category[]) || [];
   } catch {
@@ -49,13 +47,45 @@ async function getCategories() {
   }
 }
 
+export type Subcategory = {
+  _id: string;
+  name: string;
+  slug: string;
+  code: string;
+  categoryId: string | { _id: string; name: string; code: string };
+  sortOrder?: number;
+  createdAt?: string;
+};
+
+async function getSubcategories() {
+  try {
+    const url = apiUrl("/api/subcategories");
+    const absoluteUrl = await toAbsolute(url);
+    const res = await fetch(absoluteUrl, { cache: "no-store" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.subcategories as Subcategory[]) || [];
+  } catch {
+    return [];
+  }
+}
+
 export default async function ServicesPage() {
-  const [services, categories] = await Promise.all([getServices(), getCategories()]);
+  const [services, categories, subcategories] = await Promise.all([
+    getServices(),
+    getCategories(),
+    getSubcategories(),
+  ]);
 
   return (
-    <div className="min-h-screen bg-[var(--gray-50)]">
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
-        <ServicesCategoryClient services={services} categories={categories} />
+        <ServicesCategoryClient
+          services={services}
+          categories={categories}
+          subcategories={subcategories}
+        />
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ const stories: Story[] = [
     name: "Sarah Johnson",
     roleLine: "Network Builder • Level 5",
     quote:
-      "ReferGrow changed my approach. The BV system and automated distribution make it easy to track growth and earnings.",
+      "Sambhariya Marketing changed my approach. The BV system and automated distribution make it easy to track growth and earnings.",
     earned: "₹5,240 earned",
     referrals: "50+ referrals",
     accent: "blue",

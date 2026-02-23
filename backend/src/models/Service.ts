@@ -3,6 +3,12 @@ import { createId } from "@paralleldrive/cuid2";
 
 const serviceSchema = new Schema(
   {
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true
+    },
     _id: { type: String, default: createId },
     name: { type: String, required: true, trim: true },
     
@@ -37,9 +43,10 @@ const serviceSchema = new Schema(
     description: { type: String, trim: true },
 
     // Service status
+    // draft: seller working on it | pending: submitted for review | approved/active: public | rejected: admin rejected
     status: { 
       type: String, 
-      enum: ["pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"], 
+      enum: ["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"], 
       default: "pending_approval", 
       index: true 
     },

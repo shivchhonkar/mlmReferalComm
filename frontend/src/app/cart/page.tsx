@@ -303,7 +303,7 @@ export default function CartPage() {
 
                 <div className="mt-2 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
                   <p className="text-xs font-semibold text-zinc-700">
-                    Services only — no COD or shipping. Choose &quot;Cash received&quot; at checkout; commission is generated on each order.
+                    Checkout details and payment.
                   </p>
                 </div>
               </div>

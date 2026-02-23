@@ -20,6 +20,41 @@ db.users.deleteOne({ _id: ObjectId("USER_ID_HERE") })
 
 
 
-
+Super admin created: {
+  id: '69958ebc68f3453ac4653894',
+  email: 'sambhariyamarketing@gmail.com',
+  mobile: '9045786127',
+  role: 'super_admin',
+  referralCode: 'D41FD21459'
+}
 9650593896
 test12345
+
+///////////////////
+
+use sambhariyamarketing
+db.dropDatabase()
+
+///////////////
+
+
+use sambhariyamarketing
+
+db.categories.deleteMany({})
+db.contacts.deleteMany({})
+db.distributionrules.deleteMany({})
+db.incomelogs.deleteMany({})
+db.incomes.deleteMany({})
+db.orders.deleteMany({})
+db.passwordresets.deleteMany({})
+db.purchases.deleteMany({})
+db.services.deleteMany({})
+db.sliders.deleteMany({})
+db.subcategories.deleteMany({})
+db.users.deleteMany({})
+
+db.incomes.deleteMany({})
+db.incomelogs.deleteMany({})
+db.contacts.deleteMany({})
+db.distributionrules.deleteMany({})
+db.sliders.deleteMany({})

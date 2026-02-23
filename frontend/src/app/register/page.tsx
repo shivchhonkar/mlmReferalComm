@@ -190,7 +190,7 @@ export default function RegisterPage() {
                 </div> */}
 
                 <h1 className="text-2xl  text-[var(--gray-900)]">
-                  Join ReferGrow
+                  Join Sambhariya Marketing 
                 </h1>
                 <p className="text-sm text-[var(--gray-700)]">
                   Start earning together with your network.

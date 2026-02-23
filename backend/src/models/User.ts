@@ -22,6 +22,19 @@ const userSchema = new Schema(
     otp: { type: String, default: null },
     otpExpiry: { type: Date, default: null },
 
+    // Seller / Marketplace Fields
+    isSeller: { type: Boolean, default: false },
+    sellerStatus: {
+      type: String,
+      enum: ["none", "pending", "approved", "rejected"],
+      default: "none",
+      index: true
+    },
+    sellerApprovedAt: { type: Date, default: null },
+    sellerRejectedAt: { type: Date, default: null },
+    sellerRejectionReason: { type: String, trim: true },
+     // Seller / Marketplace Fields ended
+
     // Business Settings (Profile Fields)
     businessName: { type: String, trim: true },
     companyPhone: { type: String, trim: true },

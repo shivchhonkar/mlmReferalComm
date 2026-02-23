@@ -111,9 +111,8 @@ router.post("/", async (req, res) => {
     }
 
     // ✅ Validate each item:
-    // - serviceId can be STRING like "svc004invoice"
-    // - ensure quantity is valid
-    // - ensure service exists in DB
+    // - serviceId can be MongoDB ObjectId or legacy string (e.g. "svc001financial" from sample data)
+    // - ObjectIds: validate against DB; legacy strings: use payload data as-is
     const serviceIds = items
       .map((it: any) => String(it?.id ?? "").trim())
       .filter(Boolean);
@@ -122,19 +121,28 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Invalid service id" });
     }
 
-    // fetch all services in one query
-    const services = await ServiceModel.find({ _id: { $in: serviceIds } })
-      .select("_id name price businessVolume status")
-      .lean();
+    const validObjectIds = serviceIds.filter((id: string) =>
+      mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id
+    );
 
-    const serviceMap = new Map(services.map((s: any) => [String(s._id), s]));
+    let serviceMap = new Map<string, any>();
+    if (validObjectIds.length > 0) {
+      const services = await ServiceModel.find({ _id: { $in: validObjectIds } })
+        .select("_id name price businessVolume status")
+        .lean();
+      serviceMap = new Map(services.map((s: any) => [String(s._id), s]));
+    }
 
     for (const it of items) {
       const serviceId = String(it?.id ?? "").trim();
       const qty = Number(it?.quantity ?? 0);
 
-      if (!serviceId || !serviceMap.has(serviceId)) {
-        return res.status(400).json({ message: `Invalid service id: ${serviceId || "missing"}` });
+      if (!serviceId) {
+        return res.status(400).json({ message: "Invalid service id: missing" });
+      }
+      const isLegacyId = !validObjectIds.includes(serviceId);
+      if (!isLegacyId && !serviceMap.has(serviceId)) {
+        return res.status(400).json({ message: `Invalid service id: ${serviceId}` });
       }
       if (!Number.isFinite(qty) || qty <= 0) {
         return res.status(400).json({ message: "Invalid item quantity" });
@@ -174,6 +182,9 @@ router.post("/", async (req, res) => {
     const paymentStatus =
       paymentMode === "CASH" || paymentStatusRaw === "PAID" ? "PAID" : "PENDING";
 
+    // When customer paid (e.g. cash), order is confirmed; otherwise pending until payment/confirmation
+    const orderStatus = paymentStatus === "PAID" ? "CONFIRMED" : "PENDING";
+
     const orderDoc = {
       user: user._id,
       customer: {
@@ -188,7 +199,7 @@ router.post("/", async (req, res) => {
         totalQuantity: computedTotalQuantity,
         totalAmount: computedTotalAmount,
       },
-      status: "PENDING",
+      status: orderStatus,
       payment: {
         mode: paymentMode,
         status: paymentStatus,

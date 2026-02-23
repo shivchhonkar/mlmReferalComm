@@ -4,7 +4,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/useAuth";
-import { BarChart3, Plus, AlertCircle, ClipboardList } from "lucide-react";
+import {
+  AlertCircle,
+  BarChart3,
+  Plus,
+  ClipboardList,
+  LayoutDashboard,
+  Cog,
+  RefreshCw,
+  Check,
+} from "lucide-react";
 import { formatNumber } from "@/lib/format";
 
 type Rule = {
@@ -15,8 +24,12 @@ type Rule = {
   createdAt: string;
 };
 
+const formInputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60";
+const formLabelClass = "mb-1.5 block text-sm font-medium text-slate-700";
+
 export default function AdminRulesPage() {
-  useAuth({ requireAdmin: true }); // Protect admin page
+  useAuth({ requireAdmin: true });
   const [rules, setRules] = useState<Rule[]>([]);
   const [basePercentage, setBasePercentage] = useState<number | "">("");
   const [decayEnabled, setDecayEnabled] = useState<boolean>(true);
@@ -27,8 +40,7 @@ export default function AdminRulesPage() {
     setError(null);
     const res = await apiFetch("/api/admin/rules");
     const json = await res.json();
-    if (!res.ok) throw new Error(json?.error ?? "Failed to load");
-
+    if (!res.ok) throw new Error(json?.error ?? "Failed to load rules");
     const recent = (json.recentRules ?? []) as Rule[];
     setRules(recent);
   }
@@ -41,7 +53,6 @@ export default function AdminRulesPage() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-
     try {
       const res = await apiFetch("/api/admin/rules", {
         method: "POST",
@@ -51,6 +62,7 @@ export default function AdminRulesPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Create failed");
       await load();
+      setBasePercentage("");
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -61,7 +73,6 @@ export default function AdminRulesPage() {
   async function setActive(rule: Rule) {
     setBusy(true);
     setError(null);
-
     try {
       const res = await apiFetch(`/api/admin/rules/${rule._id}`, {
         method: "PUT",
@@ -78,170 +89,226 @@ export default function AdminRulesPage() {
     }
   }
 
+  const activeCount = rules.filter((r) => r.isActive).length;
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-blue-50 via-blue-50 to-indigo-50 p-6">
-      <div className="mx-auto max-w-6xl">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
-          <div className="animate-fade-in">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 rounded-xl bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-2xl">
-                <BarChart3 className="w-8 h-8" />
-              </div>
-              <h1 className="text-4xl font-bold bg-linear-to-r from-blue-600 to-cyan-600 bg-clip-text text-transparent">Income Rules</h1>
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Admin</span>
+              <span className="text-slate-400">·</span>
+              <span>Rules</span>
             </div>
-            <p className="text-sm text-zinc-600 ml-15">Configure BV income distribution rules</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              Distribution Rules
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Configure BV income distribution: Level 1 percentage and decay for upper levels.
+            </p>
+            {rules.length > 0 && (
+              <div className="mt-3 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700">
+                  <BarChart3 className="h-3.5 w-3.5" />
+                  {rules.length} rule{rules.length !== 1 ? "s" : ""}
+                </span>
+                {activeCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    <Check className="h-3.5 w-3.5" />
+                    1 active
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-          <div className="flex gap-3 animate-slide-in">
-            <Link 
-              className="glass-panel rounded-xl px-5 py-2.5 text-sm font-medium transition-all hover:scale-105 hover:shadow-lg border border-blue-200" 
-              prefetch={false}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              Admin home
+            </Link>
+            <Link
               href="/admin/services"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Services
             </Link>
-            <Link 
-              className="glass-panel rounded-xl px-5 py-2.5 text-sm font-medium transition-all hover:scale-105 hover:shadow-lg border border-blue-200" 
-              prefetch={false}
-              href="/dashboard"
+            <button
+              type="button"
+              onClick={() => load().catch((e) => setError(String(e?.message ?? e)))}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
             >
-              Dashboard
-            </Link>
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </button>
           </div>
         </div>
 
         {error ? (
-          <div className="mb-6 glass-panel animate-shake rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-700">
-            <AlertCircle className="w-4 h-4 mr-2" />
-            {error}
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-red-800">Error</p>
+              <p className="mt-0.5 text-sm text-red-700">{error}</p>
+            </div>
           </div>
         ) : null}
 
-        <form className="glass-panel animate-fade-in rounded-2xl border border-blue-200 p-6 mb-6" onSubmit={createRule} style={{animationDelay: '0.1s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-green-500 to-emerald-500 flex items-center justify-center text-white text-xl">
-              <Plus className="w-6 h-6" />
+        {/* Create rule */}
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 border border-emerald-100">
+              <Plus className="h-5 w-5 text-emerald-600" />
             </div>
-            <h2 className="font-bold text-xl">Create New Rule</h2>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Create new rule</h2>
+              <p className="text-sm text-slate-500">Set Level 1 percentage and decay. The new rule will be set as active.</p>
+            </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-semibold text-zinc-700">Level 1 Percentage (of BV)</label>
+          <form onSubmit={createRule} className="grid gap-4 sm:grid-cols-3">
+            <div className="sm:col-span-2">
+              <label className={formLabelClass}>Level 1 percentage (of BV)</label>
               <input
-                className="w-full glass-panel rounded-xl border border-blue-200 px-4 py-3 font-medium transition-all focus:ring-2 focus:ring-purple-500"
+                className={formInputClass}
                 type="number"
                 step="0.01"
-                value={basePercentage}
-                onChange={(e) => setBasePercentage(e.target.value === "" ? "" : Number(e.target.value))}
                 min={0}
                 max={100}
-                placeholder="e.g., 5 for 5% at Level 1"
+                value={basePercentage}
+                onChange={(e) => setBasePercentage(e.target.value === "" ? "" : Number(e.target.value))}
+                placeholder="e.g. 5 for 5% at Level 1"
                 required
               />
-              <p className="text-xs text-zinc-600 pl-1">
-                💡 Example: 5 = 5% income at Level 1
-              </p>
+              <p className="mt-1 text-xs text-slate-500">Example: 5 = 5% income at Level 1.</p>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-semibold text-zinc-700">Decay Mode</label>
-              <label className="flex items-start gap-3 glass-panel rounded-xl border border-blue-200 p-4 cursor-pointer hover:bg-blue-500/5 transition-colors">
+            <div>
+              <label className={formLabelClass}>Decay</label>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:bg-slate-50/50">
                 <input
-                  className="mt-1 w-4 h-4 accent-blue-600"
                   type="checkbox"
                   checked={decayEnabled}
                   onChange={(e) => setDecayEnabled(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-sm text-zinc-700">
-                  Halve each level<br />
-                  <span className="text-xs text-zinc-600">(L2 = 50% of L1, etc.)</span>
-                </span>
+                <div className="text-sm">
+                  <span className="font-medium text-slate-900">Halve each level</span>
+                  <p className="mt-0.5 text-xs text-slate-500">L2 = 50% of L1, L3 = 25%, etc.</p>
+                </div>
               </label>
             </div>
-          </div>
-          <button
-            className="mt-4 rounded-xl bg-linear-to-r from-blue-600 to-blue-600 px-6 py-3 text-sm font-semibold text-white transition-all hover:scale-105 hover:shadow-xl disabled:opacity-60 disabled:hover:scale-100"
-            disabled={busy}
-            type="submit"
-          >
-            {busy ? "Saving..." : "Create & Set Active"}
-          </button>
-        </form>
-
-        <div className="glass-panel animate-fade-in rounded-2xl border border-blue-200 p-6" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-linear-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white text-xl">
-              <ClipboardList className="w-6 h-6 text-white" />
+            <div className="sm:col-span-3">
+              <button
+                type="submit"
+                disabled={busy}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-60"
+              >
+                <Check className="h-4 w-4" />
+                {busy ? "Saving…" : "Create & set active"}
+              </button>
             </div>
-            <h2 className="font-bold text-xl">All Rules</h2>
+          </form>
+        </div>
+
+        {/* All rules */}
+        <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-6 py-5">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100">
+              <ClipboardList className="h-5 w-5 text-slate-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">All rules</h2>
+              <p className="text-sm text-slate-500">One rule is active at a time. Set active to apply a rule.</p>
+            </div>
           </div>
-          <div className="overflow-auto rounded-xl border border-blue-200">
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-linear-to-r from-blue-500/10 to-blue-500/10 text-left text-zinc-700">
-                <tr>
-                  <th className="py-3 px-4 font-semibold">Level 1</th>
-                  <th className="py-3 px-4 font-semibold">Decay</th>
-                  <th className="py-3 px-4 font-semibold">Active</th>
-                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/80">
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Level 1 %
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Decay
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {rules.map((r) => (
-                  <tr className="border-t border-blue-200 hover:bg-blue-500/5 transition-colors" key={r._id}>
-                    <td className="py-3 px-4">
-                      <span className="font-bold text-blue-600">
-                        {formatNumber(r.basePercentage * 100, 6)}%
+                  <tr key={r._id} className="border-b border-slate-100 transition hover:bg-slate-50/50">
+                    <td className="px-6 py-4">
+                      <span className="font-semibold text-slate-900">
+                        {formatNumber(r.basePercentage * 100, 2)}%
                       </span>
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="px-6 py-4">
                       {r.decayEnabled ? (
-                        <span className="px-2 py-1 rounded-lg bg-blue-500/10 text-blue-700 text-xs font-semibold">
+                        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-800">
                           Halving
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-lg bg-gray-500/10 text-gray-700 text-xs font-semibold">
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                           Level 1 only
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4">
+                    <td className="px-6 py-4">
                       {r.isActive ? (
-                        <span className="px-2 py-1 rounded-lg bg-green-500/10 text-green-700 text-xs font-semibold">
-                          ✓ Active
+                        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                          Active
                         </span>
                       ) : (
-                        <span className="px-2 py-1 rounded-lg bg-gray-500/10 text-gray-700 text-xs font-semibold">
+                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-semibold text-slate-600">
                           Inactive
                         </span>
                       )}
                     </td>
-                    <td className="py-3 px-4 text-right">
+                    <td className="px-6 py-4 text-right">
                       <button
-                        className="glass-panel rounded-lg px-4 py-1.5 text-xs font-medium disabled:opacity-60 border border-blue-200 hover:bg-blue-500/10 transition-colors"
+                        type="button"
                         onClick={() => setActive(r)}
                         disabled={busy || r.isActive}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {r.isActive ? "✓ Active" : "Set Active"}
+                        {r.isActive ? "Active" : "Set active"}
                       </button>
                     </td>
                   </tr>
                 ))}
                 {rules.length === 0 ? (
                   <tr>
-                    <td className="py-8 text-center text-zinc-600" colSpan={4}>
-                      No rules yet. Create your first rule above!
+                    <td colSpan={4} className="px-6 py-12 text-center">
+                      <Cog className="mx-auto h-12 w-12 text-slate-300" />
+                      <p className="mt-3 font-medium text-slate-900">No rules yet</p>
+                      <p className="mt-1 text-sm text-slate-500">Create your first rule above.</p>
                     </td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
           </div>
-          <div className="mt-4 p-4 rounded-xl bg-linear-to-r from-blue-500/10 to-cyan-500/10 border border-blue-200">
-            <div className="flex items-start gap-3">
-              <span className="text-2xl">💡</span>
-              <div className="text-xs text-zinc-600">
-                <strong className="text-blue-600">Formula:</strong> Income per level = BV × Level-1% × (1/2)^(level-1) when decay is enabled.
+          {rules.length > 0 && (
+            <div className="border-t border-slate-100 px-6 py-4">
+              <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+                <span className="text-lg">💡</span>
+                <div className="text-sm text-slate-600">
+                  <strong className="text-slate-900">Formula:</strong> Income per level = BV × Level-1% × (1/2)^(level−1) when decay is enabled.
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

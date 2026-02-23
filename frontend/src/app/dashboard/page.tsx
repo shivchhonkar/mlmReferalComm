@@ -19,6 +19,9 @@ import {
   ShoppingBag,
   UserCircle,
   Gift,
+  Clock,
+  Store,
+  AlertCircle,
 } from "lucide-react";
 import { formatINR, formatNumber } from "@/lib/format";
 import { useAppSelector } from "@/store/hooks";
@@ -49,6 +52,8 @@ type MeResponse = {
     name?: string;
     role: "super_admin" | "admin" | "moderator" | "user";
     referralCode: string;
+    sellerStatus: "pending" | "rejected" | "approved";
+    isSeller: boolean;
     parent: string | null;
   };
 };
@@ -91,6 +96,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [pendingSellers, setPendingSellers] = useState<unknown[]>([]);
 
   const totalIncome = useMemo(
     () => incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0),
@@ -144,18 +150,24 @@ export default function DashboardPage() {
     setError(null);
     setDataLoading(true);
     try {
-      const [meRes, servicesRes, incomeRes, referralsRes, purchasesRes] = await Promise.all([
+      const [meRes, servicesRes, incomeRes, referralsRes, purchasesRes, pendingSellersRes] = await Promise.all([
         apiFetch("/api/me"),
         apiFetch("/api/services"),
         apiFetch("/api/income"),
         apiFetch("/api/referrals?depth=5"),
         apiFetch("/api/purchases"),
+        apiFetch("/api/requests/pending-sellers"),
       ]);
 
       const meBody = await readApiBody(meRes);
       const meJson = meBody.json as { user?: MeResponse["user"]; error?: string };
       if (!meRes.ok) throw new Error(meJson?.error ?? (meBody.text as string) ?? "Not logged in");
       setMe(meJson.user ?? null);
+
+      const pendingSellersBody = await readApiBody(pendingSellersRes);
+
+      const pendingSellersData = pendingSellersBody.json as { pendingSellers?: unknown[] };
+      setPendingSellers(pendingSellersData?.pendingSellers ?? []);
 
       const servicesBody = await readApiBody(servicesRes);
       const servicesData = servicesBody.json as { services?: Service[] };
@@ -210,6 +222,19 @@ export default function DashboardPage() {
     );
   };
 
+  const handleBecomeSeller = async () => {
+    try {
+      const response = await apiFetch("/api/requests/seller", { method: "POST" });
+      const responseBody = await readApiBody(response);
+      const data = responseBody.json as { error?: string };
+      if (!response.ok) throw new Error(data?.error ?? responseBody.text ?? "Failed to submit seller request");
+      showSuccessToast("Request sent for approval. You can manage services once approved.");
+      await loadAll();
+    } catch (err: unknown) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to submit seller request");
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
@@ -240,6 +265,11 @@ export default function DashboardPage() {
 
   const displayName = me?.name || me?.email || "Member";
   const isAdmin = ["super_admin", "admin", "moderator"].includes(me?.role ?? "");
+  const sellerStatus = me?.sellerStatus;
+  const isSellerPending = sellerStatus === "pending";
+  const isSellerApproved = me?.isSeller === true && sellerStatus === "approved";
+  const isSellerRejected = sellerStatus === "rejected";
+  const hasNotRequestedSeller = !isSellerPending && !isSellerRejected && !isSellerApproved;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
@@ -295,7 +325,7 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            {isAdmin && (
+            {isAdmin ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
                 prefetch={false}
@@ -304,7 +334,37 @@ export default function DashboardPage() {
                 <Settings2 className="h-4 w-4" />
                 Admin Panel
               </Link>
-            )}
+            ) : isSellerApproved ? (
+              <Link
+                prefetch={false}
+                href="/seller/services"
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+              >
+                <Package className="h-4 w-4" />
+                Manage services
+              </Link>
+            ) : isSellerPending ? (
+              <span
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800"
+                title="Admin will review your request"
+              >
+                <Package className="h-4 w-4 text-amber-600" />
+                Request sent for approval
+              </span>
+            ) : isSellerRejected ? (
+              <span className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-600">
+                Seller request was rejected. Contact admin to reapply.
+              </span>
+            ) : hasNotRequestedSeller ? (
+              <button
+                type="button"
+                onClick={handleBecomeSeller}
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
+              >
+                <Package className="h-4 w-4" />
+                Become a Seller
+              </button>
+            ) : null}
             <Link
               className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}

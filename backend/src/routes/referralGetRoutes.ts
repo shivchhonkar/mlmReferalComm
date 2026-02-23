@@ -1,6 +1,7 @@
 import { Router } from "express"
 import mongoose from "mongoose"
 import { UserModel } from "../models/User"
+import { ServiceModel } from "@/models/Service";
 // import { requireAuth } from "@/middleware/auth"
 import { requireAuth } from "../middleware/auth"
 // import { requireAuth } from "@/middleware/auth";
@@ -117,6 +118,9 @@ router.get("/", async (req, res) => {
     }
 
     const total = downline.length
+    const allUsers = await Promise.all([
+            UserModel.estimatedDocumentCount()
+    ]);
     const active = downline.filter((x) => x.status === "active").length
     const depthFound = downline.reduce((m, x) => Math.max(m, (x.level ?? 0) + 1), 0)
 
@@ -126,7 +130,7 @@ router.get("/", async (req, res) => {
 
     return res.json({
       root: rootNode,
-      stats: { directLeft, directRight, total, active, depth: depthFound },
+      stats: { directLeft, directRight, allUsers, total, active, depth: depthFound },
     })
   } catch (e: any) {
     // Your global error handler returns 400 for thrown errors.

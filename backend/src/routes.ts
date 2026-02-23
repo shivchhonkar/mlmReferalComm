@@ -1,4 +1,4 @@
-﻿import type { Express } from "express";
+import type { Express } from "express";
 
 // Import all modular route files
 import authRoutes from "@/routes/authRoutes";
@@ -16,8 +16,11 @@ import businessOpportunityRoutes from "@/routes/businessOpportunityRoutes";
 import contactRoutes from "@/routes/contactRoutes";
 import sliderRoutes from "@/routes/sliderRoutes";
 import categoryRoutes from "@/routes/categoryRoutes";
+import subcategoryRoutes from "@/routes/subcategoryRoutes";
 import adminSetupRoutes from "@/routes/admin/setupRoutes";
 import { registerAdminRoutes } from "@/routes/admin/index";
+import { registerSellerServiceRoutes } from "@/routes/sellerServiceRoutes";
+import requestRoutes from "@/routes/requestRoutes";
 
 /**
  * Register all application routes
@@ -47,6 +50,7 @@ export function registerRoutes(app: Express) {
 
   // Categories and subcategories (public taxonomy)
   app.use("/api/categories", categoryRoutes);
+  app.use("/api/subcategories", subcategoryRoutes);
 
   // Homepage sliders (public content)
   app.use("/api/sliders", sliderRoutes);
@@ -84,9 +88,15 @@ export function registerRoutes(app: Express) {
   // service approval, contacts, sliders, categories, subcategories,
   // distribution rules, payment settings, KYC management
   
-  // Admin setup (initial admin account creation)
+  // All admin functionality (must be before adminSetupRoutes so specific routes match first)
+  registerAdminRoutes(app);
+
+  // Admin setup (initial admin account creation) - mounted after specific admin routes
   app.use("/api/admin", adminSetupRoutes);
 
-  // All other admin functionality
-  registerAdminRoutes(app);
+  // Become a seller route
+  app.use("/api/requests", requestRoutes);
+
+  // Seller service management (own services only)
+  registerSellerServiceRoutes(app);
 }

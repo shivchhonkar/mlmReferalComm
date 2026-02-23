@@ -1,3 +1,4 @@
+import { CheckCircle2, Package, Receipt } from "lucide-react";
 import Link from "next/link";
 
 export default async function CheckoutSuccessPage({
@@ -5,40 +6,52 @@ export default async function CheckoutSuccessPage({
 }: {
   searchParams?: Promise<{ orderId?: string }>;
 }) {
-  const params: { orderId?: string } = await (searchParams ?? Promise.resolve({}));
+  const params = (await (searchParams ?? Promise.resolve({}))) as { orderId?: string };
   const orderId = typeof params.orderId === "string" ? params.orderId : undefined;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
-      <div className="mx-auto max-w-2xl px-6 py-14">
-        <div className="rounded-3xl border border-emerald-200 bg-white p-10 text-center shadow-sm">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-emerald-600/10" />
-          <h1 className="text-3xl  text-zinc-900">
-            Order Placed ✅
-          </h1>
-          <p className="mt-3 text-zinc-600">
-            Your order is created successfully. Payment is pending (will be enabled later).
-          </p>
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
-          {orderId ? (
-            <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50 px-5 py-3 text-sm font-bold text-zinc-800">
-              Order ID: <span className="">{orderId}</span>
+      <div className="mx-auto max-w-2xl px-4 py-12 sm:px-6 sm:py-14">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="h-1 w-full bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+          <div className="p-8 text-center sm:p-10">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
+              <CheckCircle2 className="h-9 w-9 text-emerald-600" />
             </div>
-          ) : null}
+            <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              Order placed
+            </h1>
+            <p className="mt-2 text-slate-600">
+              Your service order has been created. Cash orders are confirmed; pay-later orders will be updated when payment is received. RazorPay integration coming soon.
+            </p>
 
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-            <Link
-              href="/services"
-              className="inline-flex items-center justify-center rounded-2xl bg-emerald-600 px-6 py-3 text-sm  text-white shadow-sm hover:bg-emerald-700"
-            >
-              Continue Shopping
-            </Link>
-            <Link
-              href="/dashboard"
-              className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-800 shadow-sm hover:bg-zinc-50"
-            >
-              Go to Dashboard
-            </Link>
+            {orderId ? (
+              <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <Receipt className="h-5 w-5 text-slate-500" />
+                <span className="text-sm font-semibold text-slate-800">
+                  Order ID: <span className="font-mono text-emerald-700">{orderId}</span>
+                </span>
+              </div>
+            ) : null}
+
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/orders"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
+              >
+                <Receipt className="h-4 w-4" />
+                View orders
+              </Link>
+              <Link
+                href="/services"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              >
+                <Package className="h-4 w-4" />
+                Browse services
+              </Link>
+            </div>
           </div>
         </div>
       </div>

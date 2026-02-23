@@ -67,7 +67,6 @@ export default function ServiceCard({ service }: ServiceCardProps) {
         {isFeatured && (
           <span className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
             <Sparkles className="h-3.5 w-3.5" />
-            Featured
           </span>
         )}
       </div>

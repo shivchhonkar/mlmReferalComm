@@ -71,6 +71,17 @@ export async function requireSuperAdminOrAdmin(req: Request): Promise<AuthContex
   return ctx;
 }
 
+/** Requires authenticated user with isSeller === true (sellerStatus approved) */
+export async function requireSeller(req: Request): Promise<AuthContext & { isSeller: boolean }> {
+  const ctx = await requireAuth(req);
+  await connectToDatabase();
+  const user = await UserModel.findById(ctx.userId).select("isSeller sellerStatus").lean();
+  if (!user?.isSeller || user.sellerStatus !== "approved") {
+    throw new Error("Seller access required");
+  }
+  return { ...ctx, isSeller: true };
+}
+
 export function setAuthCookie(res: Response, token: string) {
   const isProduction = env.NODE_ENV === "production";
   res.cookie("token", token, {

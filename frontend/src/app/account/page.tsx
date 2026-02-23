@@ -53,7 +53,7 @@ export default function AccountPage() {
               </div>
             </div>
             <p className="text-zinc-600">
-              New to ReferGrow? Create your account and start building your network. Terms acceptance required.
+              New to Sambhariya Marketing ? Create your account and start building your network. Terms acceptance required.
             </p>
             <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-blue-600">
               <span>Get Started Now</span>

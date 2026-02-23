@@ -2,7 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
-import { FolderOpen, Plus, Trash2, Search, ChevronDown, ChevronUp, RefreshCw, AlertCircle } from "lucide-react";
+import { apiFetch } from "@/lib/apiClient";
+import {
+  FolderOpen,
+  Plus,
+  Trash2,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  RefreshCw,
+  AlertCircle,
+  Pencil,
+  Power,
+  PowerOff,
+  X,
+} from "lucide-react";
 import AdminCategoryUpload from "./AdminCategoryUpload";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
@@ -52,8 +66,13 @@ export default function CategoriesPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSubcategoryModal, setShowSubcategoryModal] = useState(false);
+  const [showEditCategoryModal, setShowEditCategoryModal] = useState(false);
+  const [showEditSubcategoryModal, setShowEditSubcategoryModal] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [activeTab, setActiveTab] = useState<"manage" | "bulk">("manage");
+  const [busy, setBusy] = useState(false);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -69,9 +88,9 @@ export default function CategoriesPage() {
   const fetchCategories = async () => {
     try {
       setError(null);
-      const response = await fetch("/api/categories");
-      if (!response.ok) throw new Error("Failed to fetch categories");
-      const data = await response.json();
+      const res = await apiFetch("/api/admin/categories");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to fetch categories");
       setCategories(Array.isArray(data) ? data : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -82,9 +101,9 @@ export default function CategoriesPage() {
   const fetchSubcategories = async () => {
     try {
       setError(null);
-      const response = await fetch("/api/admin/subcategories");
-      if (!response.ok) throw new Error("Failed to fetch subcategories");
-      const data = await response.json();
+      const res = await apiFetch("/api/admin/subcategories");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to fetch subcategories");
       setSubcategories(Array.isArray(data?.subcategories) ? data.subcategories : []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -140,73 +159,214 @@ export default function CategoriesPage() {
   }, []);
 
   const createCategory = async () => {
+    setBusy(true);
+    setError(null);
     try {
-      setError(null);
-      const response = await fetch("/api/admin/categories", {
+      const res = await apiFetch("/api/admin/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-
-      if (!response.ok) throw new Error("Failed to create category");
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to create category");
+      showSuccessToast("Category created successfully");
       await refreshAll();
       setShowCreateModal(false);
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      showErrorToast(err instanceof Error ? err.message : "Failed to create");
+    } finally {
+      setBusy(false);
     }
   };
 
   const createSubcategory = async () => {
+    setBusy(true);
+    setError(null);
     try {
-      setError(null);
-      const response = await fetch("/api/admin/subcategories", {
+      const res = await apiFetch("/api/admin/subcategories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
-
-      if (!response.ok) throw new Error("Failed to create subcategory");
-
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to create subcategory");
+      showSuccessToast("Subcategory created successfully");
       await refreshAll();
       setShowSubcategoryModal(false);
       resetForm();
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
+      showErrorToast(err instanceof Error ? err.message : "Failed to create");
+    } finally {
+      setBusy(false);
     }
+  };
+
+  const updateCategory = async () => {
+    if (!editingCategory) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/admin/categories/${editingCategory._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update category");
+      showSuccessToast("Category updated successfully");
+      await refreshAll();
+      setShowEditCategoryModal(false);
+      setEditingCategory(null);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      showErrorToast(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSubcategory = async () => {
+    if (!editingSubcategory) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/admin/subcategories/${editingSubcategory._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update subcategory");
+      showSuccessToast("Subcategory updated successfully");
+      await refreshAll();
+      setShowEditSubcategoryModal(false);
+      setEditingSubcategory(null);
+      resetForm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "An error occurred");
+      showErrorToast(err instanceof Error ? err.message : "Failed to update");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleCategoryActive = async (category: Category) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/admin/categories/${category._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !category.isActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update category");
+      showSuccessToast(category.isActive ? "Category deactivated" : "Category activated");
+      await refreshAll();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const toggleSubcategoryActive = async (sub: Subcategory) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await apiFetch(`/api/admin/subcategories/${sub._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !sub.isActive }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to update subcategory");
+      showSuccessToast(sub.isActive ? "Subcategory deactivated" : "Subcategory activated");
+      await refreshAll();
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setFormData({
+      name: category.name,
+      slug: category.slug,
+      code: category.code,
+      icon: category.icon ?? "",
+      image: category.image ?? "",
+      isActive: category.isActive,
+      sortOrder: category.sortOrder ?? 0,
+      categoryId: "",
+    });
+    setShowEditCategoryModal(true);
+  };
+
+  const openEditSubcategory = (sub: Subcategory) => {
+    setEditingSubcategory(sub);
+    const catId = typeof sub.categoryId === "object" && sub.categoryId && "_id" in sub.categoryId
+      ? String((sub.categoryId as { _id?: unknown })._id ?? "")
+      : String(sub.categoryId ?? "");
+    setFormData({
+      name: sub.name,
+      slug: sub.slug,
+      code: sub.code,
+      icon: sub.icon ?? "",
+      image: sub.image ?? "",
+      isActive: sub.isActive,
+      sortOrder: sub.sortOrder ?? 0,
+      categoryId: catId,
+    });
+    setShowEditSubcategoryModal(true);
   };
 
   const deleteCategory = async (categoryId: string) => {
     if (!confirm("Are you sure you want to delete this category? This will also delete all associated subcategories."))
       return;
-
+    setBusy(true);
+    setError(null);
     try {
-      setError(null);
-      const response = await fetch(`/api/admin/categories/${categoryId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete category");
-
+      const res = await apiFetch(`/api/admin/categories/${categoryId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to delete category");
       showSuccessToast("Category deleted successfully");
       await refreshAll();
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "An error occurred";
       setError(errorMsg);
       showErrorToast(errorMsg);
+    } finally {
+      setBusy(false);
     }
   };
 
   const deleteSubcategory = async (subcategoryId: string) => {
     if (!confirm("Are you sure you want to delete this subcategory?")) return;
-
+    setBusy(true);
+    setError(null);
     try {
-      setError(null);
-      const response = await fetch(`/api/admin/subcategories/${subcategoryId}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Failed to delete subcategory");
-
+      const res = await apiFetch(`/api/admin/subcategories/${subcategoryId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Failed to delete subcategory");
       showSuccessToast("Subcategory deleted successfully");
       await refreshAll();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      const errorMsg = err instanceof Error ? err.message : "An error occurred";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -353,7 +513,7 @@ export default function CategoriesPage() {
               placeholder="Search categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full !pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         )}
@@ -435,6 +595,26 @@ export default function CategoriesPage() {
 
                       <div className="flex items-center space-x-2">
                         <button
+                          onClick={() => openEditCategory(category)}
+                          disabled={busy}
+                          className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors"
+                          title="Edit Category"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => toggleCategoryActive(category)}
+                          disabled={busy}
+                          className={`p-2 rounded-lg transition-colors ${
+                            category.isActive
+                              ? "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                              : "text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                          }`}
+                          title={category.isActive ? "Deactivate" : "Activate"}
+                        >
+                          {category.isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                        </button>
+                        <button
                           onClick={() => openSubcategoryModal(category)}
                           className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
                         >
@@ -443,7 +623,8 @@ export default function CategoriesPage() {
                         </button>
                         <button
                           onClick={() => deleteCategory(category._id)}
-                          className="p-2 text-red-600 hover:text-red-800 transition-colors"
+                          disabled={busy}
+                          className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete Category"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -501,13 +682,36 @@ export default function CategoriesPage() {
                                   </div>
                                 </div>
 
-                                <button
-                                  onClick={() => deleteSubcategory(subcategory._id)}
-                                  className="p-1 text-red-600 hover:text-red-800 transition-colors"
-                                  title="Delete Subcategory"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                  <button
+                                    onClick={() => openEditSubcategory(subcategory)}
+                                    disabled={busy}
+                                    className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded transition-colors"
+                                    title="Edit Subcategory"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={() => toggleSubcategoryActive(subcategory)}
+                                    disabled={busy}
+                                    className={`p-1.5 rounded transition-colors ${
+                                      subcategory.isActive
+                                        ? "text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50"
+                                        : "text-amber-600 hover:text-amber-800 hover:bg-amber-50"
+                                    }`}
+                                    title={subcategory.isActive ? "Deactivate" : "Activate"}
+                                  >
+                                    {subcategory.isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                                  </button>
+                                  <button
+                                    onClick={() => deleteSubcategory(subcategory._id)}
+                                    disabled={busy}
+                                    className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
+                                    title="Delete Subcategory"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           ))}
@@ -594,16 +798,93 @@ export default function CategoriesPage() {
             <div className="flex items-center space-x-3 mt-6">
               <button
                 onClick={createCategory}
-                disabled={!formData.name.trim()}
+                disabled={busy || !formData.name.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Category
+                {busy ? "Creating…" : "Create Category"}
               </button>
               <button
-                onClick={() => {
-                  setShowCreateModal(false);
-                  resetForm();
-                }}
+                onClick={() => { setShowCreateModal(false); resetForm(); }}
+                disabled={busy}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Category Modal */}
+      {showEditCategoryModal && editingCategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Edit Category</h2>
+              <button onClick={() => { setShowEditCategoryModal(false); setEditingCategory(null); resetForm(); }} disabled={busy} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Category name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Sort Order</label>
+                <input
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="editIsActiveCat"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  className="rounded"
+                />
+                <label htmlFor="editIsActiveCat" className="text-sm text-gray-700">Active</label>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3 mt-6">
+              <button
+                onClick={updateCategory}
+                disabled={busy || !formData.name.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {busy ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                onClick={() => { setShowEditCategoryModal(false); setEditingCategory(null); resetForm(); }}
+                disabled={busy}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
               >
                 Cancel
@@ -683,16 +964,93 @@ export default function CategoriesPage() {
             <div className="flex items-center space-x-3 mt-6">
               <button
                 onClick={createSubcategory}
-                disabled={!formData.name.trim()}
+                disabled={busy || !formData.name.trim()}
                 className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Create Subcategory
+                {busy ? "Creating…" : "Create Subcategory"}
               </button>
               <button
-                onClick={() => {
-                  setShowSubcategoryModal(false);
-                  resetForm();
-                }}
+                onClick={() => { setShowSubcategoryModal(false); resetForm(); }}
+                disabled={busy}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Subcategory Modal */}
+      {showEditSubcategoryModal && editingSubcategory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Edit Subcategory</h2>
+              <button onClick={() => { setShowEditSubcategoryModal(false); setEditingSubcategory(null); resetForm(); }} disabled={busy} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleNameChange(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Subcategory name"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
+                <input
+                  type="text"
+                  value={formData.slug}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
+                <input
+                  type="text"
+                  value={formData.code}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Sort Order</label>
+                <input
+                  type="number"
+                  value={formData.sortOrder}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="editIsActiveSub"
+                  checked={formData.isActive}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                  className="rounded"
+                />
+                <label htmlFor="editIsActiveSub" className="text-sm text-gray-700">Active</label>
+              </div>
+            </div>
+            <div className="flex items-center space-x-3 mt-6">
+              <button
+                onClick={updateSubcategory}
+                disabled={busy || !formData.name.trim()}
+                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {busy ? "Saving…" : "Save Changes"}
+              </button>
+              <button
+                onClick={() => { setShowEditSubcategoryModal(false); setEditingSubcategory(null); resetForm(); }}
+                disabled={busy}
                 className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
               >
                 Cancel

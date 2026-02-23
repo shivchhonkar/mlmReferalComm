@@ -17,7 +17,7 @@ export type Service = {
   isFeatured?: boolean;
   categoryId?: string;
   tags?: string[];
-  rating?: number;  // Avg rating (0–5)
+  rating?: number; // Avg rating (0–5)
   reviewCount?: number;
   createdAt?: string;
   updatedAt?: string;

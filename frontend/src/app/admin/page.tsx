@@ -6,12 +6,10 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { formatINR, formatNumber } from "@/lib/format";
 import {
   Settings,
-  List,
   Users,
   BarChart3,
   Mail,
   Image as ImageIcon,
-  UserCheck,
   FolderOpen,
   CreditCard,
   FileCheck,
@@ -21,6 +19,11 @@ import {
   TrendingUp,
   RefreshCw,
   AlertCircle,
+  ChevronRight,
+  Shield,
+  Store,
+  Cog,
+  Headphones,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -32,13 +35,44 @@ type DashboardStats = {
 };
 
 type AdminSection = {
+  id: string;
   title: string;
+  description: string;
+  icon: React.ComponentType<{ className?: string }>;
+  accent: "emerald" | "sky" | "amber" | "violet";
   cards: {
     href: string;
     title: string;
     desc: string;
     icon: React.ComponentType<{ className?: string }>;
   }[];
+};
+
+const accentStyles = {
+  emerald: {
+    iconBg: "bg-emerald-100",
+    iconColor: "text-emerald-700",
+    border: "border-emerald-200/50",
+    cardHover: "hover:border-emerald-300 hover:bg-emerald-50/30",
+  },
+  sky: {
+    iconBg: "bg-sky-100",
+    iconColor: "text-sky-700",
+    border: "border-sky-200/50",
+    cardHover: "hover:border-sky-300 hover:bg-sky-50/30",
+  },
+  amber: {
+    iconBg: "bg-amber-100",
+    iconColor: "text-amber-700",
+    border: "border-amber-200/50",
+    cardHover: "hover:border-amber-300 hover:bg-amber-50/30",
+  },
+  violet: {
+    iconBg: "bg-violet-100",
+    iconColor: "text-violet-700",
+    border: "border-violet-200/50",
+    cardHover: "hover:border-violet-300 hover:bg-violet-50/30",
+  },
 };
 
 export default function AdminPage() {
@@ -77,129 +111,122 @@ export default function AdminPage() {
   const getRoleDisplay = () => {
     const role = (user as { role?: string })?.role;
     if (role === "super_admin") {
-      return {
-        title: "Super Admin Panel",
-        badgeText: "Super Admin",
-        description: "Full system access and control.",
-      };
+      return { title: "Super Admin Panel", badgeText: "Super Admin", description: "Full system access and control." };
     }
     if (role === "admin") {
-      return {
-        title: "Admin Panel",
-        badgeText: "Admin",
-        description: "Manage your platform settings and configurations.",
-      };
+      return { title: "Admin Panel", badgeText: "Admin", description: "Manage your platform settings and configurations." };
     }
-    return {
-      title: "Admin Panel",
-      badgeText: "Moderator",
-      description: "Manage your platform settings and configurations.",
-    };
+    return { title: "Admin Panel", badgeText: "Moderator", description: "Manage your platform settings and configurations." };
   };
 
   const roleDisplay = getRoleDisplay();
 
   const sections: AdminSection[] = [
     {
-      title: "Overview & Analytics",
+      id: "analytics",
+      title: "Analytics & Overview",
+      description: "Platform metrics and performance insights",
+      icon: BarChart3,
+      accent: "emerald",
       cards: [
-        {
-          href: "/admin/analytics",
-          title: "Analytics Dashboard",
-          desc: "View comprehensive platform analytics and insights",
-          icon: BarChart3,
-        },
+        { href: "/admin/analytics", title: "Analytics Dashboard", desc: "View comprehensive platform analytics, charts and trends", icon: BarChart3 },
       ],
     },
     {
+      id: "users",
       title: "Users & Compliance",
+      description: "Manage members, sellers and KYC verification",
+      icon: Shield,
+      accent: "sky",
       cards: [
-        { href: "/admin/users", title: "User Management", desc: "Create, manage and monitor user accounts and roles", icon: Users },
-        // { href: "/admin/service-approval", title: "Service Approval", desc: "Review and approve or reject service listings", icon: UserCheck },
-        { href: "/admin/kyc", title: "KYC Management", desc: "Review and approve user KYC submissions", icon: FileCheck },
+        { href: "/admin/users", title: "Users & Sellers", desc: "Manage user accounts, roles, and seller applications", icon: Users },
+        { href: "/admin/kyc", title: "KYC Management", desc: "Review and verify user KYC submissions", icon: FileCheck },
       ],
     },
     {
+      id: "catalog",
       title: "Catalog & Content",
+      description: "Services, categories and marketing content",
+      icon: Store,
+      accent: "violet",
       cards: [
-        { href: "/admin/services", title: "Services", desc: "Create and manage services, pricing and business volume", icon: Package },
-        { href: "/admin/categories", title: "Categories & Subcategories", desc: "Manage service categories and subcategories", icon: FolderOpen },
-        { href: "/admin/slider", title: "Manage Sliders", desc: "Control home page slider images and content", icon: ImageIcon },
+        { href: "/admin/services", title: "Services", desc: "Create, edit and approve services. Manage pricing & BV", icon: Package },
+        { href: "/admin/categories", title: "Categories", desc: "Manage service categories and subcategories", icon: FolderOpen },
+        { href: "/admin/slider", title: "Sliders", desc: "Home page slider images and promotional content", icon: ImageIcon },
       ],
     },
     {
+      id: "business",
       title: "Business & Support",
+      description: "Commission rules, payments and customer inquiries",
+      icon: Headphones,
+      accent: "amber",
       cards: [
-        { href: "/admin/rules", title: "Distribution Rules", desc: "Configure commission rules and distribution percentages", icon: List },
-        { href: "/admin/payment-settings", title: "Payment Settings", desc: "Configure payment links and UPI settings", icon: CreditCard },
-        { href: "/admin/contacts", title: "Contact Submissions", desc: "View and manage contact form submissions", icon: Mail },
+        { href: "/admin/rules", title: "Distribution Rules", desc: "Configure commission and BV distribution rules", icon: Cog },
+        { href: "/admin/payment-settings", title: "Payment Settings", desc: "Payment links, UPI and checkout options", icon: CreditCard },
+        { href: "/admin/contacts", title: "Contact Submissions", desc: "View and respond to contact form messages", icon: Mail },
       ],
     },
   ];
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
         <div className="flex flex-col items-center gap-4">
           <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
-          <p className="text-sm text-zinc-600">Loading admin panel…</p>
+          <p className="text-sm text-slate-600">Loading admin panel…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
-      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
-
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
-                <Settings className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-semibold text-zinc-800">{roleDisplay.badgeText}</span>
+    <div className="min-h-screen bg-slate-50">
+      {/* Top bar */}
+      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-sm">
+              <Settings className="h-5 w-5" />
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight text-zinc-900 sm:text-4xl">
-              {roleDisplay.title}
-            </h1>
-            <p className="mt-2 text-sm text-zinc-600">{roleDisplay.description}</p>
+            <div>
+              <h1 className="text-lg font-semibold text-slate-900">{roleDisplay.title}</h1>
+              <p className="text-xs text-slate-500">{roleDisplay.description}</p>
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 sm:inline">
+              {roleDisplay.badgeText}
+            </span>
             <Link
               href="/dashboard"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <LayoutDashboard className="h-4 w-4" />
-              View as User
+              <span className="hidden sm:inline">Dashboard</span>
             </Link>
             <Link
               href="/"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <ArrowLeft className="h-4 w-4" />
-              Back to Site
+              <span className="hidden sm:inline">Site</span>
             </Link>
           </div>
         </div>
+      </div>
 
-        {/* Quick Overview - real data */}
-        <section className="mb-12 rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Stats */}
+        <section className="mb-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-sky-50">
-                <BarChart3 className="h-5 w-5 text-emerald-700" />
-              </div>
-              <h2 className="text-lg font-semibold text-zinc-900">Quick Overview</h2>
-            </div>
+            <h2 className="text-base font-semibold text-slate-900">Platform Overview</h2>
             {!statsLoading && (statsError || stats) && (
               <button
                 type="button"
                 onClick={loadDashboardStats}
                 disabled={statsLoading}
-                className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${statsLoading ? "animate-spin" : ""}`} />
                 Refresh
@@ -208,20 +235,20 @@ export default function AdminPage() {
           </div>
 
           {statsLoading ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6">
-                  <div className="mx-auto mb-2 h-9 w-9 rounded-lg bg-zinc-200 animate-pulse" />
-                  <div className="mx-auto h-3 w-20 rounded bg-zinc-200 animate-pulse" />
-                  <div className="mt-3 h-8 w-16 rounded bg-zinc-200 animate-pulse" />
+                <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+                  <div className="mb-3 h-9 w-9 rounded-lg bg-slate-200 animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />
+                  <div className="mt-2 h-7 w-16 rounded bg-slate-200 animate-pulse" />
                 </div>
               ))}
             </div>
           ) : statsError ? (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-amber-200 bg-amber-50/50 p-8 text-center">
-              <AlertCircle className="mx-auto mb-2 h-10 w-10 text-amber-600" />
+            <div className="flex flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50/50 py-12 text-center">
+              <AlertCircle className="mb-3 h-10 w-10 text-amber-600" />
               <p className="text-sm font-medium text-amber-800">Could not load overview</p>
-              <p className="mt-1 text-xs text-amber-700">{statsError}</p>
+              <p className="mt-1 max-w-sm text-xs text-amber-700">{statsError}</p>
               <button
                 type="button"
                 onClick={loadDashboardStats}
@@ -232,63 +259,77 @@ export default function AdminPage() {
               </button>
             </div>
           ) : stats ? (
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
-                <Users className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Total Users</p>
-                <p className="mt-1 text-2xl font-semibold text-zinc-900">{formatNumber(stats.totalUsers)}</p>
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200">
+                <Users className="mb-3 h-8 w-8 text-emerald-600" />
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total Users</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{formatNumber(stats.totalUsers)}</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
-                <Package className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Active Services</p>
-                <p className="mt-1 text-2xl font-semibold text-zinc-900">{formatNumber(stats.activeServices)}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200">
+                <Package className="mb-3 h-8 w-8 text-sky-600" />
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Active Services</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{formatNumber(stats.activeServices)}</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
-                <BarChart3 className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Total BV Generated</p>
-                <p className="mt-1 text-2xl font-semibold text-zinc-900">{formatNumber(stats.totalBVGenerated)}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200">
+                <BarChart3 className="mb-3 h-8 w-8 text-violet-600" />
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">BV Generated</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{formatNumber(stats.totalBVGenerated)}</p>
               </div>
-              <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-6 text-center">
-                <TrendingUp className="mx-auto mb-2 h-9 w-9 text-emerald-700" />
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Income Distributed</p>
-                <p className="mt-1 text-2xl font-semibold text-zinc-900">{formatINR(stats.totalIncomeDistributed)}</p>
+              <div className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200">
+                <TrendingUp className="mb-3 h-8 w-8 text-amber-600" />
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Income Distributed</p>
+                <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(stats.totalIncomeDistributed)}</p>
               </div>
             </div>
           ) : null}
         </section>
 
-        {/* Sectioned cards */}
-        {sections.map((section) => (
-          <section key={section.title} className="mb-12">
-            <h3 className="mb-4 text-sm font-semibold uppercase tracking-wide text-zinc-500">
-              {section.title}
-            </h3>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {section.cards.map((c) => {
-                const Icon = c.icon;
-                return (
-                  <Link
-                    key={c.href}
-                    href={c.href}
-                    className="group rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                  >
-                    <div className="mb-5 flex items-start justify-between">
-                      <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 to-sky-50 p-3">
-                        <Icon className="h-6 w-6 text-emerald-700" />
-                      </div>
-                      <span className="rounded-full bg-zinc-50 px-3 py-1 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200 transition group-hover:bg-white">
-                        Open →
-                      </span>
+        {/* Grouped sections */}
+        <div className="space-y-8">
+          {sections.map((section) => {
+            const StyleIcon = section.icon;
+            const accent = accentStyles[section.accent];
+            return (
+              <section
+                key={section.id}
+                className={`rounded-2xl border ${accent.border} bg-white shadow-sm`}
+              >
+                <div className="border-b border-slate-100 px-6 py-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent.iconBg} ${accent.iconColor}`}>
+                      <StyleIcon className="h-5 w-5" />
                     </div>
-                    <h4 className="text-lg font-semibold text-zinc-900">{c.title}</h4>
-                    <p className="mt-2 text-sm text-zinc-600">{c.desc}</p>
-                    <div className="mt-6 h-1 w-full rounded-full bg-gradient-to-r from-emerald-200/70 via-teal-200/70 to-sky-200/70 opacity-0 transition group-hover:opacity-100" />
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        ))}
+                    <div>
+                      <h3 className="font-semibold text-slate-900">{section.title}</h3>
+                      <p className="text-xs text-slate-500">{section.description}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-px bg-slate-100 sm:grid-cols-2 lg:grid-cols-3">
+                  {section.cards.map((c) => {
+                    const CardIcon = c.icon;
+                    return (
+                      <Link
+                        key={c.href}
+                        href={c.href}
+                        className={`group flex items-start gap-4 bg-white p-6 transition ${accent.cardHover}`}
+                      >
+                        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${accent.iconBg} ${accent.iconColor}`}>
+                          <CardIcon className="h-6 w-6" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="font-medium text-slate-900 group-hover:text-emerald-700">{c.title}</h4>
+                          <p className="mt-0.5 text-sm text-slate-500">{c.desc}</p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-emerald-600" />
+                      </Link>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

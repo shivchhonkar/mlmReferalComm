@@ -208,7 +208,7 @@ export default function ProfileSection() {
           )}
         </div>
 
-        <span className="hidden md:block truncate max-w-[160px]">
+        <span className="hidden md:block truncate max-w-[160px] hover:cursor-pointer">
           {user ? user.name || user.email || "User" : "Hello, Guest"}
         </span>
 

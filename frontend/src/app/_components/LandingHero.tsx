@@ -20,24 +20,34 @@ export default function LandingHero() {
               Referral • Growth • Services Marketplace
             </span> */}
 
-            <h1 className="mt-0 text-3xl sm:text-4xl lg:text-5xl  tracking-tight text-gray-900">
+            <h1 className="mt-0 text-3xl sm:text-4xl lg:text-5xl tracking-tight text-slate-900">
               Grow your business with{" "}
-              <span className="bg-gradient-to-r from-emerald-600 to-sky-600 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 bg-clip-text text-transparent">
                 referrals & trusted services
               </span>
               .
             </h1>
 
-            <p className="mt-4 text-base sm:text-lg text-gray-700 leading-relaxed max-w-xl">
+            <p className="mt-4 text-base sm:text-lg text-slate-700 leading-relaxed max-w-xl">
               Sambhariya Marketing helps you list services, build a referral network,
-              and earn commission on every successful referral—simple, transparent, and scalable.
+              and earn commission on every successful referral—simple, transparent, and scalable.              
             </p>
+            <p className="mt-4 text-base sm:text-lg text-slate-700 leading-relaxed max-w-xl">
+               Instead of spending heavily on
+               marketing, you can grow your business through trusted recommendations from people who share your
+                services with others.</p>
+
+                <p className="mt-4 text-base sm:text-lg text-slate-700 leading-relaxed max-w-xl">
+                  Anyone can join the platform, refer services, and earn a commission whenever a referral turns 
+                  into a successful deal. The process is easy and transparent—service providers get more leads, 
+                  and referrers get rewarded for connecting the right people. 
+                  It's a smart and scalable way to grow business together.</p>
 
             <div className="mt-7 flex flex-col sm:flex-row gap-3">
               <Link
                 prefetch={false}
                 href="/register"
-                className="inline-flex items-center justify-center gap-2 rounded-md px-5 py-3 text-sm font-semibold text-white shadow-sm bg-gradient-to-r from-emerald-600 to-sky-600 hover:brightness-95 transition"
+                className="inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white shadow-sm bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600 hover:opacity-95 transition"
               >
                 Become an Affiliate <ArrowRight className="h-4 w-4" />
               </Link>
@@ -45,34 +55,34 @@ export default function LandingHero() {
               <Link
                 prefetch={false}
                 href="/services"
-                className="inline-flex items-center justify-center rounded-md px-5 py-3 text-sm font-semibold text-gray-800 border border-gray-200 hover:bg-gray-50 transition"
+                className="inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-slate-800 border border-slate-200 hover:bg-slate-50 transition"
               >
                 Explore Services
               </Link>
             </div>
 
             <div className="mt-10 grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <ShieldCheck className="h-5 w-5 text-emerald-600" />
                 <div className="text-sm">
-                  <div className="font-semibold text-gray-900">Trusted</div>
-                  <div className="text-gray-600">Verified listings</div>
+                  <div className="font-semibold text-slate-900">Trusted</div>
+                  <div className="text-slate-600">Verified listings</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
-                <Users className="h-5 w-5 text-sky-600" />
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <Users className="h-5 w-5 text-teal-600" />
                 <div className="text-sm">
-                  <div className="font-semibold text-gray-900">Community</div>
-                  <div className="text-gray-600">Referral network</div>
+                  <div className="font-semibold text-slate-900">Community</div>
+                  <div className="text-slate-600">Referral network</div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-4">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                 <TrendingUp className="h-5 w-5 text-emerald-600" />
                 <div className="text-sm">
-                  <div className="font-semibold text-gray-900">Earnings</div>
-                  <div className="text-gray-600">Track commissions</div>
+                  <div className="font-semibold text-slate-900">Earnings</div>
+                  <div className="text-slate-600">Track commissions</div>
                 </div>
               </div>
             </div>
@@ -80,10 +90,10 @@ export default function LandingHero() {
 
           {/* Right visual */}
           <div className="relative">
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-lg p-6">
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-lg p-6">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-gray-900">Marketplace Snapshot</div>
-                <div className="text-xs font-semibold text-gray-600">Live</div>
+                <div className="text-sm font-semibold text-slate-900">Marketplace Snapshot</div>
+                {/* <div className="text-xs font-semibold text-gray-600">Live</div> */}
               </div>
 
               <div className="mt-5 grid grid-cols-1 gap-3">
@@ -92,24 +102,24 @@ export default function LandingHero() {
                   { title: "Education & Coaching", value: "480+ providers" },
                   { title: "Business Solutions", value: "760+ providers" },
                 ].map((x) => (
-                  <div key={x.title} className="rounded-xl border border-gray-200 p-4 hover:shadow-sm transition">
-                    <div className="text-sm font-semibold text-gray-900">{x.title}</div>
-                    <div className="text-sm text-gray-600 mt-1">{x.value}</div>
-                    <div className="mt-3 h-2 w-full rounded-full bg-gray-100">
-                      <div className="h-2 rounded-full bg-gradient-to-r from-emerald-600 to-sky-600 w-2/3" />
+                  <div key={x.title} className="rounded-xl border border-slate-200 p-4 hover:shadow-sm transition">
+                    <div className="text-sm font-semibold text-slate-900">{x.title}</div>
+                    <div className="text-sm text-slate-600 mt-1">{x.value}</div>
+                    <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                      <div className="h-2 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 w-2/3" />
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div className="mt-6 rounded-xl bg-gray-50 border border-gray-200 p-4">
-                <div className="text-sm font-semibold text-gray-900">Referral Earnings</div>
-                <div className="mt-1 text-sm text-gray-600">Earn commission on every successful referral.</div>
+              <div className="mt-6 rounded-xl bg-slate-50 border border-slate-200 p-4">
+                <div className="text-sm font-semibold text-slate-900">Referral Earnings</div>
+                <div className="mt-1 text-sm text-slate-600">Earn commission on every successful referral.</div>
                 <div className="mt-4 flex items-center gap-2">
-                  <div className="h-9 w-9 rounded-full bg-gradient-to-r from-emerald-600 to-sky-600" />
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600" />
                   <div className="text-sm">
-                    <div className="font-semibold text-gray-900">Affiliate Dashboard</div>
-                    <div className="text-gray-600">Track referrals & payouts</div>
+                    <div className="font-semibold text-slate-900">Affiliate Dashboard</div>
+                    <div className="text-slate-600">Track referrals & payouts</div>
                   </div>
                 </div>
               </div>

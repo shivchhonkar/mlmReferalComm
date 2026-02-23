@@ -188,7 +188,7 @@ export default function LoginPage() {
                       onChange={(e) => setPassword(e.target.value)}
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
-                      placeholder="••••••••"
+                      placeholder="Enter your password"
                       required
                       className="w-full rounded-xl border border-[var(--gray-200)] bg-[var(--gray-50)] !pl-12 pr-12 py-3 text-sm text-[var(--gray-900)] placeholder:text-[var(--gray-500)] focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
                     />
@@ -196,7 +196,7 @@ export default function LoginPage() {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-2 text-[var(--gray-500)] hover:text-[var(--gray-900)] hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0EA5E9]/30"
+                      className="absolute hover:cursor-pointer right-3 top-1/2 -translate-y-1/2 rounded-lg p-2 text-[var(--gray-500)] hover:text-[var(--gray-900)] hover:bg-white/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0EA5E9]/30"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {showPassword ? (

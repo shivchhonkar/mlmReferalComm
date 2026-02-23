@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Settings,
   Plus,
+  Package,
   ClipboardList,
   Upload,
   Search,
@@ -25,6 +26,9 @@ import {
   CheckCircle,
   XCircle,
   Clock,
+  LayoutDashboard,
+  BarChart3,
+  IndianRupee,
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import AdminServiceUpload from "./AdminServiceUpload";
@@ -34,7 +38,7 @@ type Service = {
   name: string;
   price: number;
   businessVolume: number;
-  status: "pending_approval" | "approved" | "rejected" | "active" | "inactive" | "out_of_stock";
+  status: "draft" | "pending" | "pending_approval" | "approved" | "rejected" | "active" | "inactive" | "out_of_stock";
   createdAt: string;
 
   slug?: string;
@@ -42,6 +46,7 @@ type Service = {
   shortDescription?: string;
   description?: string;
   categoryId?: string | { _id: string; name: string; code: string };
+  sellerId?: { _id: string; name?: string; fullName?: string; email?: string; mobile?: string } | null;
   isFeatured?: boolean;
   tags?: string[];
   rejectionReason?: string;
@@ -72,8 +77,8 @@ function generateSlug(text: string) {
 
 function ServiceImage({ src, name }: { src?: string; name: string }) {
   return (
-    <div className="relative w-full overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <div className="aspect-[16/10] w-full bg-slate-50 flex items-center justify-center">
+    <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      <div className="aspect-[16/10] w-full flex items-center justify-center">
         {src ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -85,17 +90,38 @@ function ServiceImage({ src, name }: { src?: string; name: string }) {
             }}
           />
         ) : (
-          <div className="flex flex-col items-center gap-2 text-slate-400">
-            <div className="h-12 w-12 rounded-xl border border-slate-200 bg-white flex items-center justify-center">
-              <span className="text-xs font-semibold">NO</span>
-            </div>
-            <span className="text-[10px] font-semibold tracking-wide">IMAGE</span>
+          <div className="flex flex-col items-center gap-1.5 text-slate-400">
+            <Package className="h-10 w-10" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider">No image</span>
           </div>
         )}
       </div>
     </div>
   );
 }
+
+function StatusBadge({ status }: { status: Service["status"] }) {
+  const config: Record<string, { label: string; className: string }> = {
+    draft: { label: "Draft", className: "bg-slate-100 text-slate-700 border-slate-200" },
+    pending: { label: "Pending", className: "bg-amber-50 text-amber-800 border-amber-200" },
+    pending_approval: { label: "Pending", className: "bg-amber-50 text-amber-800 border-amber-200" },
+    approved: { label: "Approved", className: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+    active: { label: "Active", className: "bg-emerald-50 text-emerald-800 border-emerald-200" },
+    rejected: { label: "Rejected", className: "bg-red-50 text-red-700 border-red-200" },
+    inactive: { label: "Inactive", className: "bg-slate-100 text-slate-600 border-slate-200" },
+    out_of_stock: { label: "Out of stock", className: "bg-slate-100 text-slate-600 border-slate-200" },
+  };
+  const { label, className } = config[status] ?? { label: String(status), className: "bg-slate-100 text-slate-600" };
+  return (
+    <span className={cn("inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold", className)}>
+      {label}
+    </span>
+  );
+}
+
+const formInputClass =
+  "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60 disabled:cursor-not-allowed";
+const formLabelClass = "mb-1.5 block text-sm font-medium text-slate-700";
 
 function Modal({
   open,
@@ -116,48 +142,40 @@ function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm"
         onClick={() => !busy && onClose()}
+        aria-hidden
       />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl rounded-3xl border border-slate-200 bg-white shadow-2xl">
-          <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                <Settings className="h-5 w-5 text-emerald-600" />
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
-                <p className="text-xs text-slate-500">{subtitle ?? "Manage service details"}</p>
-              </div>
-            </div>
-            <button
-              className="h-10 w-10 rounded-2xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center"
-              onClick={() => !busy && onClose()}
-              aria-label="Close"
-            >
-              <X className="h-5 w-5 text-slate-600" />
-            </button>
+      <div className="relative w-full max-w-2xl rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+            {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
           </div>
-
-          <div className="px-6 py-5">{children}</div>
-
-          {footer ? (
-            <div className="px-6 py-5 border-t border-slate-100 flex items-center justify-end gap-3">
-              {footer}
-            </div>
-          ) : null}
+          <button
+            type="button"
+            onClick={() => !busy && onClose()}
+            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" />
+          </button>
         </div>
+        <div className="max-h-[65vh] overflow-y-auto px-6 py-5">{children}</div>
+        {footer && (
+          <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 export default function AdminServicesPage() {
- const { user } = useAuth({ requireAdmin: true });
- console.log("user: ", user)
+  const { user } = useAuth({ requireAdmin: true });
 
   const [meRole, setMeRole] = useState<string | undefined>(user?.role);
   const canManage = useMemo(() => ADMIN_ROLES.has(String(meRole ?? "")), [meRole]);
@@ -174,7 +192,9 @@ export default function AdminServicesPage() {
 
   // Filters
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "draft" | "pending" | "approved" | "rejected" | "active" | "inactive"
+  >("all");
   const [featuredFilter, setFeaturedFilter] = useState<"all" | "featured">("all");
 
   // Sorting
@@ -204,7 +224,7 @@ export default function AdminServicesPage() {
   const [editShortDescription, setEditShortDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
   const [editIsFeatured, setEditIsFeatured] = useState(false);
-  const [editStatus, setEditStatus] = useState<"active" | "pending_approval" | "inactive" | "approved" | "rejected" | "out_of_stock">("active");
+  const [editStatus, setEditStatus] = useState<"draft" | "pending" | "pending_approval" | "active" | "inactive" | "approved" | "rejected" | "out_of_stock">("active");
 
   // Delete modal
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -215,6 +235,19 @@ export default function AdminServicesPage() {
   const [selectedServiceForReject, setSelectedServiceForReject] = useState<Service | null>(null);
   const [rejectionReason, setRejectionReason] = useState("");
   const [busyApprovalId, setBusyApprovalId] = useState<string | null>(null);
+
+  // Categories for dropdown (active only)
+  const [categories, setCategories] = useState<{ _id: string; name: string; code?: string }[]>([]);
+
+  async function loadCategories() {
+    try {
+      const res = await apiFetch("/api/categories");
+      const data = await res.json();
+      if (res.ok && data?.categories) setCategories(data.categories);
+    } catch {
+      setCategories([]);
+    }
+  }
 
   // async function loadMe() {
   //   try {
@@ -230,7 +263,8 @@ export default function AdminServicesPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await apiFetch("/api/admin/services");
+      const params = statusFilter !== "all" ? `?status=${statusFilter}` : "";
+      const res = await apiFetch(`/api/admin/services${params}`);
       const json = await res.json();
       if (!res.ok) throw new Error(json?.error ?? "Failed to load services");
       setServices(json.services ?? []);
@@ -257,13 +291,13 @@ export default function AdminServicesPage() {
   }
 
   useEffect(() => {
-    setMeRole(user?.role)
+    setMeRole(user?.role);
     load();
+    loadCategories();
     if (activeTab === "approvals") {
       loadPendingServices();
     }
-    console.log('user?.role: ', user?.role,'---', user);
-  }, [user, activeTab]);
+  }, [user, activeTab, statusFilter]);
 
   // ---- Create modal handlers
   function openCreate() {
@@ -348,9 +382,13 @@ export default function AdminServicesPage() {
     setEditBusinessVolume(service.businessVolume ?? "");
     setEditImage(service.image ?? "");
     setEditShortDescription(service.shortDescription ?? "");
-    setEditCategoryId(service._id ?? "");
+    setEditCategoryId(
+      typeof service.categoryId === "object" ? service.categoryId?._id ?? "" : service.categoryId ?? ""
+    );
     setEditIsFeatured(Boolean(service.isFeatured));
-    setEditStatus(service.status ?? "active");
+    const validStatuses = ["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"] as const;
+    const s = service.status ?? "active";
+    setEditStatus(validStatuses.includes(s) ? s : "active");
     setEditOpen(true);
   }
 
@@ -483,7 +521,6 @@ export default function AdminServicesPage() {
     const q = query.trim().toLowerCase();
 
     const arr = services.filter((s) => {
-      if (statusFilter !== "all" && s.status !== statusFilter) return false;
       if (featuredFilter === "featured" && !s.isFeatured) return false;
       if (!q) return true;
       const hay = `${s.name ?? ""} ${s.slug ?? ""} ${s.categoryId ?? ""}`.toLowerCase();
@@ -519,247 +556,212 @@ export default function AdminServicesPage() {
     });
 
     return arr;
-  }, [services, query, statusFilter, featuredFilter, sortBy]);
+  }, [services, query, featuredFilter, sortBy]);
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header like marketplace */}
-      <div className="border-b border-slate-200 bg-white">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-start gap-3">
-              <div className="h-12 w-12 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
-                <Settings className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-                  Services Admin
-                </h1>
-                <p className="mt-1 text-sm text-slate-600">
-                  Manage services to generate Business Volume (BV) and grow referral income.
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                    <BadgeCheck className="h-4 w-4 text-emerald-600" />
-                    Quality Assured
-                  </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-700">
-                    <Sparkles className="h-4 w-4 text-sky-600" />
-                    Instant BV
-                  </span>
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold",
-                      canManage
-                        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                        : "border-amber-200 bg-amber-50 text-amber-700"
-                    )}
-                  >
-                    <Star className="h-4 w-4" />
-                    {canManage ? "Admin Controls Enabled" : "Read-only (not admin/super_admin)"}
-                  </span>
-                </div>
-              </div>
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+
+      <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <LayoutDashboard className="h-4 w-4" />
+              <span>Admin</span>
+              <span className="text-slate-400">·</span>
+              <span>Services</span>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/admin/rules"
-                prefetch={false}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                Rules
-              </Link>
-              <Link
-                href="/dashboard"
-                prefetch={false}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-              >
-                Dashboard
-              </Link>
-              <button
-                onClick={() => load().catch((e) => setError(String(e?.message ?? e)))}
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-50"
-                disabled={busy}
-              >
-                <RefreshCw className={cn("h-4 w-4", busy && "animate-spin")} />
-                Refresh
-              </button>
-
-              {/* ✅ Create button opens modal */}
-              <button
-                onClick={openCreate}
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              Services
+            </h1>
+            <p className="mt-1 text-sm text-slate-600">
+              Manage catalog, approve seller submissions, and control what appears on the marketplace.
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              {/* <span
                 className={cn(
-                  "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white",
-                  canManage ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-300 cursor-not-allowed"
+                  "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+                  canManage ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"
                 )}
-                disabled={!canManage}
               >
-                <Plus className="h-4 w-4" />
-                Create Service
-              </button>
-            </div>
-          </div>
-
-          {/* Quick stats */}
-          <div className="mt-6 grid gap-3 sm:grid-cols-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-semibold text-slate-500">Total Services</div>
-              <div className="mt-1 text-2xl text-slate-900">{stats.total}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-semibold text-slate-500">Active</div>
-              <div className="mt-1 text-2xl  text-emerald-700">{stats.active}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-semibold text-slate-500">Inactive</div>
-              <div className="mt-1 text-2xl text-slate-700">{stats.inactive}</div>
-            </div>
-            <div className="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
-              <div className="text-xs font-semibold text-yellow-700">Pending Approval</div>
-              <div className="mt-1 text-2xl text-yellow-700">{stats.pending}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-xs font-semibold text-slate-500">Featured</div>
-              <div className="mt-1 text-2xl text-sky-700">{stats.featured}</div>
-            </div>
-          </div>
-
-          {/* Search + Filters + Sort */}
-          <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="flex items-start justify-between gap-4 flex-wrap">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                  <Filter className="h-5 w-5 text-emerald-600" />
-                  Search, Filter & Sort
-                </h2>
-                <p className="mt-1 text-sm text-slate-600">
-                  Find services quickly and manage them faster.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-700">
-                  {filteredSorted.length} of {services.length} found
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3 lg:grid-cols-6">
-              <div className="lg:col-span-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-                  <input
-                    className="w-full rounded-2xl border border-slate-200 bg-white !pl-12 pr-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
-                    placeholder="Search services..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="lg:col-span-1">
-                <select
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                >
-                  <option value="all">All Status</option>
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="lg:col-span-1">
-                <select
-                  className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none"
-                  value={featuredFilter}
-                  onChange={(e) => setFeaturedFilter(e.target.value as any)}
-                >
-                  <option value="all">All</option>
-                  <option value="featured">Featured</option>
-                </select>
-              </div>
-
-              <div className="lg:col-span-1">
-                <div className="relative">
-                  <ArrowUpDown className="absolute left-3 top-3.5 h-4 w-4 text-slate-400" />
-                  <select
-                    className="w-full rounded-2xl border border-slate-200 bg-white !pl-10 pr-3 py-3 text-sm font-semibold text-slate-800 outline-none"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as any)}
-                  >
-                    <option value="date_desc">Date (Newest)</option>
-                    <option value="date_asc">Date (Oldest)</option>
-                    <option value="price_asc">Price (Low → High)</option>
-                    <option value="price_desc">Price (High → Low)</option>
-                    <option value="name_asc">Name (A → Z)</option>
-                    <option value="name_desc">Name (Z → A)</option>
-                    <option value="category_asc">Category (A → Z)</option>
-                    <option value="category_desc">Category (Z → A)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="mt-6 flex gap-2 border-b border-slate-200">
-            <button
-              onClick={() => setActiveTab("manage")}
-              className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors",
-                activeTab === "manage"
-                  ? "border-emerald-600 text-emerald-700"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              )}
-            >
-              <ClipboardList className="h-4 w-4" />
-              Manage
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab("approvals");
-                loadPendingServices();
-              }}
-              className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors relative",
-                activeTab === "approvals"
-                  ? "border-emerald-600 text-emerald-700"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
-              )}
-            >
-              <Clock className="h-4 w-4" />
-              Approvals
-              {pendingPagination.total > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 min-w-[18px]">
-                  {pendingPagination.total}
+                <BadgeCheck className="h-3.5 w-3.5" />
+                {canManage ? "Full access" : "Read-only"}
+              </span> */}
+              {stats.pending > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                  <Clock className="h-3.5 w-3.5" />
+                  {stats.pending} pending
                 </span>
               )}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              Admin home
+            </Link>
+            <Link
+              href="/admin/rules"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              Rules
+            </Link>
+            <button
+              type="button"
+              onClick={() => load().catch((e) => setError(String(e?.message ?? e)))}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+            >
+              <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+              Refresh
             </button>
             <button
-              onClick={() => setActiveTab("upload")}
+              type="button"
+              onClick={openCreate}
+              disabled={!canManage}
               className={cn(
-                "flex items-center gap-2 px-4 py-3 text-sm font-semibold border-b-2 transition-colors",
-                activeTab === "upload"
-                  ? "border-emerald-600 text-emerald-700"
-                  : "border-transparent text-slate-600 hover:text-slate-900"
+                "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
+                canManage ? "bg-emerald-600 hover:bg-emerald-700" : "cursor-not-allowed bg-slate-400"
               )}
             >
-              <Upload className="h-4 w-4" />
-              Bulk Import
+              <Plus className="h-4 w-4" />
+              Add service
             </button>
           </div>
         </div>
+
+        {/* Stats */}
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+              <BarChart3 className="h-4 w-4" />
+              Total
+            </div>
+            <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
+          </div>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-wider text-emerald-700">Active</div>
+            <p className="mt-2 text-2xl font-bold text-emerald-800">{stats.active}</p>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Inactive</div>
+            <p className="mt-2 text-2xl font-bold text-slate-700">{stats.inactive}</p>
+          </div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-wider text-amber-700">Pending</div>
+            <p className="mt-2 text-2xl font-bold text-amber-800">{stats.pending}</p>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 shadow-sm">
+            <div className="text-xs font-medium uppercase tracking-wider text-sky-700">Featured</div>
+            <p className="mt-2 text-2xl font-bold text-sky-800">{stats.featured}</p>
+          </div>
+        </div>
+
+        {/* Search + filters + sort — single row */}
+        <div className="mb-6 flex flex-nowrap items-center gap-2 overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className="relative min-w-0 flex-1 sm:max-w-[220px]">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 shrink-0 text-slate-400" />
+            <input
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search..."
+              className={cn(formInputClass, "!pl-9")}
+            />
+          </div>
+          <select
+            className={cn(formInputClass, "w-auto shrink-0 !min-w-0 sm:min-w-[110px] max-w-[110px]")}
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+          >
+            <option value="all">All status</option>
+            <option value="draft">Draft</option>
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+          <select
+            className={cn(formInputClass, "w-auto shrink-0 !min-w-0 sm:min-w-[90px] max-w-[90px]")}
+            value={featuredFilter}
+            onChange={(e) => setFeaturedFilter(e.target.value as typeof featuredFilter)}
+          >
+            <option value="all">All</option>
+            <option value="featured">Featured</option>
+          </select>
+          <select
+            className={cn(formInputClass, "w-auto shrink-0 !min-w-0 sm:min-w-[120px] max-w-[120px]")}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+          >
+            <option value="date_desc">Newest</option>
+            <option value="date_asc">Oldest</option>
+            <option value="price_asc">Price ↑</option>
+            <option value="price_desc">Price ↓</option>
+            <option value="name_asc">Name A–Z</option>
+            <option value="name_desc">Name Z–A</option>
+            <option value="category_asc">Category A–Z</option>
+            <option value="category_desc">Category Z–A</option>
+          </select>
+          <span className="shrink-0 whitespace-nowrap pl-1 text-sm text-slate-500">
+            {filteredSorted.length} of {services.length}
+          </span>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-6 flex gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab("manage")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition",
+              activeTab === "manage" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+            )}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Manage
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab("approvals"); loadPendingServices(); }}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition relative",
+              activeTab === "approvals" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+            )}
+          >
+            <Clock className="h-4 w-4" />
+            Approvals
+            {pendingPagination.total > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {pendingPagination.total}
+              </span>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("upload")}
+            className={cn(
+              "flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition",
+              activeTab === "upload" ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+            )}
+          >
+            <Upload className="h-4 w-4" />
+            Bulk import
+          </button>
+        </div>
       </div>
 
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 pb-10">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6 pb-10 lg:px-8">
         {error ? (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 flex items-start gap-2">
-            <AlertCircle className="h-5 w-5 mt-0.5" />
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+            <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" />
             <div>
-              <div className="font-semibold">Error</div>
-              <div className="mt-1">{error}</div>
+              <p className="font-medium text-red-800">Error</p>
+              <p className="mt-0.5 text-sm text-red-700">{error}</p>
             </div>
           </div>
         ) : null}
@@ -769,12 +771,10 @@ export default function AdminServicesPage() {
         ) : activeTab === "approvals" ? (
           <div className="mt-2">
             {pendingServices.length === 0 ? (
-              <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center shadow-sm">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-sky-100">
-                  <Clock className="h-8 w-8 text-zinc-500" />
-                </div>
-                <h3 className="text-lg font-semibold text-zinc-900 mb-1">No Pending Services</h3>
-                <p className="text-sm text-zinc-600">All services have been reviewed. Great job!</p>
+              <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center shadow-sm">
+                <Clock className="mx-auto h-14 w-14 text-slate-300" />
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">No pending approvals</h3>
+                <p className="mt-1 text-sm text-slate-500">All submissions have been reviewed.</p>
               </div>
             ) : (
               <>
@@ -786,37 +786,31 @@ export default function AdminServicesPage() {
                     return (
                       <div
                         key={s._id}
-                        className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                        className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
                       >
-                        <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="inline-flex items-center rounded-full bg-yellow-50 border border-yellow-200 px-2.5 py-1 text-[11px] font-bold text-yellow-700">
-                            <Clock className="h-3 w-3 mr-1" />
-                            Pending
-                          </span>
+                        <div className="flex items-center justify-between gap-2">
+                          <StatusBadge status={s.status === "pending_approval" ? "pending_approval" : "pending"} />
                         </div>
-
                         <div className="mt-4">
                           <ServiceImage src={s.image} name={s.name} />
                         </div>
-
-                        <div className="mt-4">
-                          <div className="text-base font-bold text-slate-900">{s.name}</div>
-                          <div className="mt-1 text-sm text-slate-600 line-clamp-2">
-                            {s.shortDescription || s.description || "No description provided."}
-                          </div>
+                        <h3 className="mt-4 font-semibold text-slate-900 line-clamp-2">{s.name}</h3>
+                        <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">
+                          {s.shortDescription || s.description || "No description provided."}
+                        </p>
+                        <div className="mt-4 flex items-center gap-2">
+                          <span className="flex items-center gap-1 text-lg font-bold text-slate-900">
+                            <IndianRupee className="h-4 w-4" />
+                            {formatINR(s.price)}
+                          </span>
+                          <span className="text-xs text-slate-500">{s.businessVolume} BV</span>
                         </div>
-
-                        <div className="mt-4 flex items-end justify-between">
-                          <div>
-                            <div className="text-lg font-extrabold text-slate-900">
-                              {formatINR(s.price)}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              BV: {s.businessVolume} {categoryName ? `• ${categoryName}` : ""}
-                            </div>
-                          </div>
+                        <div className="mt-1 text-xs text-slate-500">
+                          {categoryName ?? "—"}
+                          {s.sellerId && (
+                            <span> · Seller: {s.sellerId?.name || s.sellerId?.fullName || s.sellerId?.email || "—"}</span>
+                          )}
                         </div>
-
                         <div className="mt-4 flex items-center gap-2">
                           <button
                             onClick={async () => {
@@ -837,14 +831,13 @@ export default function AdminServicesPage() {
                             }}
                             disabled={isBusy || !canManage}
                             className={cn(
-                              "flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
+                              "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
                               canManage ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-300 cursor-not-allowed"
                             )}
                           >
                             <CheckCircle className="h-4 w-4" />
-                            {isBusy ? "Working..." : "Approve"}
+                            {isBusy ? "Working…" : "Approve"}
                           </button>
-
                           <button
                             onClick={() => {
                               setSelectedServiceForReject(s);
@@ -852,7 +845,7 @@ export default function AdminServicesPage() {
                             }}
                             disabled={isBusy || !canManage}
                             className={cn(
-                              "flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
+                              "flex-1 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition disabled:opacity-60",
                               canManage ? "bg-red-600 hover:bg-red-700" : "bg-slate-300 cursor-not-allowed"
                             )}
                           >
@@ -865,47 +858,31 @@ export default function AdminServicesPage() {
                   })}
                 </div>
 
-                {/* Pagination */}
                 {pendingPagination.pages > 1 && (
-                  <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-sm text-slate-700">
-                        Showing{" "}
-                        <span className="font-bold">
-                          {(pendingPagination.page - 1) * pendingPagination.limit + 1}
-                        </span>{" "}
-                        to{" "}
-                        <span className="font-bold">
-                          {Math.min(pendingPagination.page * pendingPagination.limit, pendingPagination.total)}
-                        </span>{" "}
-                        of <span className="font-bold">{pendingPagination.total}</span> results
-                      </p>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const newPage = Math.max(1, pendingPagination.page - 1);
-                            loadPendingServices(newPage);
-                          }}
-                          disabled={pendingPagination.page === 1}
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:shadow-md transition disabled:opacity-50"
-                        >
-                          Previous
-                        </button>
-                        <span className="px-3 text-sm font-semibold text-zinc-700">
-                          Page {pendingPagination.page} of {pendingPagination.pages}
-                        </span>
-                        <button
-                          onClick={() => {
-                            const newPage = Math.min(pendingPagination.pages, pendingPagination.page + 1);
-                            loadPendingServices(newPage);
-                          }}
-                          disabled={pendingPagination.page === pendingPagination.pages}
-                          className="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 hover:shadow-md transition disabled:opacity-50"
-                        >
-                          Next
-                        </button>
-                      </div>
+                  <div className="mt-6 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-sm text-slate-600">
+                      Showing {(pendingPagination.page - 1) * pendingPagination.limit + 1}–{Math.min(pendingPagination.page * pendingPagination.limit, pendingPagination.total)} of {pendingPagination.total}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => loadPendingServices(Math.max(1, pendingPagination.page - 1))}
+                        disabled={pendingPagination.page === 1}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-3 text-sm text-slate-600">
+                        Page {pendingPagination.page} of {pendingPagination.pages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => loadPendingServices(Math.min(pendingPagination.pages, pendingPagination.page + 1))}
+                        disabled={pendingPagination.page === pendingPagination.pages}
+                        className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
                     </div>
                   </div>
                 )}
@@ -916,12 +893,11 @@ export default function AdminServicesPage() {
           <div className="mt-2">
             {loading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-                    <div className="h-40 rounded-2xl bg-slate-100 animate-pulse" />
-                    <div className="mt-4 h-4 w-2/3 bg-slate-100 rounded animate-pulse" />
-                    <div className="mt-2 h-4 w-1/2 bg-slate-100 rounded animate-pulse" />
-                    <div className="mt-4 h-10 bg-slate-100 rounded-2xl animate-pulse" />
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+                    <div className="aspect-[16/10] rounded-xl bg-slate-100 animate-pulse" />
+                    <div className="mt-4 h-5 w-3/4 rounded bg-slate-100 animate-pulse" />
+                    <div className="mt-2 h-4 w-1/2 rounded bg-slate-100 animate-pulse" />
                   </div>
                 ))}
               </div>
@@ -930,106 +906,82 @@ export default function AdminServicesPage() {
                 {filteredSorted.map((s) => (
                   <div
                     key={s._id}
-                    className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm hover:shadow-md transition-shadow"
+                    className="rounded-xl border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {s.isFeatured ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-orange-50 border border-orange-100 px-2.5 py-1 text-[11px] font-bold text-orange-700">
-                            <Star className="h-3.5 w-3.5" />
-                            Featured
+                    <div className="p-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusBadge status={s.status} />
+                          {s.isFeatured && (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-0.5 text-xs font-semibold text-orange-700">
+                              <Star className="h-3.5 w-3.5" />
+                              Featured
+                            </span>
+                          )}
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
+                            {s.businessVolume} BV
                           </span>
-                        ) : null}
-
-                        <span
-                          className={cn(
-                            "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-bold",
-                            s.status === "active"
-                              ? "bg-emerald-50 border-emerald-100 text-emerald-700"
-                              : s.status === "inactive"?"bg-orange-700 text-white-700": "bg-slate-50 border-slate-200 text-slate-700"
-                          )}
-                        >
-                          {s.status === "active" ? "Active" : "Inactive"}
-                        </span>
-
-                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-bold text-slate-700">
-                          {s.businessVolume} BV
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="mt-4">
-                      <ServiceImage src={s.image} name={s.name} />
-                    </div>
-
-                    <div className="mt-4">
-                      <div className="text-base font-bold text-slate-900">{s.name}</div>
-                      <div className="mt-1 text-sm text-slate-600 line-clamp-2">
-                        {s.shortDescription || "No description provided."}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-end justify-between">
-                      <div>
-                        <div className="text-lg font-extrabold text-slate-900">
-                          {formatINR(s.price)}
                         </div>
-                        <div className="text-xs text-slate-500">
-                          Category:{" "}
-                          <span className="font-semibold">{s._id || "—"}</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                            title="Edit"
+                            onClick={() => openEdit(s)}
+                            disabled={!canManage || busy}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                            title="Toggle active/inactive"
+                            onClick={() => toggleActive(s)}
+                            disabled={!canManage || busy}
+                          >
+                            <Power className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                            title="Delete"
+                            onClick={() => openDelete(s)}
+                            disabled={!canManage || busy}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2">
-                        <button
-                          className={cn(
-                            "h-10 w-10 rounded-2xl border flex items-center justify-center",
-                            canManage
-                              ? "border-slate-200 hover:bg-slate-50"
-                              : "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
-                          )}
-                          title={canManage ? "Edit service" : "Not allowed"}
-                          onClick={() => openEdit(s)}
-                          disabled={!canManage || busy}
-                        >
-                          <Pencil className="h-5 w-5 text-slate-700" />
-                        </button>
-
-                        <button
-                          className={cn(
-                            "h-10 w-10 rounded-2xl border flex items-center justify-center",
-                            canManage
-                              ? "border-slate-200 hover:bg-slate-50"
-                              : "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
-                          )}
-                          title={canManage ? "Toggle active/inactive" : "Not allowed"}
-                          onClick={() => toggleActive(s)}
-                          disabled={!canManage || busy}
-                        >
-                          <Power className="h-5 w-5 text-slate-700" />
-                        </button>
-
-                        <button
-                          className={cn(
-                            "h-10 w-10 rounded-2xl border flex items-center justify-center",
-                            canManage
-                              ? "border-red-200 hover:bg-red-50"
-                              : "border-slate-100 bg-slate-50 opacity-60 cursor-not-allowed"
-                          )}
-                          title={canManage ? "Delete service" : "Not allowed"}
-                          onClick={() => openDelete(s)}
-                          disabled={!canManage || busy}
-                        >
-                          <Trash2 className="h-5 w-5 text-red-600" />
-                        </button>
+                      <div className="mt-4">
+                        <ServiceImage src={s.image} name={s.name} />
                       </div>
+                      <h3 className="mt-4 font-semibold text-slate-900 line-clamp-2">{s.name}</h3>
+                      <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">
+                        {s.shortDescription || "No description."}
+                      </p>
+                      <div className="mt-4 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1 text-lg font-bold text-slate-900">
+                            <IndianRupee className="h-4 w-4" />
+                            {formatINR(s.price)}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {typeof s.categoryId === "object" ? s.categoryId?.name : s.categoryId || "—"}
+                        {s.sellerId && (
+                          <span> · {s.sellerId?.name || s.sellerId?.fullName || s.sellerId?.email || "—"}</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                 ))}
 
                 {!loading && filteredSorted.length === 0 ? (
-                  <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-600 sm:col-span-2 lg:col-span-3">
-                    No services found. Try a different search/filter.
+                  <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center shadow-sm sm:col-span-2 lg:col-span-3">
+                    <Package className="mx-auto h-14 w-14 text-slate-300" />
+                    <h3 className="mt-4 text-lg font-semibold text-slate-900">No services found</h3>
+                    <p className="mt-1 text-sm text-slate-500">Try a different search or filter.</p>
                   </div>
                 ) : null}
               </div>
@@ -1038,11 +990,11 @@ export default function AdminServicesPage() {
         )}
       </div>
 
-      {/* ✅ Create Modal */}
+      {/* Create Modal */}
       <Modal
         open={createOpen}
-        title="Create New Service"
-        subtitle="Add a service with price & BV (opens in modal to save page space)"
+        title="Create service"
+        subtitle="Add a new service to the catalog. Admin-created services can be set active immediately."
         onClose={() => {
           closeCreate();
         }}
@@ -1073,12 +1025,12 @@ export default function AdminServicesPage() {
           </>
         }
       >
-        <form onSubmit={createService} className="grid gap-4 md:grid-cols-2 max-h-[60vh] overflow-y-auto pr-2">
+        <form onSubmit={createService} className="grid gap-4 md:grid-cols-2">
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Service Name *</label>
+            <label className={formLabelClass}>Service name *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
-              placeholder="Enter service name"
+              className={formInputClass}
+              placeholder="e.g. GST Filing Service"
               value={name}
               onChange={(e) => {
                 const v = e.target.value;
@@ -1091,23 +1043,19 @@ export default function AdminServicesPage() {
           </div>
 
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Slug</label>
+            <label className={formLabelClass}>URL slug</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
-              placeholder="auto-generated"
+              className={formInputClass}
+              placeholder="Auto-generated from name"
               value={slug}
               onChange={(e) => setSlug(generateSlug(e.target.value))}
               disabled={!canManage}
             />
-            <p className="mt-1 text-xs text-slate-500">
-              Auto: <span className="font-semibold">{generateSlug(name || "service")}</span>
-            </p>
           </div>
-
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Price (₹) *</label>
+            <label className={formLabelClass}>Price (₹) *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               type="number"
               value={price}
               onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
@@ -1120,9 +1068,9 @@ export default function AdminServicesPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Business Volume (BV) *</label>
+            <label className={formLabelClass}>Business volume (BV) *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               type="number"
               value={businessVolume}
               onChange={(e) => setBusinessVolume(e.target.value === "" ? "" : Number(e.target.value))}
@@ -1132,55 +1080,58 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
-
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Image URL</label>
+            <label className={formLabelClass}>Image URL</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               type="url"
               value={image}
               onChange={(e) => setImage(e.target.value)}
-              placeholder="https://example.com/image.jpg (optional)"
+              placeholder="https://..."
               disabled={!canManage}
             />
           </div>
-
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Short Description</label>
+            <label className={formLabelClass}>Short description</label>
             <textarea
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               value={shortDescription}
               onChange={(e) => setShortDescription(e.target.value)}
-              placeholder="Brief description (max 200 chars)"
+              placeholder="Max 200 characters"
               maxLength={200}
               rows={3}
               disabled={!canManage}
             />
             <p className="mt-1 text-xs text-slate-500">{shortDescription.length}/200</p>
           </div>
-
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Category ID</label>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
-              placeholder="Optional"
+            <label className={formLabelClass}>Category</label>
+            <select
+              className={formInputClass}
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
               disabled={!canManage}
-            />
+            >
+              <option value="">— None —</option>
+              {categories.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="flex items-center gap-3 md:mt-8">
+          <div className="md:col-span-2 flex items-center gap-3">
             <input
               type="checkbox"
               id="isFeaturedCreate"
               checked={isFeatured}
               onChange={(e) => setIsFeatured(e.target.checked)}
-              className="h-4 w-4"
+              className="h-4 w-4 rounded border-slate-300"
               disabled={!canManage}
             />
-            <label htmlFor="isFeaturedCreate" className="text-sm font-semibold text-slate-700">
-              Featured Service
+            <label htmlFor="isFeaturedCreate" className="text-sm font-medium text-slate-700">
+              Featured on marketplace
             </label>
           </div>
         </form>
@@ -1189,8 +1140,8 @@ export default function AdminServicesPage() {
       {/* Edit Modal */}
       <Modal
         open={editOpen}
-        title="Edit Service"
-        subtitle="Edit fields and save changes"
+        title="Edit service"
+        subtitle="Update details, status, and featured flag."
         onClose={closeEdit}
         busy={busy}
         footer={
@@ -1213,11 +1164,11 @@ export default function AdminServicesPage() {
           </>
         }
       >
-        <div className="grid gap-4 md:grid-cols-2grid gap-4 md:grid-cols-2 max-h-[60vh] overflow-y-auto pr-2">
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Name *</label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className={formLabelClass}>Name *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               value={editName}
               onChange={(e) => {
                 const v = e.target.value;
@@ -1227,21 +1178,19 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Slug</label>
+          <div className="md:col-span-2">
+            <label className={formLabelClass}>URL slug</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               value={editSlug}
               onChange={(e) => setEditSlug(generateSlug(e.target.value))}
               disabled={!canManage}
             />
           </div>
-
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Price (₹) *</label>
+            <label className={formLabelClass}>Price (₹) *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               type="number"
               step="0.01"
               min={0}
@@ -1250,38 +1199,31 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
-
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">BV *</label>
+            <label className={formLabelClass}>BV *</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               type="number"
               min={0}
               value={editBusinessVolume}
-              onChange={(e) =>
-                setEditBusinessVolume(e.target.value === "" ? "" : Number(e.target.value))
-              }
+              onChange={(e) => setEditBusinessVolume(e.target.value === "" ? "" : Number(e.target.value))}
               disabled={!canManage}
             />
           </div>
-
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Image URL</label>
+            <label className={formLabelClass}>Image URL</label>
             <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               value={editImage}
               onChange={(e) => setEditImage(e.target.value)}
               placeholder="https://..."
               disabled={!canManage}
             />
           </div>
-
           <div className="md:col-span-2">
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Short Description
-            </label>
+            <label className={formLabelClass}>Short description</label>
             <textarea
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+              className={formInputClass}
               value={editShortDescription}
               onChange={(e) => setEditShortDescription(e.target.value)}
               maxLength={200}
@@ -1290,48 +1232,57 @@ export default function AdminServicesPage() {
             />
             <p className="mt-1 text-xs text-slate-500">{editShortDescription.length}/200</p>
           </div>
-
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Category ID</label>
-            <input
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-emerald-200"
+            <label className={formLabelClass}>Category</label>
+            <select
+              className={formInputClass}
               value={editCategoryId}
               onChange={(e) => setEditCategoryId(e.target.value)}
               disabled={!canManage}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">Status</label>
-            <select
-              className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-800 outline-none"
-              value={editStatus}
-              onChange={(e) => setEditStatus(e.target.value as any)}
-              disabled={!canManage}
             >
-              <option value="active">active</option>
-              <option value="inactive">inactive</option>
+              <option value="">— None —</option>
+              {categories.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.name} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
             </select>
           </div>
-
+          <div>
+            <label className={formLabelClass}>Status</label>
+            <select
+              className={formInputClass}
+              value={editStatus}
+              onChange={(e) => setEditStatus(e.target.value as typeof editStatus)}
+              disabled={!canManage}
+            >
+              <option value="draft">Draft</option>
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="out_of_stock">Out of stock</option>
+            </select>
+          </div>
           <div className="md:col-span-2 flex items-center gap-3">
             <input
               type="checkbox"
               checked={editIsFeatured}
               onChange={(e) => setEditIsFeatured(e.target.checked)}
-              className="h-4 w-4"
+              className="h-4 w-4 rounded border-slate-300"
               disabled={!canManage}
             />
-            <span className="text-sm font-semibold text-slate-700">Featured Service</span>
+            <span className="text-sm font-medium text-slate-700">Featured on marketplace</span>
           </div>
         </div>
       </Modal>
 
-      {/* Delete Confirm Modal */}
+      {/* Delete Modal */}
       <Modal
         open={deleteOpen}
-        title="Delete Service"
-        subtitle="This action cannot be undone"
+        title="Delete service"
+        subtitle="This action cannot be undone."
         onClose={closeDelete}
         busy={busy}
         footer={
@@ -1366,8 +1317,8 @@ export default function AdminServicesPage() {
       {/* Reject Modal */}
       <Modal
         open={rejectModalOpen}
-        title="Reject Service"
-        subtitle="Please provide a reason for rejection"
+        title="Reject submission"
+        subtitle="Provide a reason so the seller can address it."
         onClose={() => {
           if (busyApprovalId) return;
           setRejectModalOpen(false);
@@ -1427,14 +1378,14 @@ export default function AdminServicesPage() {
             <div className="mt-1 text-xs">This action will mark the service as rejected.</div>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Rejection Reason *
+            <label className={formLabelClass}>
+              Rejection reason *
             </label>
             <textarea
-              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium outline-none focus:ring-2 focus:ring-red-200"
+              className={formInputClass}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="Enter rejection reason (e.g., Invalid documents, Wrong category, Pricing mismatch...)"
+              placeholder="e.g. Invalid documents, Wrong category, Pricing mismatch"
               rows={4}
               disabled={!!busyApprovalId}
             />

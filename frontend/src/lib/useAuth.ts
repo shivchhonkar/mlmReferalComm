@@ -6,7 +6,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
 
-export function useAuth(options?: { requireAdmin?: boolean }) {
+export function useAuth(options?: { requireAdmin?: boolean; requireSeller?: boolean }) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector((s) => s.user.profile);
@@ -90,6 +90,11 @@ export function useAuth(options?: { requireAdmin?: boolean }) {
         // Check if admin is required
         if (options?.requireAdmin && data?.user && typeof data.user === 'object' && 'role' in data.user && !["super_admin", "admin", "moderator"].includes(data.user.role as string)) {
           router.push("/dashboard");
+          return;
+        }
+        // Check if seller is required
+        if (options?.requireSeller && data?.user && typeof data.user === 'object' && (!(data.user as { isSeller?: boolean }).isSeller || (data.user as { sellerStatus?: string }).sellerStatus !== "approved")) {
+          router.push("/dashboard");
         }
       } catch (error) {
         console.error("Auth check failed:", error);
@@ -100,7 +105,7 @@ export function useAuth(options?: { requireAdmin?: boolean }) {
     };
 
     checkAuth();
-  }, [router, options?.requireAdmin, dispatch]);
+  }, [router, options?.requireAdmin, options?.requireSeller, dispatch]);
 
   return { user: currentUser, loading };
 }

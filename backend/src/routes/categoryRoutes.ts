@@ -16,7 +16,10 @@ router.get("/", async (req, res) => {
     const formatted = categories.map((cat) => ({
       _id: cat._id?.toString() || '',
       name: cat.name,
+      slug: cat.slug,
+      code: cat.code,
       isActive: cat.isActive,
+      sortOrder: cat.sortOrder,
       createdAt: cat.createdAt,
       updatedAt: cat.updatedAt,
     }));

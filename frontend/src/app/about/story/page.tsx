@@ -31,7 +31,7 @@ export default function OurStoryPage() {
                 Our Story
               </h1>
               <p className="text-sm text-[var(--gray-700)] max-w-3xl">
-                ReferGrow is built around one idea: make referral rewards transparent and predictable through BV.
+                Sambhariya Marketing is built around one idea: make referral rewards transparent and predictable through BV.
               </p>
             </div>
           </div>
@@ -45,7 +45,7 @@ export default function OurStoryPage() {
           <div className="p-6 sm:p-8 space-y-5">
             <p className="text-[var(--gray-800)] leading-relaxed">
               <span className="" style={{ color: "#0EA5E9" }}>
-                ReferGrow
+                Sambhariya Marketing 
               </span>{" "}
               is built around a simple yet powerful idea: reward community growth using{" "}
               <span className=" text-[var(--gray-900)]">Business Volume (BV)</span> so every purchase can

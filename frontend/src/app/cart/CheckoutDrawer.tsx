@@ -126,7 +126,8 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           name: i.name,
           price: i.price,
           quantity: i.quantity,
-          businessVolume: i.businessVolume,
+          businessVolume: i.businessVolume ?? 0,
+          bv: i.businessVolume ?? 0,
         })),
         totals: {
           totalQuantity: cart.totalQuantity,
@@ -136,7 +137,6 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           mode: isCashPaid ? "CASH" : "COD",
           status: isCashPaid ? "PAID" : "PENDING",
         },
-        // Top-level fallbacks so backend can read payment even if nested payment is missing
         paymentMode: isCashPaid ? "CASH" : "COD",
         paymentStatus: isCashPaid ? "PAID" : "PENDING",
       };
@@ -180,7 +180,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         type="button"
         aria-label="Close checkout"
         onClick={() => !loading && onClose()}
-        className="absolute inset-0 bg-black/50 backdrop-blur-[1px]"
+        className="absolute inset-0 bg-black/50 backdrop-blur-[1px] hover:cursor-pointer"
       />
 
       {/* Panel */}
@@ -193,21 +193,21 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 <div className="text-xl text-zinc-900">
                   Checkout
                 </div>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                {/* <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                   <ShieldCheck className="h-3.5 w-3.5" />
                   Services only • No shipping
-                </span>
+                </span> */}
               </div>
 
-              <p className="mt-1 text-sm font-semibold text-zinc-600">
-                Confirm details and payment. Commission is generated on each order for your referral network.
+              <p className="mt-1 text-sm text-zinc-600">
+                Services only · No shipping. Confirm details and pay by cash or pay later.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-bold text-zinc-700">
-                  {cart.totalQuantity} items
+                  {cart.totalQuantity} service{cart.totalQuantity !== 1 ? "s" : ""}
                 </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs  text-emerald-700">
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                   Total: {formatINR(cart.totalAmount)}
                 </span>
               </div>
@@ -216,7 +216,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             <button
               type="button"
               onClick={() => !loading && onClose()}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-60"
+              className="inline-flex h-10 w-10 hover:cursor-pointer items-center justify-center rounded-xl text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-60"
               disabled={loading}
               aria-label="Close"
             >
@@ -234,9 +234,9 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 Customer Details
               </div>
               {user?.email ? (
-                <span className="text-xs font-semibold text-zinc-500">
+                <span className="text-xs text-zinc-500">
                   Logged in as{" "}
-                  <span className="font-bold text-zinc-700">{user.email}</span>
+                  <span className=" text-emerald-700">{user.email}</span>
                 </span>
               ) : null}
             </div>
@@ -244,7 +244,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             <div className="mt-5 grid gap-4">
               {/* Full name */}
               <div>
-                <label className="text-xs font-semibold text-zinc-600">
+                <label className="text-xs text-zinc-600">
                   Full Name *
                 </label>
                 <div className="mt-1 flex items-center gap-2 bg-white px-3 py-2.5 focus-within:border-emerald-400">
@@ -254,7 +254,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     onChange={(e) =>
                       setForm((s) => ({ ...s, fullName: e.target.value }))
                     }
-                    className="w-full bg-transparent text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400"
+                    className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
                     placeholder="Enter your name"
                   />
                 </div>
@@ -262,7 +262,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
               {/* Mobile */}
               <div>
-                <label className="text-xs font-semibold text-zinc-600">
+                <label className="text-xs text-zinc-600">
                   Mobile Number * (10 digits)
                 </label>
                 <div className="mt-1 flex items-center gap-2 bg-white px-3 py-2.5 focus-within:border-emerald-400">
@@ -276,28 +276,25 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                         mobile: onlyDigits(e.target.value).slice(0, 10),
                       }))
                     }
-                    className="w-full bg-transparent text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400"
-                    placeholder="9999999999"
+                    className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+                    placeholder="Enter your mobile number"
                   />
                 </div>
-                <div className="mt-1 text-[11px] font-semibold text-zinc-500">
-                  We’ll contact you on this number if needed.
+                <div className="mt-1 text-[11px] text-zinc-500">
+                  We'll contact you on this number if needed.
                 </div>
               </div>
 
               {/* Payment method: Cash received / Pay later */}
             <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
               <div className="text-sm font-semibold text-zinc-900">
-                Payment
+                Select Payment Method
               </div>
-              <p className="mt-1 text-xs text-zinc-600">
-                Services only — no COD or shipping. Select when payment is received.
-              </p>
               <div className="mt-4 flex gap-3">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
-                  className={`flex flex-1 items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition ${
+                  className={`flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
                     paymentMethod === "cash"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                       : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
@@ -305,14 +302,14 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 >
                   <Banknote className="h-5 w-5 shrink-0" />
                   <div>
-                    <span className="block font-semibold">Cash received</span>
-                    <span className="block text-xs opacity-90">Mark order as paid</span>
+                    <span className="block font-medium text-zinc-900">Cash</span>
+                    <span className="block text-xs opacity-90">Pay now · Order confirmed</span>
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("pay_later")}
-                  className={`flex flex-1 items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition ${
+                  className={`flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
                     paymentMethod === "pay_later"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                       : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
@@ -320,8 +317,8 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 >
                   <Clock className="h-5 w-5 shrink-0" />
                   <div>
-                    <span className="block font-semibold">Pay later</span>
-                    <span className="block text-xs opacity-90">Pending payment</span>
+                    <span className="block font-medium text-zinc-900">Pay later</span>
+                    <span className="block text-xs opacity-90">Mark as unpaid · Pay when ready</span>
                   </div>
                 </button>
               </div>
@@ -329,7 +326,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
             {/* Email */}
               <div>
-                <label className="text-xs font-semibold text-zinc-600">
+                <label className="text-xs text-zinc-600">
                   Email (optional)
                 </label>
                 <div className="mt-1 flex items-center gap-2 bg-white px-3 py-2.5 focus-within:border-emerald-400">
@@ -340,14 +337,14 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     onChange={(e) =>
                       setForm((s) => ({ ...s, email: e.target.value }))
                     }
-                    className="w-full bg-transparent text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400"
-                    placeholder="you@email.com"
+                    className="w-full bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
+                    placeholder="Enter your email"
                   />
                 </div>
               </div>
 
               {/* Address */}
-              <div>
+              {/* <div>
                 <label className="text-xs font-semibold text-zinc-600">
                   Address (optional)
                 </label>
@@ -368,18 +365,18 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     placeholder="House/Street/City"
                   />
                 </div>
-              </div>
+              </div> */}
 
               {/* Notes */}
               <div>
-                <label className="text-xs font-semibold text-zinc-600">
+                <label className="text-xs text-zinc-600">
                   Notes (optional)
                 </label>
                 <div className="mt-1 bg-white p-3 focus-within:border-emerald-400">
                   <div className="flex items-center gap-2">
                     <NotebookText className="h-4 w-4 text-zinc-400" />
-                    <span className="text-xs font-bold text-zinc-500">
-                      Any instructions
+                    <span className="text-xs text-zinc-500">
+                      Any additional instructions
                     </span>
                   </div>
                   <textarea
@@ -387,7 +384,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     onChange={(e) =>
                       setForm((s) => ({ ...s, notes: e.target.value }))
                     }
-                    className="mt-2 w-full resize-none bg-transparent text-sm font-semibold text-zinc-900 outline-none placeholder:text-zinc-400"
+                    className="mt-2 w-full resize-none bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400"
                     rows={2}
                     placeholder="Timing, call before visit, etc."
                   />
@@ -437,11 +434,11 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
             </div>
 
-            <div className="mt-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
-              <p className="text-xs font-semibold text-zinc-700">
+            {/* <div className="mt-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3">
+              {/* <p className="text-xs font-semibold text-zinc-700">
                 Commission is distributed by BV: Level 1 → 5%, Level 2 → 2.5%, Level 3 → 1.25%, Level 4 → 0.625%, Level 5+ → 50% of previous.
-              </p>
-            </div>
+              </p> 
+            </div> */}
           </div>
 
           {/* Spacer so sticky footer doesn’t cover content */}

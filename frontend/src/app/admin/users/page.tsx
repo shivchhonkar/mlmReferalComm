@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Suspense } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense, useCallback } from "react";
 import { useAuth } from "@/lib/useAuth";
 import {
   Users,
@@ -23,10 +23,24 @@ import {
   Trash2,
   RefreshCcw,
   Shield,
+  Store,
+  CheckCircle2,
+  XCircle,
+  Calendar,
+  Package,
+  KeyRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+
+type SellerRequest = {
+  id: string;
+  name: string;
+  email: string;
+  requestedAt: string;
+  status: string;
+};
 
 interface User {
   _id: string;
@@ -38,6 +52,7 @@ interface User {
   status: "active" | "suspended" | "deleted";
   activityStatus: "active" | "inactive";
   kycStatus: "pending" | "submitted" | "verified" | "rejected";
+  referralCode?: string;
   createdAt: string;
   lastLoginAt?: string;
   lastLogoutAt?: string;
@@ -46,6 +61,17 @@ interface User {
     email: string;
     mobile: string;
   };
+  serviceCount?: number;
+}
+
+type AdminUsersTab = "admins" | "users" | "seller_requests" | "sellers";
+
+interface AdminService {
+  _id: string;
+  name: string;
+  price: number;
+  status: string;
+  slug?: string;
 }
 
 interface UsersResponse {
@@ -77,13 +103,26 @@ interface UsersResponse {
 function UsersPage() {
   const { user: currentUser } = useAuth({ requireAdmin: true });
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   const isSuperAdmin = (currentUser as any)?.role === "super_admin";
   const isAdmin = (currentUser as any)?.role === "admin" || isSuperAdmin;
 
+  const tabFromUrl = searchParams.get("tab");
+  const activeTab: AdminUsersTab =
+    tabFromUrl === "admins" ? "admins" :
+    tabFromUrl === "users" ? "users" :
+    tabFromUrl === "sellers" ? "sellers" :
+    tabFromUrl === "seller_requests" ? "seller_requests" : "admins";
+
+  const setActiveTab = (tab: AdminUsersTab) => {
+    const q = tab === "admins" ? "" : `?tab=${tab}`;
+    router.replace(`/admin/users${q}`, { scroll: false });
+  };
+
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [mutating, setMutating] = useState<string | null>(null); // userId being mutated (for row-level loading)
+  const [mutating, setMutating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
@@ -97,6 +136,18 @@ function UsersPage() {
     total: 0,
     pages: 0,
   });
+
+  // Seller requests (for Sellers tab)
+  const [sellerRequests, setSellerRequests] = useState<SellerRequest[]>([]);
+  const [sellerRequestsLoading, setSellerRequestsLoading] = useState(false);
+  const [sellerRequestsPage, setSellerRequestsPage] = useState(1);
+  const [sellerRequestsPagination, setSellerRequestsPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 1,
+  });
+  const [sellerActionId, setSellerActionId] = useState<string | null>(null);
 
   // Create user modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -123,11 +174,174 @@ function UsersPage() {
     mobile: "",
     role: "user" as User["role"],
     status: "active" as User["status"],
+    referralCode: "",
   });
+
+  // Seller services modal (list services by seller)
+  const [showSellerServicesModal, setShowSellerServicesModal] = useState(false);
+  const [selectedSellerForServices, setSelectedSellerForServices] = useState<User | null>(null);
+  const [sellerServicesList, setSellerServicesList] = useState<AdminService[]>([]);
+  const [sellerServicesLoading, setSellerServicesLoading] = useState(false);
+
+  // KYC reject modal
+  const [showKycRejectModal, setShowKycRejectModal] = useState(false);
+  const [kycRejectUserId, setKycRejectUserId] = useState<string | null>(null);
+  const [kycRejectReason, setKycRejectReason] = useState("");
+  const [kycRejecting, setKycRejecting] = useState(false);
+
+  // Generate referral code loading
+  const [generatingCodeId, setGeneratingCodeId] = useState<string | null>(null);
 
   // Row actions menu
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const fetchSellerRequests = useCallback(async (pageNum = 1) => {
+    setSellerRequestsLoading(true);
+    try {
+      const res = await fetch(
+        `/api/requests/pending-sellers?page=${pageNum}&limit=10`,
+        { credentials: "include" }
+      );
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to load seller requests");
+      setSellerRequests(json.data || []);
+      setSellerRequestsPagination({
+        page: json.pagination?.page ?? 1,
+        limit: json.pagination?.limit ?? 10,
+        total: json.pagination?.total ?? 0,
+        totalPages: json.pagination?.totalPages ?? 1,
+      });
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to load seller requests");
+      setSellerRequests([]);
+    } finally {
+      setSellerRequestsLoading(false);
+    }
+  }, []);
+
+  const handleApproveSeller = async (id: string) => {
+    setSellerActionId(id);
+    try {
+      const res = await fetch(`/api/requests/approve/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to approve");
+      showSuccessToast("Seller approved successfully");
+      await fetchSellerRequests(sellerRequestsPage);
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to approve");
+    } finally {
+      setSellerActionId(null);
+    }
+  };
+
+  const handleRejectSeller = async (id: string) => {
+    setSellerActionId(id);
+    try {
+      const res = await fetch(`/api/requests/reject/${id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Rejected by admin" }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to reject");
+      showSuccessToast("Seller request rejected");
+      await fetchSellerRequests(sellerRequestsPage);
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to reject");
+    } finally {
+      setSellerActionId(null);
+    }
+  };
+
+  const loadSellerServices = useCallback(async (sellerId: string) => {
+    setSellerServicesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/services?sellerId=${sellerId}`, { credentials: "include" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to load services");
+      setSellerServicesList(json.services || []);
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to load services");
+      setSellerServicesList([]);
+    } finally {
+      setSellerServicesLoading(false);
+    }
+  }, []);
+
+  const openSellerServices = (seller: User) => {
+    setSelectedSellerForServices(seller);
+    setShowSellerServicesModal(true);
+    loadSellerServices(seller._id);
+  };
+
+  const handleKycApprove = async (userId: string) => {
+    setMutating(userId);
+    try {
+      const res = await fetch(`/api/admin/kyc/${userId}/approve`, { method: "PUT", credentials: "include" });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to approve KYC");
+      showSuccessToast("KYC approved");
+      await fetchUsers();
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to approve KYC");
+    } finally {
+      setMutating(null);
+    }
+  };
+
+  const handleKycRejectSubmit = async () => {
+    if (!kycRejectUserId || !kycRejectReason.trim()) {
+      showErrorToast("Please enter a rejection reason");
+      return;
+    }
+    setKycRejecting(true);
+    try {
+      const res = await fetch(`/api/admin/kyc/${kycRejectUserId}/reject`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: kycRejectReason.trim() }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to reject KYC");
+      showSuccessToast("KYC rejected");
+      setShowKycRejectModal(false);
+      setKycRejectUserId(null);
+      setKycRejectReason("");
+      await fetchUsers();
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to reject KYC");
+    } finally {
+      setKycRejecting(false);
+    }
+  };
+
+  const handleGenerateReferralCode = async (userId: string) => {
+    setGeneratingCodeId(userId);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/generate-referral-code`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || "Failed to generate code");
+      showSuccessToast(`Referral code: ${json.referralCode ?? ""}`);
+      await fetchUsers();
+      if (selectedUserForEdit?._id === userId) {
+        setEditForm((p) => ({ ...p, referralCode: json.referralCode ?? "" }));
+      }
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to generate code");
+    } finally {
+      setGeneratingCodeId(null);
+    }
+  };
 
   // Initialize filters from URL parameters
   useEffect(() => {
@@ -149,9 +363,13 @@ function UsersPage() {
   }, []);
 
   useEffect(() => {
-    fetchUsers();
+    if (activeTab === "seller_requests") {
+      fetchSellerRequests(sellerRequestsPage);
+    } else {
+      fetchUsers();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchTerm, roleFilter, statusFilter]);
+  }, [currentPage, searchTerm, roleFilter, statusFilter, activeTab, sellerRequestsPage]);
 
   const fetchUsers = async () => {
     try {
@@ -161,10 +379,22 @@ function UsersPage() {
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: "10",
-        ...(searchTerm && { search: searchTerm }),
-        ...(roleFilter && { role: roleFilter }),
-        ...(statusFilter && { status: statusFilter }),
       });
+
+      if (activeTab === "admins") {
+        params.set("role", "super_admin,admin,moderator");
+      } else if (activeTab === "users") {
+        params.set("role", "user");
+        if (searchTerm) params.set("search", searchTerm);
+        if (statusFilter) params.set("status", statusFilter);
+      } else if (activeTab === "sellers") {
+        params.set("type", "sellers");
+        if (searchTerm) params.set("search", searchTerm);
+      } else {
+        if (searchTerm) params.set("search", searchTerm);
+        if (roleFilter) params.set("role", roleFilter);
+        if (statusFilter) params.set("status", statusFilter);
+      }
 
       const response = await fetch(`/api/admin/users?${params}`);
       if (!response.ok) {
@@ -173,6 +403,7 @@ function UsersPage() {
       }
 
       const data: UsersResponse = await response.json();
+      console.log("data", data);
       setUsers(data.users);
       setPagination(data.pagination);
     } catch (err) {
@@ -275,6 +506,7 @@ function UsersPage() {
       mobile: u.mobile || "",
       role: u.role,
       status: u.status,
+      referralCode: u.referralCode || "",
     });
     setShowEditModal(true);
   };
@@ -321,6 +553,7 @@ function UsersPage() {
           mobile: editForm.mobile.replace(/\D/g, ""),
           role: editForm.role,
           status: editForm.status,
+          ...(editForm.referralCode?.trim() && { referralCode: editForm.referralCode.trim() }),
         }),
       });
 
@@ -535,24 +768,24 @@ function UsersPage() {
   const canSuspend = (u: User) => canManageTarget(u) && !isSelf(u._id);
   const canDelete = (u: User) => isSuperAdmin && !isSelf(u._id);
 
-  if (loading && users.length === 0) {
+  if (loading && users.length === 0 && (activeTab === "users" || activeTab === "admins" || activeTab === "sellers")) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
-        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+      <div className="min-h-screen bg-slate-50">
+        <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <div className="animate-pulse">
-            <div className="h-8 w-1/3 rounded bg-zinc-200 mb-4" />
-            <div className="h-4 w-1/2 rounded bg-zinc-200 mb-8" />
-            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="animate-pulse space-y-6">
+            <div className="h-9 w-64 rounded-lg bg-slate-200" />
+            <div className="h-4 w-96 rounded-lg bg-slate-200" />
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="flex items-center gap-4 py-4 border-b border-zinc-100 last:border-b-0"
+                  className="flex items-center gap-4 border-b border-slate-100 py-4 last:border-b-0"
                 >
-                  <div className="h-10 w-10 rounded-2xl bg-zinc-200" />
+                  <div className="h-10 w-10 rounded-xl bg-slate-200" />
                   <div className="flex-1">
-                    <div className="h-4 w-1/4 rounded bg-zinc-200 mb-2" />
-                    <div className="h-3 w-1/3 rounded bg-zinc-200" />
+                    <div className="mb-2 h-4 w-1/4 rounded bg-slate-200" />
+                    <div className="h-3 w-1/3 rounded bg-slate-200" />
                   </div>
                 </div>
               ))}
@@ -564,160 +797,394 @@ function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
-      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            {/* <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
-                <Users className="h-4 w-4" />
-              </span>
-              <span className="text-sm font-semibold text-zinc-800">Admin</span>
-            </div> */}
-
-            <h1 className="mt-4 text-3xl font-bold tracking-tight text-zinc-900 sm:text-4xl">
-              User Management
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              Users & Sellers
             </h1>
-
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-600">
-              <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1 font-semibold">
-                <Shield className="h-4 w-4 text-emerald-700" />
-                Role:{" "}
-                <span className=" text-zinc-900">
-                  {(currentUser as any)?.role ?? "—"}
-                </span>
+            <p className="mt-1 text-sm text-slate-600">
+              Manage user accounts, roles, and seller applications.
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-700">
+                <Shield className="h-3.5 w-3.5 text-emerald-600" />
+                {(currentUser as any)?.role === "super_admin" ? "Super Admin" : (currentUser as any)?.role === "admin" ? "Admin" : "Moderator"}
               </span>
-              <span className="text-zinc-500">•</span>
-              <span>Manage users, status, and permissions.</span>
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <button
-              onClick={fetchUsers}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
-              type="button"
-              title="Refresh list"
-            >
-              <RefreshCcw className={["h-4 w-4", loading ? "animate-spin" : ""].join(" ")} />
-              Refresh
-            </button>
-
+          <div className="flex flex-wrap items-center gap-2">
+            {(activeTab === "admins" || activeTab === "users" || activeTab === "sellers") && (
+              <>
+                <button
+                  onClick={fetchUsers}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                  type="button"
+                  title="Refresh list"
+                >
+                  <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                  Refresh
+                </button>
+                {(activeTab === "admins" || activeTab === "users") && (
+                  <button
+                    onClick={() => {
+                      if (!canUseCreate) return showErrorToast("You don't have permission to create users.");
+                      setShowCreateModal(true);
+                    }}
+                    className={[
+                      "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition",
+                      canUseCreate
+                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white hover:opacity-95"
+                        : "cursor-not-allowed border border-slate-200 bg-slate-100 text-slate-400",
+                    ].join(" ")}
+                    type="button"
+                    disabled={!canUseCreate}
+                    title={!canUseCreate ? "Only Admin/Super Admin can create users" : "Create user"}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create User
+                  </button>
+                )}
+              </>
+            )}
+            {activeTab === "seller_requests" && (
+              <button
+                onClick={() => fetchSellerRequests(sellerRequestsPage)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                type="button"
+                disabled={sellerRequestsLoading}
+              >
+                <RefreshCcw className={`h-4 w-4 ${sellerRequestsLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            )}
             <Link
               href="/admin"
-              className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
             </Link>
-
-            <button
-              onClick={() => {
-                if (!canUseCreate) return showErrorToast("You don't have permission to create users.");
-                setShowCreateModal(true);
-              }}
-              className={[
-                "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-2.5 text-sm font-bold shadow-lg transition",
-                canUseCreate
-                  ? "bg-gradient-to-r from-emerald-600 to-sky-600 text-white hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
-                  : "border border-zinc-200 bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none",
-              ].join(" ")}
-              type="button"
-              disabled={!canUseCreate}
-              title={!canUseCreate ? "Only Admin/Super Admin can create users" : "Create user"}
-            >
-              <Plus className="h-4 w-4" />
-              Create User
-            </button>
           </div>
         </div>
 
-        {/* Filters */}
-        <div className="mb-6 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="grid gap-4 sm:grid-cols-[1fr_220px_220px]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <input
-                type="text"
-                placeholder="Search users by name, email, mobile..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 !pl-12 pr-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
-              />
-            </div>
-
-            <select
-              value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
-            >
-              <option value="">All Roles</option>
-              <option value="super_admin">Super Admin</option>
-              <option value="admin">Admin</option>
-              <option value="moderator">Moderator</option>
-              <option value="user">User</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-semibold text-zinc-800 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
-              <option value="deleted">Deleted</option>
-            </select>
-          </div>
-
-          {!isSuperAdmin ? (
-            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
-              ℹ️ Admins can manage only <b>Users</b> and <b>Moderators</b>. Only Super Admin can change roles or delete users.
-            </div>
-          ) : null}
+        {/* Tabs: Admins | Users | Seller requests | Sellers */}
+        <div className="mb-6 flex flex-wrap gap-1 rounded-xl border border-slate-200 bg-white p-1 shadow-sm w-fit">
+          <button
+            type="button"
+            onClick={() => setActiveTab("admins")}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              activeTab === "admins" ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <Shield className="h-4 w-4" />
+            Admins
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+              {activeTab === "admins" ? pagination.total : "—"}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("users")}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              activeTab === "users" ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            Users
+            <span className="rounded-full bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+              {activeTab === "users" ? pagination.total : "—"}
+            </span>
+          </button>
+         
+          <button
+            type="button"
+            onClick={() => setActiveTab("sellers")}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              activeTab === "sellers" ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <Store className="h-4 w-4" />
+            Sellers
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+              {activeTab === "sellers" ? pagination.total : "—"}
+            </span>
+          </button>
+           <button
+            type="button"
+            onClick={() => setActiveTab("seller_requests")}
+            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              activeTab === "seller_requests" ? "bg-slate-100 text-slate-900 shadow-sm" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+            }`}
+          >
+            <Store className="h-4 w-4" />
+            Seller requests
+            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+              {sellerRequestsPagination.total}
+            </span>
+          </button>
         </div>
 
         {/* Error */}
-        {error ? (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-sm">
-            ⚠️ {error}
+        {error && (activeTab === "users" || activeTab === "admins" || activeTab === "sellers") ? (
+          <div className="mb-6 rounded-xl border border-red-200 bg-white p-4 text-sm font-medium text-red-700 shadow-sm">
+            {error}
           </div>
         ) : null}
 
-        {/* Table */}
-        <div className="rounded-3xl0 border border-zinc-200 bg-white shadow-sm overflow-hidden">
+        {/* Tab: Seller requests (pending) */}
+        {activeTab === "seller_requests" ? (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-4">
+              <h2 className="text-base font-semibold text-slate-900">Pending seller applications</h2>
+              <p className="mt-0.5 text-sm text-slate-600">Approve or reject users who requested to become sellers.</p>
+            </div>
+            {sellerRequestsLoading && sellerRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
+                <p className="mt-4 text-sm text-slate-600">Loading seller requests…</p>
+              </div>
+            ) : sellerRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Store className="h-12 w-12 text-slate-300" />
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">No pending requests</h3>
+                <p className="mt-1 text-sm text-slate-500">New seller applications will appear here.</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-slate-200 bg-slate-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Applicant</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Email</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Requested</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {sellerRequests.map((req) => (
+                        <tr key={req.id} className="transition hover:bg-slate-50/80">
+                          <td className="px-6 py-4 font-medium text-slate-900">{req.name || "—"}</td>
+                          <td className="px-6 py-4 text-slate-700">{req.email || "—"}</td>
+                          <td className="px-6 py-4 text-slate-600">
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-4 w-4 text-slate-400" />
+                              {new Date(req.requestedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleApproveSeller(req.id)}
+                                disabled={sellerActionId === req.id}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
+                              >
+                                {sellerActionId === req.id ? (
+                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+                                ) : (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                )}
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleRejectSeller(req.id)}
+                                disabled={sellerActionId === req.id}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                              >
+                                <XCircle className="h-4 w-4" />
+                                Reject
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {sellerRequestsPagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-6 py-3">
+                    <p className="text-sm text-slate-600">
+                      Showing {(sellerRequestsPagination.page - 1) * sellerRequestsPagination.limit + 1}–{Math.min(sellerRequestsPagination.page * sellerRequestsPagination.limit, sellerRequestsPagination.total)} of {sellerRequestsPagination.total}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSellerRequestsPage((p) => Math.max(1, p - 1))}
+                        disabled={sellerRequestsPage === 1}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <span className="flex items-center px-3 py-1.5 text-sm text-slate-600">
+                        Page {sellerRequestsPage} of {sellerRequestsPagination.totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setSellerRequestsPage((p) => Math.min(sellerRequestsPagination.totalPages, p + 1))}
+                        disabled={sellerRequestsPage >= sellerRequestsPagination.totalPages}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : activeTab === "sellers" ? (
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <div className="border-b border-slate-200 bg-slate-50/80 px-6 py-4">
+              <h2 className="text-base font-semibold text-slate-900">Approved sellers</h2>
+              <p className="mt-0.5 text-sm text-slate-600">View services posted by each seller. Click to list and manage.</p>
+            </div>
+            {users.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Store className="h-12 w-12 text-slate-300" />
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">No sellers yet</h3>
+                <p className="mt-1 text-sm text-slate-500">Approved sellers will appear here.</p>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b border-slate-200 bg-slate-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Seller</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Contact</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Services</th>
+                        <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {users.map((seller) => (
+                        <tr key={seller._id} className="transition hover:bg-slate-50/80">
+                          <td className="px-6 py-4 font-medium text-slate-900">{seller.fullName || seller.name || "—"}</td>
+                          <td className="px-6 py-4 text-slate-700">
+                            <div>{seller.email || "—"}</div>
+                            <div className="text-xs text-slate-500">{seller.mobile || ""}</div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800">
+                              {(seller as User & { serviceCount?: number }).serviceCount ?? 0} services
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <button
+                              type="button"
+                              onClick={() => openSellerServices(seller)}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                            >
+                              <Package className="h-4 w-4" />
+                              View services
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {pagination.pages > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-200 bg-slate-50/80 px-6 py-3">
+                    <p className="text-sm text-slate-600">
+                      Showing {(pagination.page - 1) * pagination.limit + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Previous
+                      </button>
+                      <span className="flex items-center px-3 py-1.5 text-sm text-slate-600">
+                        Page {currentPage} of {pagination.pages}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage((p) => Math.min(pagination.pages, p + 1))}
+                        disabled={currentPage >= pagination.pages}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Filters - Admins / Users tab */}
+            <div className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="grid gap-4 sm:grid-cols-[1fr_200px_200px]">
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, mobile..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-500 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                  />
+                </div>
+                <select
+                  value={roleFilter}
+                  onChange={(e) => setRoleFilter(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="">All roles</option>
+                  <option value="super_admin">Super Admin</option>
+                  <option value="admin">Admin</option>
+                  <option value="moderator">Moderator</option>
+                  <option value="user">User</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm font-medium text-slate-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="">All status</option>
+                  <option value="active">Active</option>
+                  <option value="suspended">Suspended</option>
+                  <option value="deleted">Deleted</option>
+                </select>
+              </div>
+              {!isSuperAdmin && (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+                  Admins can manage only Users and Moderators. Only Super Admin can change roles or delete users.
+                </div>
+              )}
+            </div>
+
+            {/* Users/Admins Table */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 border-b border-zinc-200">
+              <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    Role
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    Activity / Account
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    KYC
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    Joined
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-zinc-700 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Contact</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Referral code</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Role</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Activity / Account</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">KYC</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Joined</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-slate-100">
                 {users.map((u) => {
                   const rowBusy = mutating === u._id;
 
@@ -726,7 +1193,7 @@ function UsersPage() {
                       key={u._id}
                       className={[
                         "transition-colors",
-                        !u.parent && (u.role === "user" || "moderator") ? "bg-amber-50/50 hover:bg-amber-100/50" : "hover:bg-zinc-50/70",
+                        !u.parent && (u.role === "user" || u.role === "moderator") ? "bg-amber-50/50 hover:bg-amber-100/50" : "hover:bg-slate-50/80",
                       ].join(" ")}
                     >
                       <td className="px-6 py-4 align-top">
@@ -756,6 +1223,32 @@ function UsersPage() {
                       <td className="px-6 py-4 align-top">
                         <div className="text-sm text-zinc-900">{u.email || "—"}</div>
                         <div className="text-sm text-zinc-500">{u.mobile || "—"}</div>
+                      </td>
+
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {u.referralCode ? (
+                            <code className="rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                              {u.referralCode}
+                            </code>
+                          ) : (
+                            <span className="text-xs text-slate-500">—</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateReferralCode(u._id)}
+                            disabled={generatingCodeId === u._id}
+                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+                            title="Generate referral code"
+                          >
+                            {generatingCodeId === u._id ? (
+                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                            ) : (
+                              <KeyRound className="h-3.5 w-3.5" />
+                            )}
+                            {u.referralCode ? "Regen" : "Generate"}
+                          </button>
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 align-top">
@@ -792,14 +1285,44 @@ function UsersPage() {
                       </td>
 
                       <td className="px-6 py-4 align-top">
-                        <span
-                          className={[
-                            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs",
-                            getKycBadgeColor(u.kycStatus),
-                          ].join(" ")}
-                        >
-                          {u.kycStatus.replace("_", " ").toUpperCase()}
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={[
+                              "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs",
+                              getKycBadgeColor(u.kycStatus),
+                            ].join(" ")}
+                          >
+                            {u.kycStatus.replace("_", " ").toUpperCase()}
+                          </span>
+                          {(u.kycStatus === "pending" || u.kycStatus === "submitted") && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleKycApprove(u._id)}
+                                disabled={rowBusy}
+                                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60"
+                                title="Approve KYC"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setKycRejectUserId(u._id);
+                                  setKycRejectReason("");
+                                  setShowKycRejectModal(true);
+                                }}
+                                disabled={rowBusy}
+                                className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                title="Reject KYC"
+                              >
+                                <XCircle className="h-3.5 w-3.5" />
+                                Reject
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
 
                       <td className="px-6 py-4 align-top text-sm text-zinc-500">
@@ -922,39 +1445,39 @@ function UsersPage() {
           </div>
 
           {/* Pagination */}
-          <div className="border-t border-zinc-200 bg-zinc-50 px-6 py-3">
+          <div className="border-t border-slate-200 bg-slate-50 px-6 py-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-zinc-700">
+              <div className="text-sm text-slate-600">
                 Showing{" "}
-                <span className="font-semibold">
+                <span className="font-medium">
                   {pagination.total === 0 ? 0 : (currentPage - 1) * pagination.limit + 1}
                 </span>{" "}
                 to{" "}
-                <span className="font-semibold">
+                <span className="font-medium">
                   {Math.min(currentPage * pagination.limit, pagination.total)}
                 </span>{" "}
-                of <span className="font-semibold">{pagination.total}</span> results
+                of <span className="font-medium">{pagination.total}</span> results
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                   disabled={currentPage === 1}
-                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                   type="button"
                 >
                   Previous
                 </button>
 
-                <span className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700">
-                  Page <span className="font-bold">{currentPage}</span> of{" "}
-                  <span className="font-bold">{pagination.pages || 1}</span>
+                <span className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700">
+                  Page <span className="font-semibold">{currentPage}</span> of{" "}
+                  <span className="font-semibold">{pagination.pages || 1}</span>
                 </span>
 
                 <button
                   onClick={() => setCurrentPage(Math.min(pagination.pages || 1, currentPage + 1))}
                   disabled={currentPage === (pagination.pages || 1)}
-                  className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
                   type="button"
                 >
                   Next
@@ -962,7 +1485,9 @@ function UsersPage() {
               </div>
             </div>
           </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Create User Modal */}
         {showCreateModal && (
@@ -1248,6 +1773,32 @@ function UsersPage() {
                   </div>
                 </div>
 
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-zinc-700">Referral code</label>
+                  <div className="flex gap-2">
+                    <input
+                      value={editForm.referralCode}
+                      onChange={(e) => setEditForm((p) => ({ ...p, referralCode: e.target.value }))}
+                      placeholder="Optional — assign or edit"
+                      className="flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => selectedUserForEdit && handleGenerateReferralCode(selectedUserForEdit._id)}
+                      disabled={generatingCodeId === selectedUserForEdit._id}
+                      className="inline-flex items-center gap-2 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100 disabled:opacity-60"
+                      title="Generate unique referral code"
+                    >
+                      {generatingCodeId === selectedUserForEdit._id ? (
+                        <span className="h-4 w-4 animate-spin rounded-full border-2 border-sky-300 border-t-sky-600" />
+                      ) : (
+                        <KeyRound className="h-4 w-4" />
+                      )}
+                      Generate
+                    </button>
+                  </div>
+                </div>
+
                 {isSelf(selectedUserForEdit._id) ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">
                     ℹ️ For safety, you cannot suspend/delete your own account.
@@ -1280,6 +1831,69 @@ function UsersPage() {
                       <Pencil className="h-4 w-4" />
                       Save Changes
                     </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* KYC Reject Modal */}
+        {showKycRejectModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-zinc-900">Reject KYC</h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowKycRejectModal(false);
+                    setKycRejectUserId(null);
+                    setKycRejectReason("");
+                  }}
+                  className="rounded-2xl border border-zinc-200 p-2 text-zinc-600 transition hover:bg-zinc-50"
+                  title="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <p className="mb-4 text-sm text-zinc-600">Please provide a reason for rejecting this KYC submission.</p>
+              <div className="mb-4">
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">Reason (required)</label>
+                <textarea
+                  value={kycRejectReason}
+                  onChange={(e) => setKycRejectReason(e.target.value)}
+                  placeholder="e.g. Document unclear, mismatch with details..."
+                  rows={3}
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
+                />
+              </div>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowKycRejectModal(false);
+                    setKycRejectUserId(null);
+                    setKycRejectReason("");
+                  }}
+                  disabled={kycRejecting}
+                  className="rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-bold text-zinc-800 transition hover:bg-zinc-50 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleKycRejectSubmit}
+                  disabled={kycRejecting || !kycRejectReason.trim()}
+                  className="inline-flex items-center gap-2 rounded-2xl bg-red-600 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                >
+                  {kycRejecting ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Rejecting...
+                    </>
+                  ) : (
+                    "Reject KYC"
                   )}
                 </button>
               </div>
@@ -1378,6 +1992,71 @@ function UsersPage() {
                     </>
                   )}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Seller services modal */}
+        {showSellerServicesModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-3xl border border-zinc-200 bg-white shadow-xl">
+              <div className="flex items-center justify-between p-6 border-b border-zinc-200">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-600">
+                    <Package className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-zinc-900">Seller services</h2>
+                    <p className="text-sm text-zinc-500">
+                      {selectedSellerForServices?.fullName || selectedSellerForServices?.name} — {selectedSellerForServices?.email || selectedSellerForServices?.mobile}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSellerServicesModal(false);
+                    setSelectedSellerForServices(null);
+                    setSellerServicesList([]);
+                  }}
+                  className="rounded-2xl border border-zinc-200 p-2 text-zinc-600 transition hover:bg-zinc-50"
+                  title="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-auto p-6">
+                {sellerServicesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <span className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-300 border-t-zinc-600" />
+                  </div>
+                ) : sellerServicesList.length === 0 ? (
+                  <p className="text-center text-sm text-zinc-500 py-8">No services posted by this seller.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {sellerServicesList.map((svc) => (
+                      <div
+                        key={svc._id}
+                        className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-zinc-50/50 px-4 py-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-zinc-900 truncate">{svc.name}</p>
+                          <p className="text-xs text-zinc-500">
+                            ₹{typeof svc.price === "number" ? svc.price.toLocaleString() : svc.price} · {String(svc.status)}
+                          </p>
+                        </div>
+                        <Link
+                          href={`/admin/services?highlight=${svc._id}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

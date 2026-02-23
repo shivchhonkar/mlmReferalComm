@@ -155,7 +155,7 @@ export function registerAdminRoutes(app: Express) {
   
   app.get("/api/admin/users", async (req: Request, res: Response) => {
     try {
-      await requireAdminRole(req);
+      const ctx = await requireAdminRole(req);
       await connectToDatabase();
 
       const page = Number.parseInt(req.query.page as string) || 1;
@@ -163,40 +163,97 @@ export function registerAdminRoutes(app: Express) {
       const search = req.query.search as string || "";
       const role = req.query.role as string;
       const status = req.query.status as string;
+      const type = req.query.type as string; // "sellers" = approved sellers with service count
 
       const today = new Date();
-      const query: any = { status: { $ne: "deleted" } };
+      // Include users without status field (legacy docs) or with status != "deleted"
+      const query: any = {
+        $or: [
+          { status: { $exists: false } },
+          { status: null },
+          { status: { $nin: ["deleted"] } },
+        ],
+      };
+
+      let requestedRoles: string[] = [];
+      if (type === "sellers") {
+        query.isSeller = true;
+        query.sellerStatus = "approved";
+        delete query.$or; // sellers: use simple non-deleted filter
+        query.status = { $ne: "deleted" };
+      } else if (role) {
+        requestedRoles = role.split(",").map((r: string) => r.trim()).filter(Boolean);
+        if (requestedRoles.length === 1) query.role = requestedRoles[0];
+        else if (requestedRoles.length > 1) query.role = { $in: requestedRoles };
+      }
       
       // Handle special "new" filter for users created this month
       if (status === "new") {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         query.createdAt = { $gte: startOfMonth };
       } else if (status === "active" || status === "inactive") {
-        // Filter by activity status for active/inactive
         query.activityStatus = status;
       } else if (status) {
-        // Filter by account status for other values (suspended, etc.)
         query.status = status;
       }
       
       if (search) {
-        query.$or = [
+        const searchOr = [
           { name: { $regex: search, $options: "i" } },
           { fullName: { $regex: search, $options: "i" } },
           { email: { $regex: search, $options: "i" } },
           { mobile: { $regex: search, $options: "i" } }
         ];
+        query.$and = query.$and || [];
+        query.$and.push({ $or: searchOr });
       }
-      if (role) query.role = role;
 
-      const users = await UserModel.find(query)
-        .select("-passwordHash")
-        .sort({ createdAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .populate("parent", "name email mobile");
+      const roleOrder: Record<string, number> = { super_admin: 0, admin: 1, moderator: 2, user: 3 };
+      const sort: any = type === "sellers"
+        ? { fullName: 1 }
+        : { createdAt: -1 };
 
-      const total = await UserModel.countDocuments(query);
+      let users: any[];
+      let total: number;
+
+      if (type === "sellers") {
+        const aggregated = await UserModel.aggregate([
+          { $match: query },
+          { $lookup: { from: "services", localField: "_id", foreignField: "sellerId", as: "services" } },
+          { $addFields: { serviceCount: { $size: "$services" } } },
+          { $lookup: { from: "users", localField: "parent", foreignField: "_id", as: "parentDoc", pipeline: [{ $project: { name: 1, email: 1, mobile: 1 } }] } },
+          { $set: { parent: { $arrayElemAt: ["$parentDoc", 0] } } },
+          { $project: { parentDoc: 0, passwordHash: 0, services: 0 } },
+          { $sort: { fullName: 1 } },
+          { $skip: (page - 1) * limit },
+          { $limit: limit }
+        ]);
+        total = await UserModel.countDocuments(query);
+        users = aggregated;
+      } else {
+        users = await UserModel.find(query)
+          .select("-passwordHash")
+          .sort(sort)
+          .skip((page - 1) * limit)
+          .limit(limit)
+          .populate("parent", "name email mobile")
+          .lean();
+        total = await UserModel.countDocuments(query);
+        if (query.role && query.role.$in) {
+          users.sort((a: any, b: any) => (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99));
+        }
+        // If we requested admin roles and got no users, include current user if they have an admin role in DB
+        if (requestedRoles.length > 0 && users.length === 0 && total === 0 && page === 1) {
+          const currentUserDoc = await UserModel.findById(ctx.userId)
+            .select("-passwordHash")
+            .populate("parent", "name email mobile")
+            .lean();
+          if (currentUserDoc && requestedRoles.includes(currentUserDoc.role as string)) {
+            users = [currentUserDoc as any];
+            total = 1;
+          }
+        }
+      }
 
       return res.json({
         users,
@@ -443,6 +500,31 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  // Generate and assign a unique referral code for a user (admin/super_admin)
+  app.post("/api/admin/users/:id/generate-referral-code", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+        return res.status(400).json({ error: "Invalid user id" });
+      }
+      await connectToDatabase();
+      const user = await UserModel.findById(req.params.id);
+      if (!user) return res.status(404).json({ error: "User not found" });
+      const referralCode = await generateUniqueReferralCode();
+      user.referralCode = referralCode;
+      await user.save();
+      return res.json({
+        message: "Referral code generated and assigned",
+        referralCode,
+        user: await UserModel.findById(req.params.id).select("-passwordHash").lean()
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
   app.delete("/api/admin/users/:id", async (req: Request, res: Response) => {
     try {
       await requireRole(req, "super_admin");
@@ -472,7 +554,19 @@ export function registerAdminRoutes(app: Express) {
     try {
       await requireAdminRole(req);
       await connectToDatabase();
-      const services = await ServiceModel.find({}).sort({ createdAt: -1 });
+      const statusFilter = req.query.status as string | undefined;
+      const sellerId = req.query.sellerId as string | undefined;
+      const query: any = statusFilter && statusFilter !== "all"
+        ? { status: statusFilter }
+        : {};
+      if (sellerId && mongoose.Types.ObjectId.isValid(sellerId)) {
+        query.sellerId = new mongoose.Types.ObjectId(sellerId);
+      }
+      const services = await ServiceModel.find(query)
+        .sort({ createdAt: -1 })
+        .populate("sellerId", "name email fullName mobile")
+        .populate("categoryId", "name code")
+        .lean();
       return res.json({ services });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Forbidden";
@@ -494,14 +588,14 @@ export function registerAdminRoutes(app: Express) {
       businessVolume: z.number().min(0),
       shortDescription: z.string().max(200).optional(),
       description: z.string().optional(),
-      status: z.enum(["pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
+      status: z.enum(["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
       isFeatured: z.boolean().default(false),
       categoryId: z.string().optional(),
       tags: z.array(z.string()).optional(),
     });
 
     try {
-      await requireAdminRole(req);
+      const ctx = await requireAdminRole(req);
       const body = schema.parse(req.body);
       await connectToDatabase();
 
@@ -518,6 +612,7 @@ export function registerAdminRoutes(app: Express) {
       }
 
       const service = await ServiceModel.create({
+        sellerId: ctx.userId,
         name: body.name,
         slug,
         image,
@@ -557,7 +652,7 @@ export function registerAdminRoutes(app: Express) {
         businessVolume: z.number().min(0).optional(),
         shortDescription: z.string().max(200).optional(),
         description: z.string().optional(),
-        status: z.enum(["active", "inactive", "out_of_stock"]).optional(),
+        status: z.enum(["draft", "pending", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
         isFeatured: z.boolean().optional(),
         categoryId: z.string().optional(),
         tags: z.array(z.string()).optional(),
@@ -605,13 +700,14 @@ export function registerAdminRoutes(app: Express) {
       mobile: z.string().min(10).optional(),
       countryCode: z.string().optional(),
 
-      // only super_admin can update role
       role: z.enum(["super_admin", "admin", "moderator", "user"]).optional(),
 
-      // allow status changes
       status: z.enum(["active", "suspended", "deleted"]).optional(),
       activityStatus: z.enum(["active", "inactive"]).optional(),
       kycStatus: z.enum(["pending", "submitted", "verified", "rejected"]).optional(),
+
+      // Admin can set referral code for user (must be unique)
+      referralCode: z.string().min(1).max(32).optional(),
     }).refine(v => Object.keys(v).length > 0, "No fields to update")
       .parse(req.body);
 
@@ -636,6 +732,14 @@ export function registerAdminRoutes(app: Express) {
     // Optional: keep fullName in sync if name updated
     if (body.name && !body.fullName) {
       (body as any).fullName = body.name;
+    }
+
+    // referralCode must be unique (cannot duplicate another user's code)
+    if (body.referralCode) {
+      const existing = await UserModel.findOne({ referralCode: body.referralCode });
+      if (existing && existing._id.toString() !== req.params.id) {
+        return res.status(400).json({ error: "This referral code is already in use" });
+      }
     }
 
     const updated = await UserModel.findByIdAndUpdate(
@@ -914,13 +1018,14 @@ export function registerAdminRoutes(app: Express) {
       const page = Number.parseInt(req.query.page as string) || 1;
       const limit = Number.parseInt(req.query.limit as string) || 10;
 
-      const services = await ServiceModel.find({ status: "pending_approval" })
+      const services = await ServiceModel.find({ status: { $in: ["pending", "pending_approval"] } })
+        .populate("sellerId", "name email fullName mobile")
         .populate("categoryId", "name code")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit);
 
-      const total = await ServiceModel.countDocuments({ status: "pending_approval" });
+      const total = await ServiceModel.countDocuments({ status: { $in: ["pending", "pending_approval"] } });
 
       return res.json({
         services,
@@ -1166,7 +1271,22 @@ export function registerAdminRoutes(app: Express) {
   // ============================================================================
   // CATEGORY MANAGEMENT
   // ============================================================================
-  
+
+  app.get("/api/admin/categories", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+      const showInactive = req.query.showInactive !== "false";
+      const filter = showInactive ? {} : { isActive: true };
+      const categories = await CategoryModel.find(filter).sort({ sortOrder: 1, name: 1 }).lean();
+      return res.json(categories);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
   app.post("/api/admin/categories", async (req: Request, res: Response) => {
     try {
       await requireSuperAdminOrAdmin(req);
@@ -1346,6 +1466,54 @@ export function registerAdminRoutes(app: Express) {
         .sort({ sortOrder: 1, name: 1 });
 
       return res.json({ subcategories });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.put("/api/admin/subcategories/:id", async (req: Request, res: Response) => {
+    try {
+      await requireSuperAdminOrAdmin(req);
+      const body = z.object({
+        name: z.string().min(1).max(100).optional(),
+        slug: z.string().min(1).max(100).optional(),
+        code: z.string().min(1).max(10).optional(),
+        categoryId: z.string().optional(),
+        icon: z.string().optional(),
+        image: z.string().optional(),
+        isActive: z.boolean().optional(),
+        sortOrder: z.number().min(0).optional()
+      }).parse(req.body);
+
+      await connectToDatabase();
+
+      const subcategory = await SubcategoryModel.findByIdAndUpdate(
+        req.params.id,
+        { $set: body },
+        { new: true, runValidators: true }
+      ).populate("categoryId", "name code");
+
+      if (!subcategory) return res.status(404).json({ error: "Subcategory not found" });
+
+      return res.json({ message: "Subcategory updated successfully", subcategory });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.delete("/api/admin/subcategories/:id", async (req: Request, res: Response) => {
+    try {
+      await requireSuperAdminOrAdmin(req);
+      await connectToDatabase();
+
+      const subcategory = await SubcategoryModel.findByIdAndDelete(req.params.id);
+      if (!subcategory) return res.status(404).json({ error: "Subcategory not found" });
+
+      return res.json({ message: "Subcategory deleted successfully" });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;
