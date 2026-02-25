@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
 import { connectToDatabase } from "@/lib/db";
-import { findBinaryPlacement } from "@/lib/binaryPlacement";
 import { UserModel } from "@/models/User";
 
 export type ReferralTreeNode = {
@@ -10,6 +9,7 @@ export type ReferralTreeNode = {
   referralCode: string;
   position?: "left" | "right" | null;
   children: ReferralTreeNode[];
+  createdAt?: Date;
 };
 
 function asObjectId(id: string) {
@@ -69,19 +69,16 @@ export async function assignParentByReferralCode(options: {
     cursorId = cursor?.parent ? new mongoose.Types.ObjectId(cursor.parent) : null;
   }
 
+  // Unilevel: place directly under referrer (unlimited direct children per referral code).
   child.parent = parent._id;
-
-  // Place the user in the binary tree under the referred user.
-  const placement = await findBinaryPlacement({ sponsorId: parent._id, session });
-  child.parent = placement.parentId;
-  child.position = placement.position;
+  child.position = null;
 
   await child.save(session ? { session } : undefined);
 
   return {
     childUserId: child._id.toString(),
-    parentUserId: placement.parentId.toString(),
-    position: placement.position,
+    parentUserId: parent._id.toString(),
+    position: null,
   };
 }
 
@@ -122,7 +119,7 @@ export async function buildReferralTree(options: {
     if (parentIds.length === 0) break;
 
     const children = await UserModel.find({ parent: { $in: parentIds } })
-      .select("name email referralCode parent position")
+      .select("name email referralCode parent position createdAt")
       .lean()
       .session(session ?? null);
 
@@ -140,6 +137,7 @@ export async function buildReferralTree(options: {
         referralCode: child.referralCode,
         position: (child as { position?: "left" | "right" | null }).position ?? null,
         children: [],
+        createdAt: (child as { createdAt?: Date }).createdAt,
       };
 
       const list = byParent.get(parentId) ?? [];
@@ -151,10 +149,14 @@ export async function buildReferralTree(options: {
     for (const parentNode of frontier) {
       const kids = byParent.get(parentNode.id) ?? [];
 
-      // Keep binary ordering stable: left then right.
-      // For legacy records without position, push them to the end.
-      const posRank = (p: ReferralTreeNode["position"]) => (p === "left" ? 0 : p === "right" ? 1 : 2);
-      kids.sort((a, b) => posRank(a.position) - posRank(b.position));
+      // Unilevel: sort by join date (createdAt), then legacy left/right, then by id
+      kids.sort((a, b) => {
+        const aDate = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bDate = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        if (aDate !== bDate) return aDate - bDate;
+        const posRank = (p: ReferralTreeNode["position"]) => (p === "left" ? 0 : p === "right" ? 1 : 2);
+        return posRank(a.position) - posRank(b.position) || a.id.localeCompare(b.id);
+      });
       parentNode.children = kids;
       next.push(...kids);
     }

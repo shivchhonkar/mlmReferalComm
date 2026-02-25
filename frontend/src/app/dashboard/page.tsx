@@ -42,7 +42,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
-import ReferralTreeCard from "./ReferralTreeCard";
+import ReferralsListView from "./components/ReferralsListView";
 
 type MeResponse = {
   user: {
@@ -76,6 +76,7 @@ type Income = {
 };
 
 type ReferralStats = {
+  directCount: number;
   directLeft: number;
   directRight: number;
   total: number;
@@ -125,13 +126,12 @@ export default function DashboardPage() {
       .map(({ dateStr, amount }) => ({ date: dateStr, amount })); // Last 7 days
   }, [incomes]);
 
-  // Chart data: Network distribution (Left vs Right)
+  // Chart data: Network distribution (Direct referrals)
   const networkChartData = useMemo(() => {
     if (!referralStats) return [];
-    return [
-      { name: "Left", value: referralStats.directLeft, color: "#10b981" },
-      { name: "Right", value: referralStats.directRight, color: "#0ea5e9" },
-    ];
+    const direct = referralStats.directCount ?? referralStats.directLeft + referralStats.directRight;
+    if (direct === 0) return [];
+    return [{ name: "Direct referrals", value: direct, color: "#10b981" }];
   }, [referralStats]);
 
   // Chart data: Income by level
@@ -337,7 +337,7 @@ export default function DashboardPage() {
             ) : isSellerApproved ? (
               <Link
                 prefetch={false}
-                href="/seller/services"
+                href="dashboard/seller/services"
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
               >
                 <Package className="h-4 w-4" />
@@ -444,13 +444,13 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
-            <Link
+            {isSellerApproved && <Link
               prefetch={false}
-              href="/services"
+              href="/dashboard/seller/services"
               className="shrink-0 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50"
             >
               Browse services
-            </Link>
+            </Link>}
           </div>
         </section>
 
@@ -483,13 +483,13 @@ export default function DashboardPage() {
                   </p>
                   <div className="mt-2 flex flex-wrap gap-2 text-xs mb-4">
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700">
-                      L: {referralStats.directLeft} · R: {referralStats.directRight}
+                      Direct: {referralStats.directCount ?? referralStats.directLeft + referralStats.directRight}
                     </span>
                     <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-emerald-700">
                       {referralStats.active} active
                     </span>
                   </div>
-                  {networkChartData.length > 0 && referralStats.directLeft + referralStats.directRight > 0 && (
+                  {networkChartData.length > 0 && (referralStats.directCount ?? referralStats.directLeft + referralStats.directRight) > 0 && (
                     <div className="mt-4 h-32">
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
@@ -630,17 +630,17 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex flex-col gap-2">
-                <Link
+                {isSellerApproved && <Link
                   prefetch={false}
-                  href="/services"
+                  href="/dashboard/seller/services"
                   className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
                 >
                   <Package className="h-4 w-4" />
                   Browse services
-                </Link>
+                </Link>}
                 <Link
                   prefetch={false}
-                  href="/orders"
+                  href="/dashboard/orders"
                   className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
                 >
                   <ShoppingBag className="h-4 w-4" />
@@ -648,15 +648,15 @@ export default function DashboardPage() {
                 </Link>
                 <Link
                   prefetch={false}
-                  href="/referrals"
+                  href="/dashboard/referrals"
                   className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
                 >
                   <Users className="h-4 w-4" />
-                  Referral tree
+                  Referrals
                 </Link>
                 <Link
                   prefetch={false}
-                  href="/account"
+                  href="/dashboard/profile"
                   className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
                 >
                   <UserCircle className="h-4 w-4" />
@@ -667,9 +667,9 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Referral tree */}
+        {/* Referrals list */}
         <section className="mb-10">
-          <ReferralTreeCard onOpenFullTree={() => (window.location.href = "/referrals")} />
+          <ReferralsListView showLinkToFull />
         </section>
 
         {/* Income history */}
@@ -686,10 +686,10 @@ export default function DashboardPage() {
             </div>
             <Link
               prefetch={false}
-              href="/referrals"
+              href="/dashboard/referrals"
               className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
             >
-              View referral tree
+              View referrals
               <ExternalLink className="h-4 w-4" />
             </Link>
           </div>
@@ -721,7 +721,7 @@ export default function DashboardPage() {
                     <td colSpan={5} className="px-4 py-12 text-center text-zinc-500">
                       <TrendingUp className="mx-auto mb-2 h-10 w-10 text-zinc-300" />
                       <p>No income yet. When your referrals make purchases, earnings appear here.</p>
-                      <Link prefetch={false} href="/services" className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline">
+                      <Link prefetch={false} href="/dashboard/seller/services" className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline">
                         Browse services →
                       </Link>
                     </td>

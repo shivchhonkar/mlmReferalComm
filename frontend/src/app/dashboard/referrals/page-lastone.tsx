@@ -34,6 +34,7 @@ type ApiNode = {
 type ApiResponse = {
   root: ApiNode | null
   stats: {
+    directCount: number
     directLeft: number
     directRight: number
     total: number
@@ -373,7 +374,7 @@ export default function ReferralsPage() {
   const [error, setError] = useState<string | null>(null)
 
   // View toggle
-  const [view, setView] = useState<"tree" | "list">("tree")
+  const [view, setView] = useState<"tree" | "list">("list")
 
   // Tree data
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -680,10 +681,7 @@ export default function ReferralsPage() {
           <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <Badge>
-                <GitBranch className="mr-2 h-4 w-4" /> Left: {stats.directLeft}
-              </Badge>
-              <Badge>
-                <GitBranch className="mr-2 h-4 w-4" /> Right: {stats.directRight}
+                <GitBranch className="mr-2 h-4 w-4" /> Direct: {stats.directCount ?? stats.directLeft + stats.directRight}
               </Badge>
               <Badge>
                 <Users className="mr-2 h-4 w-4" /> Team: {stats.total}

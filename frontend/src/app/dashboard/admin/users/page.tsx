@@ -161,7 +161,6 @@ function UsersPage() {
   const [assigningReferral, setAssigningReferral] = useState(false);
   const [referralForm, setReferralForm] = useState({
     referralCode: "",
-    position: "" as "" | "left" | "right",
   });
 
   // Edit user modal
@@ -675,7 +674,7 @@ function UsersPage() {
       return;
     }
     setSelectedUserForReferral(user);
-    setReferralForm({ referralCode: "", position: "" });
+    setReferralForm({ referralCode: "" });
     setShowReferralModal(true);
   };
 
@@ -694,7 +693,6 @@ function UsersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           referralCode: referralForm.referralCode.trim(),
-          ...(referralForm.position && { position: referralForm.position }),
         }),
       });
 
@@ -704,7 +702,7 @@ function UsersPage() {
       showSuccessToast(data.message || "Referral assigned successfully");
       setShowReferralModal(false);
       setSelectedUserForReferral(null);
-      setReferralForm({ referralCode: "", position: "" });
+      setReferralForm({ referralCode: "" });
       await fetchUsers();
     } catch (err) {
       showErrorToast(err instanceof Error ? err.message : "Failed to assign referral");
@@ -1947,22 +1945,6 @@ function UsersPage() {
                   />
                 </div>
 
-                <div>
-                  <label className="mb-2 block text-sm font-semibold text-zinc-700">
-                    Position (Optional)
-                  </label>
-                  <select
-                    value={referralForm.position}
-                    onChange={(e) =>
-                      setReferralForm({ ...referralForm, position: e.target.value as "" | "left" | "right" })
-                    }
-                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 focus:outline-none focus:bg-white focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 transition"
-                  >
-                    <option value="">Auto-assign (Recommended)</option>
-                    <option value="left">Left</option>
-                    <option value="right">Right</option>
-                  </select>
-                </div>
               </div>
 
               <div className="mt-6 flex justify-end gap-3">

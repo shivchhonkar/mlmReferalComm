@@ -62,6 +62,8 @@ const nextConfig: NextConfig = {
     if (!backend) return [];
 
     const normalized = backend.endsWith("/") ? backend.slice(0, -1) : backend;
+    // Uploads are served at backend root /uploads, not under /api
+    const uploadsBase = normalized.replace(/\/api\/?$/, "") || normalized;
 
     return [
       {
@@ -71,6 +73,10 @@ const nextConfig: NextConfig = {
       {
         source: "/health",
         destination: `${normalized}/health`,
+      },
+      {
+        source: "/uploads/:path*",
+        destination: `${uploadsBase}/uploads/:path*`,
       },
     ];
   },

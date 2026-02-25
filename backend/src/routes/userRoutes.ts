@@ -284,6 +284,56 @@ router.post("/upload/profile-image", async (req, res) => {
   }
 });
 
+// Payment proof (UPI screenshot) upload - for order checkout
+router.post("/upload/payment-proof", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const multer = require("multer");
+    const path = require("path");
+    const fs = require("fs");
+
+    const uploadsDir = path.join(process.cwd(), "uploads", "payment-proofs");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const storage = multer.diskStorage({
+      destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+      filename: (_req: any, file: Express.Multer.File, cb: any) => {
+        const ext = (path.extname(file.originalname) || ".png").toLowerCase();
+        const safeExt = [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext) ? ext : ".png";
+        const name = `proof-${ctx.userId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+        cb(null, name);
+      },
+    });
+
+    const upload = multer({
+      storage,
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req: any, file: Express.Multer.File, cb: any) => {
+        if (!file.mimetype.startsWith("image/")) {
+          return cb(new Error("Only image files are allowed (JPG, PNG, GIF, WebP)"));
+        }
+        cb(null, true);
+      },
+    });
+
+    upload.single("image")(req, res, async (err: any) => {
+      if (err) return res.status(400).json({ error: err.message });
+      if (!req.file) return res.status(400).json({ error: "No image provided" });
+
+      const url = `/uploads/payment-proofs/${req.file.filename}`;
+      return res.json({ success: true, imageUrl: url });
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unable to upload payment proof";
+    const status = msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
 // Clear profile image
 router.post("/profile/clear-image", async (req, res) => {
   try {

@@ -1,6 +1,6 @@
 # ReferGrow
 
-A referral-based membership platform with binary tree structure and business volume (BV) income distribution.
+A referral-based membership platform with unilevel structure (unlimited direct children per referral code) and business volume (BV) income distribution.
 
 ## Project Structure
 
@@ -84,7 +84,7 @@ Visit http://localhost:3000 to access the application.
 3. **Users register with referral code**
    - First user in fresh database can register without referral code
    - All subsequent users require a valid referral code
-   - Automatic binary tree placement (left/right)
+   - Unilevel placement (unlimited direct children per referral code)
 
 4. **Users purchase services**
    - Generates Business Volume (BV)
@@ -95,7 +95,7 @@ Visit http://localhost:3000 to access the application.
 
 ### User Features
 - User registration with referral codes
-- Binary tree referral structure (left/right placement)
+- Unilevel referral structure (unlimited direct children per referral code)
 - Purchase services to generate Business Volume (BV)
 - View referral tree and income history
 - Account management
@@ -109,7 +109,7 @@ Visit http://localhost:3000 to access the application.
 
 ### Technical Features
 - JWT-based authentication (httpOnly cookies)
-- Automatic binary tree placement
+- Unilevel placement (direct under referrer)
 - Multi-level income distribution
 - Transaction-safe BV calculations (with fallback for non-transactional MongoDB)
 - Email notifications
@@ -182,7 +182,6 @@ refergrow/
 │   │   │   ├── email.ts
 │   │   │   ├── env.ts
 │   │   │   ├── referral.ts
-│   │   │   ├── binaryPlacement.ts
 │   │   │   ├── bvDistribution.ts
 │   │   │   ├── payout.ts
 │   │   │   └── referralTree.ts

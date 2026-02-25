@@ -551,8 +551,9 @@ export default function SellerServicesPage() {
               className={formInputClass}
               value={name}
               onChange={(e) => {
-                setName(e.target.value);
-                if (!slug) setSlug(generateSlug(e.target.value));
+                const v = e.target.value;
+                setName(v);
+                setSlug(generateSlug(v));
               }}
               placeholder="e.g. GST Filing Service"
               required
@@ -681,7 +682,11 @@ export default function SellerServicesPage() {
               <input
                 className={formInputClass}
                 value={editName}
-                onChange={(e) => setEditName(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditName(v);
+                  setEditSlug(generateSlug(v));
+                }}
                 required
               />
             </div>

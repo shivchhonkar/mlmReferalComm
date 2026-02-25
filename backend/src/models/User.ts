@@ -77,9 +77,8 @@ const userSchema = new Schema(
     // The user who referred this user (nullable for root/admin accounts).
     parent: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
 
-    // Binary placement position under `parent`.
-    // - null when parent is null (root)
-    // - each parent can have at most 1 left + 1 right child
+    // Legacy: position was used for binary tree (left/right). Now unilevel - unlimited direct children.
+    // Kept for backward compatibility with existing records. New users get null.
     position: { type: String, enum: ["left", "right"], default: null, index: true },
 
     // KYC Information
@@ -131,15 +130,7 @@ const userSchema = new Schema(
 userSchema.index({ isVerified: 1 });
 userSchema.index({ isBlocked: 1 });
 
-// Enforce binary constraint: a given parent can have only one left child and one right child.
-// Using a partial index keeps multiple root users (parent=null) from conflicting.
-userSchema.index(
-  { parent: 1, position: 1 },
-  {
-    unique: true,
-    partialFilterExpression: { parent: { $type: "objectId" }, position: { $in: ["left", "right"] } },
-  }
-);
+// Unilevel: no unique constraint - any number of children per parent.
 
 export type User = InferSchemaType<typeof userSchema> & {
   _id: mongoose.Types.ObjectId;

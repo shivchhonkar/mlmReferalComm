@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   Banknote,
   Clock,
+  ImagePlus,
+  Wallet,
 } from "lucide-react";
 
 import { formatINR } from "@/lib/format";
@@ -65,16 +67,18 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     notes: "",
   });
 
-  // Payment: Cash received (services only, no COD/shipping) or Pay later
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "pay_later">("cash");
+  // Payment: Cash, UPI (with screenshot), or Pay later
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("cash");
+  const [paymentProofUrl, setPaymentProofUrl] = useState<string>("");
+  const [proofUploading, setProofUploading] = useState(false);
 
-  // Prefill only when drawer opens (and only once per open). Reset payment to "Cash received" each time.
   useEffect(() => {
     if (!open) {
       setDidPrefill(false);
+      setPaymentProofUrl("");
       return;
     }
-    setPaymentMethod("cash"); // each new checkout defaults to Cash received
+    setPaymentMethod("cash");
     if (didPrefill) return;
 
     const profileName = safeString(user?.name);
@@ -96,17 +100,52 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const canSubmit =
     items.length > 0 &&
     form.fullName.trim().length >= 2 &&
-    form.mobile.trim().length === 10;
+    form.mobile.trim().length === 10 &&
+    (paymentMethod !== "upi" || !!paymentProofUrl);
+
+  async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showErrorToast("Please select an image file (JPG, PNG, GIF, or WebP)");
+      return;
+    }
+    setProofUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await apiFetch("/api/upload/payment-proof", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      const body = await readApiBody(res);
+      const data = body.json as { imageUrl?: string; error?: string };
+      if (!res.ok) throw new Error(data?.error || "Upload failed");
+      setPaymentProofUrl(data.imageUrl || "");
+      showSuccessToast("Screenshot uploaded");
+    } catch (err: any) {
+      showErrorToast(err?.message || "Upload failed");
+    } finally {
+      setProofUploading(false);
+      e.target.value = "";
+    }
+  }
 
   async function placeOrder() {
     if (!canSubmit) {
-      showErrorToast("Please fill name and 10-digit mobile number.");
+      if (paymentMethod === "upi" && !paymentProofUrl) {
+        showErrorToast("Please upload your UPI payment screenshot to proceed.");
+      } else {
+        showErrorToast("Please fill name and 10-digit mobile number.");
+      }
       return;
     }
 
     setLoading(true);
     try {
       const isCashPaid = paymentMethod === "cash";
+      const isUpi = paymentMethod === "upi";
       const payload = {
         user: {
           id: (user as any)?.id || user?._id || undefined,
@@ -134,11 +173,13 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           totalAmount: cart.totalAmount,
         },
         payment: {
-          mode: isCashPaid ? "CASH" : "COD",
+          mode: isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
           status: isCashPaid ? "PAID" : "PENDING",
+          ...(isUpi && paymentProofUrl && { proofUrl: paymentProofUrl }),
         },
-        paymentMode: isCashPaid ? "CASH" : "COD",
+        paymentMode: isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
         paymentStatus: isCashPaid ? "PAID" : "PENDING",
+        ...(isUpi && paymentProofUrl && { paymentProofUrl }),
       };
 
       const res = await apiFetch("/api/orders", {
@@ -200,7 +241,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
 
               <p className="mt-1 text-sm text-zinc-600">
-                Services only · No shipping. Confirm details and pay by cash or pay later.
+                Services only · Pay by Cash, UPI (upload screenshot), or Pay later.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -290,11 +331,11 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               <div className="text-sm font-semibold text-zinc-900">
                 Select Payment Method
               </div>
-              <div className="mt-4 flex gap-3">
+              <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("cash")}
-                  className={`flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
+                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
                     paymentMethod === "cash"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                       : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
@@ -303,13 +344,28 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                   <Banknote className="h-5 w-5 shrink-0" />
                   <div>
                     <span className="block font-medium text-zinc-900">Cash</span>
-                    <span className="block text-xs opacity-90">Pay now · Order confirmed</span>
+                    <span className="block text-xs opacity-90">Pay now · Confirmed</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("upi")}
+                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
+                    paymentMethod === "upi"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
+                  }`}
+                >
+                  <Wallet className="h-5 w-5 shrink-0" />
+                  <div>
+                    <span className="block font-medium text-zinc-900">UPI</span>
+                    <span className="block text-xs opacity-90">Upload screenshot · Review</span>
                   </div>
                 </button>
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("pay_later")}
-                  className={`flex flex-1 items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
+                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
                     paymentMethod === "pay_later"
                       ? "border-emerald-500 bg-emerald-50 text-emerald-800"
                       : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
@@ -318,10 +374,46 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                   <Clock className="h-5 w-5 shrink-0" />
                   <div>
                     <span className="block font-medium text-zinc-900">Pay later</span>
-                    <span className="block text-xs opacity-90">Mark as unpaid · Pay when ready</span>
+                    <span className="block text-xs opacity-90">Unpaid · Pay when ready</span>
                   </div>
                 </button>
               </div>
+
+              {/* UPI: mandatory screenshot upload */}
+              {paymentMethod === "upi" && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+                  <label className="text-sm font-semibold text-amber-900">UPI Payment Screenshot *</label>
+                  <p className="mt-1 text-xs text-amber-800">Upload proof of payment. Order will be confirmed after admin review.</p>
+                  <div className="mt-3 flex items-center gap-3">
+                    <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50 disabled:opacity-60">
+                      {proofUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+                      {paymentProofUrl ? "Change" : "Upload screenshot"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleProofUpload}
+                        className="hidden"
+                        disabled={proofUploading}
+                      />
+                    </label>
+                    {paymentProofUrl && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-emerald-700">✓ Uploaded</span>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentProofUrl("")}
+                          className="text-xs text-slate-600 underline hover:text-red-600"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {paymentMethod === "upi" && !paymentProofUrl && (
+                    <p className="mt-2 text-xs text-amber-700">Screenshot is required to place order with UPI.</p>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Email */}
@@ -476,7 +568,9 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
           {!canSubmit ? (
             <div className="mt-2 text-[11px] font-semibold text-zinc-500">
-              Required: Full Name (min 2 chars) and 10-digit Mobile.
+              {paymentMethod === "upi" && !paymentProofUrl
+                ? "Required: Upload UPI payment screenshot to proceed."
+                : "Required: Full Name (min 2 chars) and 10-digit Mobile."}
             </div>
           ) : null}
         </div>

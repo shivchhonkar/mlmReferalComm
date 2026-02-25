@@ -63,8 +63,10 @@ type ApiTotals = {
 };
 
 type ApiPayment = {
-  mode?: "COD" | "CASH" | "RAZORPAY";
+  mode?: "COD" | "CASH" | "RAZORPAY" | "UPI";
   status?: "PENDING" | "PAID" | "FAILED";
+  paymentProofUrl?: string;
+  paymentReviewStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 };
 
 type ApiOrder = {
@@ -95,6 +97,8 @@ type UiOrder = {
   customerEmail?: string;
   paymentMode?: string;
   paymentStatus?: "PENDING" | "PAID" | "FAILED";
+  paymentProofUrl?: string;
+  paymentReviewStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   raw?: ApiOrder;
 };
 
@@ -160,8 +164,31 @@ function PaymentStatusBadge({ status }: { status?: "PENDING" | "PAID" | "FAILED"
 
 function PaymentModeIcon({ mode }: { mode?: string }) {
   if (mode === "CASH") return <Banknote className="h-4 w-4" />;
+  if (mode === "UPI") return <Wallet className="h-4 w-4" />;
   if (mode === "RAZORPAY") return <CreditCard className="h-4 w-4" />;
   return <Wallet className="h-4 w-4" />;
+}
+
+function getProofImageUrl(url?: string): string {
+  if (!url) return "";
+  if (url.startsWith("http") || url.startsWith("data:")) return url;
+  let base = "";
+  if (typeof window !== "undefined" && window.location.hostname === "localhost") {
+    base = "http://localhost:4000";
+  } else {
+    const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL;
+    if (apiBase) {
+      try {
+        const u = new URL(apiBase);
+        base = u.origin;
+      } catch {
+        base = apiBase.replace(/\/api\/?$/, "") || apiBase;
+      }
+    }
+    if (!base && typeof window !== "undefined") base = window.location.origin;
+    if (!base) base = "http://localhost:4000";
+  }
+  return `${base}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
 /* -------------------- COMPONENT -------------------- */
@@ -182,9 +209,11 @@ export default function OrdersPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
 
   async function loadOrders() {
     if (!user) {
@@ -229,6 +258,7 @@ export default function OrdersPage() {
           o.customer?.mobile ||
           "";
 
+        const payment = o.payment as ApiPayment | undefined;
         return {
           id,
           orderNumber: makeOrderNumber(o),
@@ -240,8 +270,10 @@ export default function OrdersPage() {
           customerName: o.customer?.fullName,
           customerMobile: o.customer?.mobile,
           customerEmail: o.customer?.email,
-          paymentMode: o.payment?.mode,
-          paymentStatus: o.payment?.status,
+          paymentMode: payment?.mode,
+          paymentStatus: payment?.status,
+          paymentProofUrl: payment?.paymentProofUrl,
+          paymentReviewStatus: payment?.paymentReviewStatus,
           raw: o,
         };
       });
@@ -294,6 +326,26 @@ export default function OrdersPage() {
 
   function confirmOrder(orderId: string) {
     updateOrderStatus(orderId, "CONFIRMED");
+  }
+
+  async function reviewPayment(orderId: string, action: "approve" | "reject", reason?: string) {
+    setReviewingId(orderId);
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}/payment-review`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, reason }),
+      });
+      const data = (await readApiBody(res)).json as any;
+      if (!res.ok) throw new Error(data?.message || data?.error || "Failed");
+      showSuccessToast(action === "approve" ? "Payment approved. Order confirmed." : "Payment rejected.");
+      await loadOrders();
+      setExpandedId(null);
+    } catch (err: any) {
+      showErrorToast(err?.message || "Failed to review payment");
+    } finally {
+      setReviewingId(null);
+    }
   }
 
   useEffect(() => {
@@ -368,6 +420,34 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Image modal for payment proof */}
+      {imageModalUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setImageModalUrl(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Payment proof image"
+        >
+          <button
+            type="button"
+            onClick={() => setImageModalUrl(null)}
+            className="absolute right-4 top-4 rounded-full bg-white/90 p-2 text-slate-700 hover:bg-white"
+            aria-label="Close"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          <img
+            src={imageModalUrl}
+            alt="Payment proof (full size)"
+            className="max-h-[90vh] max-w-full rounded-lg object-contain"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
+
       <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">
@@ -643,6 +723,23 @@ export default function OrdersPage() {
                                 </span>
                                 <PaymentStatusBadge status={order.paymentStatus} />
                               </div>
+                              {order.paymentMode === "UPI" && order.paymentProofUrl && (
+                                <div className="mt-3">
+                                  <p className="text-xs font-medium text-slate-600">Payment screenshot</p>
+                                  <button
+                                    type="button"
+                                    onClick={() => setImageModalUrl(getProofImageUrl(order.paymentProofUrl))}
+                                    className="mt-1 inline-block cursor-pointer text-left"
+                                  >
+                                    <img
+                                      src={getProofImageUrl(order.paymentProofUrl)}
+                                      alt="Payment proof"
+                                      className="max-h-32 rounded-lg border border-slate-200 object-contain hover:opacity-90 transition"
+                                    />
+                                  </button>
+                                  <p className="mt-1 text-xs text-slate-500">Click to open full size</p>
+                                </div>
+                              )}
                             </div>
                           </>
                         ) : (
@@ -653,10 +750,30 @@ export default function OrdersPage() {
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <span className="flex items-center gap-2 text-sm text-slate-700">
                                 <PaymentModeIcon mode={order.paymentMode} />
-                                {order.paymentMode === "CASH" ? "Cash" : order.paymentMode === "COD" ? "Pay later" : order.paymentMode || "—"}
+                                {order.paymentMode === "CASH" ? "Cash" : order.paymentMode === "UPI" ? "UPI" : order.paymentMode === "COD" ? "Pay later" : order.paymentMode || "—"}
                               </span>
                               <PaymentStatusBadge status={order.paymentStatus} />
+                              {order.paymentMode === "UPI" && order.paymentReviewStatus === "PENDING_REVIEW" && (
+                                <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Awaiting review</span>
+                              )}
                             </div>
+                            {order.paymentMode === "UPI" && order.paymentProofUrl && (
+                              <div className="mt-3">
+                                <p className="text-xs font-medium text-slate-600">Your payment screenshot</p>
+                                <button
+                                  type="button"
+                                  onClick={() => setImageModalUrl(getProofImageUrl(order.paymentProofUrl))}
+                                  className="mt-1 inline-block cursor-pointer text-left"
+                                >
+                                  <img
+                                    src={getProofImageUrl(order.paymentProofUrl)}
+                                    alt="Payment proof"
+                                    className="max-h-24 rounded-lg border border-slate-200 object-contain hover:opacity-90 transition"
+                                  />
+                                </button>
+                                <p className="mt-1 text-xs text-slate-500">Click to open full size</p>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
@@ -693,34 +810,67 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {order.status === "PENDING" && (
+                      {order.status === "PENDING" && isAdmin && (
                         <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={() => confirmOrder(order.id)}
-                            disabled={confirmingId === order.id || cancellingId === order.id}
-                            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-95 disabled:opacity-60"
-                          >
-                            {confirmingId === order.id ? (
-                              <>
-                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Confirming…
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle2 className="h-4 w-4" />
-                                Confirm order
-                              </>
-                            )}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => cancelOrder(order.id)}
-                            disabled={cancellingId === order.id || confirmingId === order.id}
-                            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60"
-                          >
-                            {cancellingId === order.id ? "Cancelling…" : "Cancel order"}
-                          </button>
+                          {order.paymentMode === "UPI" && order.paymentReviewStatus === "PENDING_REVIEW" ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => reviewPayment(order.id, "approve")}
+                                disabled={reviewingId === order.id}
+                                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-95 disabled:opacity-60"
+                              >
+                                {reviewingId === order.id ? (
+                                  <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Approving…
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Approve payment
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => reviewPayment(order.id, "reject")}
+                                disabled={reviewingId === order.id}
+                                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                              >
+                                Reject payment
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => confirmOrder(order.id)}
+                                disabled={confirmingId === order.id || cancellingId === order.id}
+                                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:opacity-95 disabled:opacity-60"
+                              >
+                                {confirmingId === order.id ? (
+                                  <>
+                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Confirming…
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Confirm order
+                                  </>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => cancelOrder(order.id)}
+                                disabled={cancellingId === order.id || confirmingId === order.id}
+                                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:opacity-60"
+                              >
+                                {cancellingId === order.id ? "Cancelling…" : "Cancel order"}
+                              </button>
+                            </>
+                          )}
                         </div>
                       )}
                     </div>

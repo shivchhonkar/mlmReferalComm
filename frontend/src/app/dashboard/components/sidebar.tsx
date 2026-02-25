@@ -32,7 +32,7 @@ const navItems: { href: string; label: string; icon: React.ComponentType<{ class
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingBag },
   { href: "/dashboard/referrals", label: "Referrals", icon: Network },
   { href: "/dashboard/profile", label: "Profile", icon: User },
-  { href: "/dashboard/settings", label: "Settings", icon: Settings },
+  // { href: "/dashboard/settings", label: "Settings", icon: Settings },
   { href: "/dashboard/kyc", label: "KYC", icon: FileCheck },
 ];
 
@@ -42,13 +42,13 @@ const adminNavItems: { href: string; label: string; icon: React.ComponentType<{ 
   // { href: "/dashboard/admin/sellers", label: "Sellers", icon: Store },
   { href: "/dashboard/admin/services", label: "Services", icon: Package },
   { href: "/dashboard/admin/categories", label: "Categories", icon: FolderOpen },
-  { href: "/dashboard/admin/analytics", label: "Analytics", icon: BarChart3 },
+  // { href: "/dashboard/admin/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/dashboard/admin/service-approval", label: "Service Approval", icon: CheckSquare },
-  { href: "/dashboard/admin/slider", label: "Slider", icon: ImageIcon },
-  { href: "/dashboard/admin/payment-settings", label: "Payment Settings", icon: CreditCard },
+  // { href: "/dashboard/admin/slider", label: "Slider", icon: ImageIcon },
+  // { href: "/dashboard/admin/payment-settings", label: "Payment Settings", icon: CreditCard },
   { href: "/dashboard/admin/kyc", label: "KYC", icon: FileCheck },
   { href: "/dashboard/admin/contacts", label: "Contacts", icon: Mail },
-  { href: "/dashboard/admin/rules", label: "Rules", icon: Scale },
+  // { href: "/dashboard/admin/rules", label: "Rules", icon: Scale },
 ];
 
 function cn(...classes: (string | boolean | undefined)[]) {
@@ -114,11 +114,11 @@ export default function DashboardSidebar() {
             className={cn(
               "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
               pathname.startsWith("/dashboard/seller")
-                ? "bg-emerald-50 text-emerald-800"
-                : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+               ? "bg-emerald-50 text-emerald-800"
+                 : "text-white hover:bg-zinc-50 hover:text-zinc-900"
             )}
           >
-            <Package className="h-5 w-5 shrink-0 text-zinc-500" />
+            <Package className={cn("h-5 w-5 shrink-0", pathname.startsWith("/dashboard/seller") ? "text-zinc-500" : "text-white")} />
             My Services
           </Link>
         )}

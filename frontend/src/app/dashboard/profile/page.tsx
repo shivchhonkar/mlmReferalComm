@@ -14,6 +14,9 @@ import {
   ShoppingBag,
   Cog,
   CheckCircle2,
+  ChevronRight,
+  Copy,
+  Loader2,
 } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
 import { apiFetch } from "@/lib/apiClient";
@@ -59,12 +62,19 @@ interface UserProfile {
 }
 
 const tabs = [
-  { id: "basic", label: "Basic Info", icon: User },
-  { id: "company", label: "Company Info", icon: Building },
-  { id: "address", label: "Address", icon: MapPin },
-  { id: "business", label: "Business Settings", icon: Settings },
-  { id: "tax", label: "Tax & Compliance", icon: CreditCard },
+  { id: "basic", label: "Basic Info", icon: User, desc: "Name and contact email" },
+  { id: "company", label: "Company Info", icon: Building, desc: "Business details and branding" },
+  { id: "address", label: "Address", icon: MapPin, desc: "Billing and shipping address" },
+  { id: "business", label: "Business Settings", icon: Settings, desc: "Language, currency & preferences" },
+  { id: "tax", label: "Tax & Compliance", icon: CreditCard, desc: "GSTIN, PAN and invoicing" },
 ] as const;
+
+function getImageUrl(src: string): string {
+  if (!src) return "";
+  if (src.startsWith("http") || src.startsWith("data:")) return src;
+  const base = process.env.NEXT_PUBLIC_API_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "http://localhost:4000");
+  return `${base}${src.startsWith("/") ? "" : "/"}${src}`;
+}
 
 export default function ProfilePage() {
   const dispatch = useAppDispatch();
@@ -252,6 +262,7 @@ export default function ProfilePage() {
       return;
     }
 
+    setSaving(true);
     const formData = new FormData();
     formData.append("image", profileImage);
 
@@ -290,6 +301,8 @@ export default function ProfilePage() {
       showErrorToast(
         `Failed to upload profile image: ${error instanceof Error ? error.message : "Unknown error"}`
       );
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -437,88 +450,127 @@ export default function ProfilePage() {
     }
   };
 
+  const copyReferralCode = () => {
+    if (profile?.referralCode) {
+      navigator.clipboard.writeText(profile.referralCode);
+      showSuccessToast("Referral code copied!");
+    }
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
-        <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
-        <div className="flex min-h-[70vh] items-center justify-center px-6">
-          <div className="h-12 w-12 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+      <div className="min-h-screen bg-slate-50">
+        <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+          <div className="animate-pulse space-y-6">
+            <div className="h-8 w-48 rounded-lg bg-slate-200" />
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <div className="flex gap-4">
+                <div className="h-20 w-20 rounded-full bg-slate-200" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-6 w-48 rounded bg-slate-200" />
+                  <div className="h-4 w-32 rounded bg-slate-100" />
+                  <div className="h-4 w-40 rounded bg-slate-100" />
+                </div>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6">
+              <div className="space-y-4">
+                <div className="h-4 w-full rounded bg-slate-100" />
+                <div className="h-4 w-3/4 rounded bg-slate-100" />
+                <div className="h-10 w-32 rounded-lg bg-slate-200" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen ">
-      <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+    <div className="min-h-screen bg-slate-50">
+      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
-              <div className="relative">
-                <div className="h-20 w-20 overflow-hidden rounded-full bg-gradient-to-br from-emerald-100 to-sky-100 p-[2px]">
-                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full bg-white">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        {/* Breadcrumb */}
+        <nav className="mb-6 flex items-center gap-2 text-sm text-slate-600">
+          <Link href="/dashboard" className="hover:text-emerald-600 transition">
+            Dashboard
+          </Link>
+          <ChevronRight className="h-4 w-4 text-slate-400" />
+          <span className="font-medium text-slate-900">Profile</span>
+        </nav>
+
+        {/* Header Card */}
+        <div className="mb-6 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-5">
+              <div className="relative shrink-0">
+                <div className="h-24 w-24 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500/20 to-sky-500/20 p-[2px] ring-2 ring-white shadow-lg">
+                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-xl bg-white">
                     {imagePreview ? (
                       <img
-                        src={
-                          imagePreview.startsWith("http")
-                            ? imagePreview
-                            : imagePreview.startsWith("/uploads")
-                            ? `http://localhost:4000${imagePreview}`
-                            : imagePreview
-                        }
+                        src={getImageUrl(imagePreview)}
                         alt="Profile"
-                        className="h-20 w-20 rounded-full object-cover"
+                        className="h-full w-full rounded-xl object-cover"
                         onError={(e) => {
-                          console.error("Failed to load image:", imagePreview);
                           e.currentTarget.style.display = "none";
                         }}
                       />
                     ) : (
-                      <User className="h-10 w-10 text-emerald-700" />
+                      <User className="h-12 w-12 text-emerald-600" />
                     )}
                   </div>
                 </div>
 
-                <label className="absolute bottom-0 right-0 cursor-pointer rounded-full bg-gradient-to-r from-emerald-600 to-sky-600 p-2 shadow-md transition hover:from-emerald-700 hover:to-sky-700">
+                <label className="absolute -bottom-1 -right-1 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-gradient-to-r from-emerald-600 to-sky-600 shadow-md transition hover:scale-105 hover:shadow-lg">
                   <Camera className="h-4 w-4 text-white" />
                   <input type="file" accept="image/*" onChange={handleImageChange} className="hidden" />
                 </label>
               </div>
 
-              <div>
-                <h1 className="text-xl  text-zinc-900 sm:text-2xl">{profile?.name}</h1>
-                <p className="text-sm text-zinc-600">{profile?.email}</p>
-                <p className="text-sm text-zinc-500">{profile?.mobile}</p>
+              <div className="min-w-0">
+                <h1 className="text-xl font-bold text-slate-900 sm:text-2xl truncate">{profile?.name || "Profile"}</h1>
+                <p className="mt-0.5 text-sm text-slate-600 truncate">{profile?.email || "—"}</p>
+                <p className="text-sm text-slate-500">{profile?.mobile || "—"}</p>
+                {profile?.referralCode && (
+                  <button
+                    type="button"
+                    onClick={copyReferralCode}
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100"
+                  >
+                    <span>{profile.referralCode}</span>
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                )}
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-2">
               {profileImage && (
                 <button
                   onClick={uploadProfileImage}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-4 py-2.5 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl"
+                  disabled={saving}
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Upload className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
                   Upload Image
                 </button>
               )}
 
               <Link
-                href="/orders"
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                href="/dashboard/orders"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50/50"
               >
-                <ShoppingBag className="h-4 w-4 text-emerald-700" />
+                <ShoppingBag className="h-4 w-4 text-emerald-600" />
                 Orders
               </Link>
 
               <Link
-                href="/settings"
-                className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                href="/dashboard/settings"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50/50"
               >
-                <Cog className="h-4 w-4 text-sky-700" />
+                <Cog className="h-4 w-4 text-sky-600" />
                 Settings
               </Link>
             </div>
@@ -527,49 +579,47 @@ export default function ProfilePage() {
 
         {/* Success Message */}
         {successMessage && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-white p-4 text-emerald-800 shadow-sm">
-            <span className="mt-0.5 inline-flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            </span>
-            <div className="text-sm font-semibold">{successMessage}</div>
+          <div className="mb-6 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+            <p className="text-sm font-medium text-emerald-800">{successMessage}</p>
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white shadow-sm">
-          <div className="border-b border-zinc-200">
-            <nav className="flex flex-wrap gap-2 px-4 py-3 sm:gap-3 sm:px-6">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                const active = activeSection === tab.id;
+        {/* Tabs + Content */}
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <nav className="flex overflow-x-auto border-b border-slate-200 bg-slate-50/80" aria-label="Profile sections">
+            {tabs.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeSection === tab.id;
 
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveSection(tab.id)}
-                    className={[
-                      "inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold transition",
-                      active
-                        ? "bg-gradient-to-r from-emerald-600 to-sky-600 text-white shadow"
-                        : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50",
-                    ].join(" ")}
-                    type="button"
-                  >
-                    <Icon className="h-4 w-4" />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </nav>
-          </div>
-        </div>
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveSection(tab.id)}
+                  className={[
+                    "flex shrink-0 flex-col items-start gap-0.5 border-b-2 px-5 py-4 text-left transition sm:flex-row sm:items-center sm:gap-2",
+                    active
+                      ? "border-emerald-600 bg-white text-emerald-700 shadow-sm"
+                      : "border-transparent text-slate-600 hover:bg-white/60 hover:text-slate-900",
+                  ].join(" ")}
+                  type="button"
+                >
+                  <Icon className={`h-4 w-4 shrink-0 ${active ? "text-emerald-600" : "text-slate-500"}`} />
+                  <span className="text-sm font-semibold">{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
 
-        {/* Content */}
-        <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          {/* Content */}
+          <div className="p-6 sm:p-8">
           {/* Basic Info */}
           {activeSection === "basic" && (
-            <div>
-              <h2 className="text-xl  text-zinc-900 mb-6">Basic Information</h2>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Basic Information</h2>
+                <p className="mt-1 text-sm text-slate-500">Update your name and contact email.</p>
+              </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Full Name</label>
@@ -591,13 +641,13 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="pt-2">
                 <button
                   onClick={saveBasicInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -606,8 +656,11 @@ export default function ProfilePage() {
 
           {/* Company */}
           {activeSection === "company" && (
-            <div>
-              <h2 className="text-xl  text-zinc-900 mb-6">Company Information</h2>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Company Information</h2>
+                <p className="mt-1 text-sm text-slate-500">Business details for invoices and communications.</p>
+              </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Name</label>
@@ -708,13 +761,13 @@ export default function ProfilePage() {
                 />
               </div>
 
-              <div className="mt-6">
+              <div className="pt-2">
                 <button
                   onClick={saveCompanyInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -723,8 +776,11 @@ export default function ProfilePage() {
 
           {/* Address */}
           {activeSection === "address" && (
-            <div>
-              <h2 className="text-xl  text-zinc-900 mb-6">Address Information</h2>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Address Information</h2>
+                <p className="mt-1 text-sm text-slate-500">Billing and shipping address for orders.</p>
+              </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div className="md:col-span-2">
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Billing Address</label>
@@ -767,13 +823,13 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="pt-2">
                 <button
                   onClick={saveAddressInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -782,8 +838,11 @@ export default function ProfilePage() {
 
           {/* Business Settings */}
           {activeSection === "business" && (
-            <div>
-              <h2 className="text-xl  text-zinc-900 mb-6">Business Settings</h2>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Business Settings</h2>
+                <p className="mt-1 text-sm text-slate-500">Language, currency, and business type.</p>
+              </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">Business Type</label>
@@ -828,13 +887,13 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div className="mt-6">
+              <div className="pt-2">
                 <button
                   onClick={saveBusinessSettings}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
@@ -843,8 +902,11 @@ export default function ProfilePage() {
 
           {/* Tax */}
           {activeSection === "tax" && (
-            <div>
-              <h2 className="text-xl  text-zinc-900 mb-6">Tax & Compliance</h2>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Tax & Compliance</h2>
+                <p className="mt-1 text-sm text-slate-500">GSTIN, PAN, and invoicing settings.</p>
+              </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-zinc-700">GSTIN</label>
@@ -889,18 +951,19 @@ export default function ProfilePage() {
                 ))}
               </div>
 
-              <div className="mt-6">
+              <div className="pt-2">
                 <button
                   onClick={saveTaxSettings}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
                 >
-                  <Save className="h-4 w-4" />
+                  {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </div>
           )}
+          </div>
         </div>
       </div>
     </div>

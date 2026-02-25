@@ -48,6 +48,7 @@ type ApiNode = {
 type ApiResponse = {
   root: ApiNode | null
   stats: {
+    directCount: number
     directLeft: number
     directRight: number
     total: number
@@ -59,6 +60,7 @@ type ApiResponse = {
 type ReferredBy = {
   id: string
   name: string
+  mobile?: string
   email?: string
   referralCode?: string
 } | null
@@ -67,6 +69,7 @@ type ListItem = {
   id: string
   name: string
   email: string
+  mobile?: string
   referralCode: string
   status: string
   activityStatus: string
@@ -264,7 +267,7 @@ export default function ReferralsPage() {
   const [error, setError] = useState<string | null>(null)
 
   // View toggle
-  const [view, setView] = useState<"tree" | "list">("tree")
+  const [view, setView] = useState<"tree" | "list">("list")
 
   // Tree response + selected
   const [data, setData] = useState<ApiResponse | null>(null)
@@ -402,15 +405,15 @@ export default function ReferralsPage() {
         {/* Header */}
         <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
+            {/* <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white/70 px-3 py-1.5 shadow-sm backdrop-blur">
               <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-sky-600 text-white">
                 <Network className="h-4 w-4" />
               </span>
               <span className="text-sm font-semibold text-zinc-800">Referral Network</span>
-            </div>
+            </div> */}
 
-            <h1 className="mt-4 text-3xl  tracking-tight text-zinc-900 sm:text-4xl">
-              Referral Network
+            <h1 className="mt-4 text-3xl tracking-tight text-zinc-900 sm:text-4xl text-wrap inline-flex items-center gap-3">
+              <Network className="h-4 w-4" /> Referral Network
             </h1>
             <p className="mt-2 text-sm text-zinc-600">
               React Flow Tree (zoom/pan/minimap) + List View (search + pagination).
@@ -431,20 +434,6 @@ export default function ReferralsPage() {
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setView("tree")}
-              className={[
-                "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm  shadow-sm",
-                view === "tree"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50",
-              ].join(" ")}
-            >
-              <GitBranch className="h-4 w-4" />
-              Tree View
-            </button>
-
-            <button
-              type="button"
               onClick={() => setView("list")}
               className={[
                 "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm  shadow-sm",
@@ -455,6 +444,19 @@ export default function ReferralsPage() {
             >
               <ListIcon className="h-4 w-4" />
               List View
+            </button>
+             <button
+              type="button"
+              onClick={() => setView("tree")}
+              className={[
+                "inline-flex items-center gap-2 rounded-2xl border px-4 py-2 text-sm  shadow-sm",
+                view === "tree"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                  : "border-zinc-200 bg-white text-zinc-800 hover:bg-zinc-50",
+              ].join(" ")}
+            >
+              <GitBranch className="h-4 w-4" />
+              Tree View
             </button>
           </div>
 
@@ -491,10 +493,7 @@ export default function ReferralsPage() {
           <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <Badge>
-                <GitBranch className="mr-2 h-4 w-4" /> Left: {stats.directLeft}
-              </Badge>
-              <Badge>
-                <GitBranch className="mr-2 h-4 w-4" /> Right: {stats.directRight}
+                <GitBranch className="mr-2 h-4 w-4" /> Direct: {stats.directCount ?? stats.directLeft + stats.directRight}
               </Badge>
               <Badge>
                 <Users className="mr-2 h-4 w-4" /> Team: {stats.total}
@@ -607,7 +606,7 @@ export default function ReferralsPage() {
                         <button
                           type="button"
                           onClick={() => navigator.clipboard.writeText(selectedNode.referralCode)}
-                          className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50"
+                          className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
                         >
                           Copy
                         </button>
@@ -659,7 +658,7 @@ export default function ReferralsPage() {
                     <th className="py-3 px-4 ">Level</th>
                     <th className="py-3 px-4 ">User</th>
                     <th className="py-3 px-4 ">Code</th>
-                    <th className="py-3 px-4 ">Position</th>
+                    {/* <th className="py-3 px-4 ">Position</th> */}
                     <th className="py-3 px-4 ">Status</th>
                     <th className="py-3 px-4 ">Joined</th>
                     <th className="py-3 px-4 ">Action</th>
@@ -681,9 +680,13 @@ export default function ReferralsPage() {
 
                         <td className="py-3 px-4 align-top">
                           <div className="font-semibold text-zinc-900">{u.name}</div>
-                          <div className="text-xs text-zinc-600">{u.email}</div>
+                          <div className="text-xs text-zinc-600">Mobile: {u.mobile},  {u.email}</div>
+                          <div className="text-xs text-zinc-600">Code: {u.referralCode}</div>
 
-                          {/* Referred by (collapsible) */}
+                         
+                        </td>
+
+                        <td className="py-3 px-4 font-mono text-xs  text-sky-800 align-top"> {/* Referred by (collapsible) */}
                           {rb ? (
                             <div className="mt-2">
                               <button
@@ -692,15 +695,15 @@ export default function ReferralsPage() {
                                 className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px]  text-sky-800 hover:bg-sky-100"
                                 title="Show / hide referred by"
                               >
-                                <span className="text-sky-700">Referred by:</span>
+                                <span className="text-sky-700">Ref by:</span>
                                 <span className="max-w-[180px] truncate">{rb.name}</span>
-                                <span className="ml-1 text-sky-700">{isOpen ? "▲" : "▼"}</span>
+                                <span className="ml-1 text-sky-700 hover:cursor-pointer">{isOpen ? "▲" : "▼"}</span>
                               </button>
 
                               {isOpen ? (
                                 <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
                                   <div className=" text-zinc-900">{rb.name}</div>
-                                  <div className="mt-0.5 text-zinc-600">{rb.email || "—"}</div>
+                                  <div className="mt-0.5 text-zinc-600">{rb.mobile}, {rb.email || "—"}</div>
 
                                   {rb.referralCode ? (
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -711,7 +714,7 @@ export default function ReferralsPage() {
                                       <button
                                         type="button"
                                         onClick={() => navigator.clipboard.writeText(rb.referralCode || "")}
-                                        className="rounded-lg border border-emerald-200 bg-white px-2 py-0.5 text-[11px]  text-emerald-800 hover:bg-emerald-50"
+                                        className="rounded-lg border border-emerald-200 bg-white px-2 py-0.5 text-[11px]  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
                                       >
                                         Copy
                                       </button>
@@ -724,20 +727,17 @@ export default function ReferralsPage() {
                             <div className="mt-2 inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px]  text-zinc-600">
                               Referred by: —
                             </div>
-                          )}
-                        </td>
+                          )}</td>
 
-                        <td className="py-3 px-4 font-mono text-xs  text-sky-800 align-top">{u.referralCode}</td>
-
-                        <td className="py-3 px-4 align-top">
-                          {u.position ? (
+                        {/* <td className="py-3 px-4 align-top"> */}
+                          {/* {u.position ? (
                             <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs  text-sky-700">
                               {u.position.toUpperCase()}
                             </span>
                           ) : (
                             <span className="text-zinc-400">—</span>
-                          )}
-                        </td>
+                          )} */}
+                        {/* </td> */}
 
                         <td className="py-3 px-4 align-top">
                           <span
@@ -758,7 +758,7 @@ export default function ReferralsPage() {
                           <button
                             type="button"
                             onClick={() => navigator.clipboard.writeText(u.referralCode)}
-                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50"
+                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
                             title="Copy code"
                           >
                             <Share2 className="h-3 w-3" />

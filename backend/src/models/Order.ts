@@ -39,10 +39,17 @@ const orderSchema = new Schema(
     },
 
     payment: {
-      mode: { type: String, enum: ["COD", "CASH", "RAZORPAY"], default: "COD" },
+      mode: { type: String, enum: ["COD", "CASH", "RAZORPAY", "UPI"], default: "COD" },
       status: { type: String, enum: ["PENDING", "PAID", "FAILED"], default: "PENDING" },
 
-      // later Razorpay
+      // UPI payment proof (screenshot) - required when mode is UPI
+      paymentProofUrl: { type: String },
+      paymentReviewStatus: { type: String, enum: ["PENDING_REVIEW", "APPROVED", "REJECTED"] },
+      paymentReviewedAt: { type: Date },
+      paymentReviewedBy: { type: Schema.Types.ObjectId, ref: "User" },
+      paymentRejectionReason: { type: String },
+
+      // Razorpay
       razorpayOrderId: { type: String },
       razorpayPaymentId: { type: String },
       razorpaySignature: { type: String },

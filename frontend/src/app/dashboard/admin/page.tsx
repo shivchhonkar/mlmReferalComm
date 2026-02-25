@@ -24,6 +24,11 @@ import {
   Store,
   Cog,
   Headphones,
+  UserCheck,
+  UserX,
+  Clock,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -32,6 +37,27 @@ type DashboardStats = {
   totalBVGenerated: number;
   totalIncomeDistributed: number;
   activeServices: number;
+};
+
+type AnalyticsData = {
+  users: {
+    total: number;
+    active: number;
+    providers: { total: number; active: number; new: number };
+    buyers: { total: number; active: number; new: number };
+    newRegistrations: number;
+  };
+  services: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    active: number;
+  };
+  inquiries: {
+    total: number;
+    pending: number;
+  };
 };
 
 type AdminSection = {
@@ -80,6 +106,9 @@ export default function AdminPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(true);
+  const [analyticsError, setAnalyticsError] = useState<string | null>(null);
 
   const loadDashboardStats = useCallback(async () => {
     setStatsError(null);
@@ -103,10 +132,32 @@ export default function AdminPage() {
     }
   }, []);
 
+  const loadAnalytics = useCallback(async () => {
+    setAnalyticsError(null);
+    setAnalyticsLoading(true);
+    try {
+      const res = await apiFetch("/api/admin/analytics");
+      const body = await readApiBody(res);
+      if (!res.ok) {
+        const err = (body.json as { error?: string })?.error ?? body.text ?? "Failed to load analytics";
+        setAnalyticsError(err);
+        setAnalytics(null);
+        return;
+      }
+      setAnalytics(body.json as AnalyticsData);
+    } catch (e) {
+      setAnalyticsError(e instanceof Error ? e.message : "Network error");
+      setAnalytics(null);
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     loadDashboardStats();
-  }, [user, loadDashboardStats]);
+    loadAnalytics();
+  }, [user, loadDashboardStats, loadAnalytics]);
 
   const getRoleDisplay = () => {
     const role = (user as { role?: string })?.role;
@@ -123,24 +174,14 @@ export default function AdminPage() {
 
   const sections: AdminSection[] = [
     {
-      id: "analytics",
-      title: "Analytics & Overview",
-      description: "Platform metrics and performance insights",
-      icon: BarChart3,
-      accent: "emerald",
-      cards: [
-        { href: "/admin/analytics", title: "Analytics Dashboard", desc: "View comprehensive platform analytics, charts and trends", icon: BarChart3 },
-      ],
-    },
-    {
       id: "users",
       title: "Users & Compliance",
       description: "Manage members, sellers and KYC verification",
       icon: Shield,
       accent: "sky",
       cards: [
-        { href: "/admin/users", title: "Users & Sellers", desc: "Manage user accounts, roles, and seller applications", icon: Users },
-        { href: "/admin/kyc", title: "KYC Management", desc: "Review and verify user KYC submissions", icon: FileCheck },
+        { href: "/dashboard/admin/users", title: "Users & Sellers", desc: "Manage user accounts, roles, and seller applications", icon: Users },
+        { href: "/dashboard/admin/kyc", title: "KYC Management", desc: "Review and verify user KYC submissions", icon: FileCheck },
       ],
     },
     {
@@ -150,9 +191,9 @@ export default function AdminPage() {
       icon: Store,
       accent: "violet",
       cards: [
-        { href: "/admin/services", title: "Services", desc: "Create, edit and approve services. Manage pricing & BV", icon: Package },
-        { href: "/admin/categories", title: "Categories", desc: "Manage service categories and subcategories", icon: FolderOpen },
-        { href: "/admin/slider", title: "Sliders", desc: "Home page slider images and promotional content", icon: ImageIcon },
+        { href: "/dashboard/admin/services", title: "Services", desc: "Create, edit and approve services. Manage pricing & BV", icon: Package },
+        { href: "/dashboard/admin/categories", title: "Categories", desc: "Manage service categories and subcategories", icon: FolderOpen },
+        { href: "/dashboard/admin/slider", title: "Sliders", desc: "Home page slider images and promotional content", icon: ImageIcon },
       ],
     },
     {
@@ -162,9 +203,9 @@ export default function AdminPage() {
       icon: Headphones,
       accent: "amber",
       cards: [
-        { href: "/admin/rules", title: "Distribution Rules", desc: "Configure commission and BV distribution rules", icon: Cog },
-        { href: "/admin/payment-settings", title: "Payment Settings", desc: "Payment links, UPI and checkout options", icon: CreditCard },
-        { href: "/admin/contacts", title: "Contact Submissions", desc: "View and respond to contact form messages", icon: Mail },
+        { href: "/dashboard/admin/rules", title: "Distribution Rules", desc: "Configure commission and BV distribution rules", icon: Cog },
+        { href: "/dashboard/admin/payment-settings", title: "Payment Settings", desc: "Payment links, UPI and checkout options", icon: CreditCard },
+        { href: "/dashboard/admin/contacts", title: "Contact Submissions", desc: "View and respond to contact form messages", icon: Mail },
       ],
     },
   ];
@@ -279,6 +320,145 @@ export default function AdminPage() {
                 <TrendingUp className="mb-3 h-8 w-8 text-amber-600" />
                 <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Income Distributed</p>
                 <p className="mt-1 text-xl font-semibold text-slate-900">{formatINR(stats.totalIncomeDistributed)}</p>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        {/* Analytics Report */}
+        <section className="mb-10 rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 px-6 py-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-900">Analytics Report</h3>
+                <p className="text-xs text-slate-500">Platform performance metrics and insights</p>
+              </div>
+            </div>
+            {!analyticsLoading && (analyticsError || analytics) && (
+              <button
+                type="button"
+                onClick={loadAnalytics}
+                disabled={analyticsLoading}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${analyticsLoading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            )}
+          </div>
+
+          {analyticsLoading ? (
+            <div className="grid grid-cols-2 gap-4 p-6 sm:grid-cols-4 lg:grid-cols-5">
+              {[...Array(11)].map((_, i) => (
+                <div key={i} className="rounded-xl border border-slate-100 bg-slate-50 p-5">
+                  <div className="mb-3 h-9 w-9 rounded-lg bg-slate-200 animate-pulse" />
+                  <div className="h-3 w-24 rounded bg-slate-200 animate-pulse" />
+                  <div className="mt-2 h-7 w-16 rounded bg-slate-200 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : analyticsError ? (
+            <div className="flex flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50/50 py-12 px-6 text-center">
+              <AlertCircle className="mb-3 h-10 w-10 text-amber-600" />
+              <p className="text-sm font-medium text-amber-800">Could not load analytics</p>
+              <p className="mt-1 max-w-sm text-xs text-amber-700">{analyticsError}</p>
+              <button
+                type="button"
+                onClick={loadAnalytics}
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Try again
+              </button>
+            </div>
+          ) : analytics ? (
+            <div className="p-6">
+              {/* User Analytics */}
+              <div className="mb-8">
+                <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  <Users className="h-4 w-4" />
+                  User Analytics
+                </h4>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  {[
+                    { label: "Total Users", value: analytics.users.total, icon: Users, gradient: "from-sky-600 to-emerald-600" },
+                    { label: "Active Users", value: analytics.users.active, icon: UserCheck, gradient: "from-emerald-600 to-green-500" },
+                    { label: "New This Month", value: analytics.users.newRegistrations, icon: TrendingUp, gradient: "from-violet-600 to-sky-600" },
+                    { label: "Inactive", value: analytics.users.total - analytics.users.active, icon: UserX, gradient: "from-slate-500 to-slate-600" },
+                  ].map((c, i) => {
+                    const Icon = c.icon;
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200 hover:shadow-sm"
+                      >
+                        <span className={`mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br ${c.gradient} text-white shadow-sm`}>
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <p className="text-2xl font-semibold text-slate-900">{formatNumber(c.value)}</p>
+                        <p className="text-xs font-medium text-slate-500">{c.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Service Analytics */}
+              <div className="mb-8">
+                <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  <Package className="h-4 w-4" />
+                  Service Analytics
+                </h4>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                  {[
+                    { label: "Total", value: analytics.services.total, icon: Package },
+                    { label: "Pending", value: analytics.services.pending, icon: Clock },
+                    { label: "Approved", value: analytics.services.approved, icon: CheckCircle },
+                    { label: "Rejected", value: analytics.services.rejected, icon: XCircle },
+                    { label: "Active", value: analytics.services.active, icon: UserCheck },
+                  ].map((c, i) => {
+                    const Icon = c.icon;
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200 hover:shadow-sm"
+                      >
+                        <Icon className="mb-3 h-8 w-8 text-sky-600" />
+                        <p className="text-xl font-semibold text-slate-900">{formatNumber(c.value)}</p>
+                        <p className="text-xs font-medium text-slate-500">{c.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Inquiry Analytics */}
+              <div>
+                <h4 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-slate-500">
+                  <Mail className="h-4 w-4" />
+                  Inquiry Analytics
+                </h4>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-2">
+                  {[
+                    { label: "Total Inquiries", value: analytics.inquiries.total, icon: Mail },
+                    { label: "Pending Response", value: analytics.inquiries.pending, icon: Clock },
+                  ].map((c, i) => {
+                    const Icon = c.icon;
+                    return (
+                      <div
+                        key={i}
+                        className="rounded-xl border border-slate-100 bg-slate-50/50 p-5 transition hover:border-slate-200 hover:shadow-sm"
+                      >
+                        <Icon className="mb-3 h-8 w-8 text-emerald-600" />
+                        <p className="text-xl font-semibold text-slate-900">{formatNumber(c.value)}</p>
+                        <p className="text-xs font-medium text-slate-500">{c.label}</p>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           ) : null}

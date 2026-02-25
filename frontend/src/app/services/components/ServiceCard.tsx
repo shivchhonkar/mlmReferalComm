@@ -6,8 +6,6 @@ import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem, removeItem, updateQty } from "@/store/slices/cartSlice";
 import type { Service } from "@/store/slices/serviceSlice";
-import {NoImage} from "./NoImage";
-
 interface ServiceCardProps {
   service: Service;
 }
@@ -90,15 +88,19 @@ export default function ServiceCard({ service }: ServiceCardProps) {
       </button>
 
       {/* Media */}
-      <div className="relative p-1 flex items-center justify-center">
-        {/* <div className="h-24 w-24 rounded-2xl bg-gradient-to-br from-[#22C55E] to-[#0EA5E9] p-[2px] shadow-sm">
-          <div className="h-full w-full rounded-2xl bg-white flex items-center justify-center">
-            <div className="h-14 w-14 rounded-xl bg-[#0EA5E9] text-white flex items-center justify-center shadow-sm">
-              <Package className="h-7 w-7" />              
-            </div>
+      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
+        {service.image ? (
+          <img
+            src={service.image}
+            alt={service.name}
+            className="h-full w-full object-cover transition group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-slate-100 text-slate-500">
+            <Package className="h-12 w-12 text-slate-300" />
+            <span className="text-sm font-medium">No image</span>
           </div>
-        </div> */}
-        {<NoImage />}
+        )}
       </div>
 
       {/* Content */}

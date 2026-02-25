@@ -92,9 +92,9 @@ router.post("/", async (req, res) => {
 
     const body = req.body ?? {};
     const { customer, items, payment } = body;
-    // Support both nested payment and top-level fallbacks (for proxy/parsing edge cases)
     const paymentModeRaw = payment?.mode ?? body.paymentMode;
     const paymentStatusRaw = payment?.status ?? body.paymentStatus;
+    const paymentProofUrl = payment?.proofUrl ?? body.paymentProofUrl;
 
     // ---- Basic validation
     if (!customer?.fullName || String(customer.fullName).trim().length < 2) {
@@ -177,15 +177,22 @@ router.post("/", async (req, res) => {
 
     const paymentMode =
       paymentModeRaw === "RAZORPAY" ? "RAZORPAY"
+      : paymentModeRaw === "UPI" ? "UPI"
       : paymentModeRaw === "CASH" ? "CASH"
       : "COD";
+
+    // UPI: require payment proof; order stays PENDING until admin/owner reviews
+    if (paymentMode === "UPI") {
+      if (!paymentProofUrl || typeof paymentProofUrl !== "string" || !paymentProofUrl.trim()) {
+        return res.status(400).json({ message: "UPI payment requires a screenshot as proof. Please upload your payment screenshot." });
+      }
+    }
+
     const paymentStatus =
       paymentMode === "CASH" || paymentStatusRaw === "PAID" ? "PAID" : "PENDING";
-
-    // When customer paid (e.g. cash), order is confirmed; otherwise pending until payment/confirmation
     const orderStatus = paymentStatus === "PAID" ? "CONFIRMED" : "PENDING";
 
-    const orderDoc = {
+    const orderDoc: any = {
       user: user._id,
       customer: {
         fullName: String(customer.fullName).trim(),
@@ -203,12 +210,21 @@ router.post("/", async (req, res) => {
       payment: {
         mode: paymentMode,
         status: paymentStatus,
+        ...(paymentMode === "UPI" && {
+          paymentProofUrl: paymentProofUrl.trim(),
+          paymentReviewStatus: "PENDING_REVIEW",
+        }),
       },
     };
 
     const runWithSession = async (session: mongoose.ClientSession | null) => {
       const createOpts = session ? { session } : {};
       const [order] = await OrderModel.create([orderDoc], createOpts);
+
+      // UPI orders: defer purchase creation and BV distribution until payment is approved
+      if (paymentMode === "UPI") {
+        return { order, purchasesCreated: 0 };
+      }
 
       const purchasesToInsert: { user: mongoose.Types.ObjectId; service: string; bv: number; order: mongoose.Types.ObjectId }[] = [];
       for (const it of normalizedItems) {
@@ -287,8 +303,148 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * PATCH /api/orders/:id/payment-review
+ * Body: { action: "approve" | "reject", reason?: string }
+ * - For UPI orders: only admin or super_admin can approve/reject payment proof.
+ * - On approve: create purchases, distribute BV, set order CONFIRMED and payment PAID.
+ * - On reject: set paymentReviewStatus REJECTED, optional reason.
+ */
+router.patch("/:id/payment-review", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order id" });
+    }
+
+    const { action, reason } = req.body ?? {};
+    if (!["approve", "reject"].includes(action)) {
+      return res.status(400).json({ message: "Invalid action. Use approve or reject." });
+    }
+
+    const user = await UserModel.findById(ctx.userId).select("role").lean();
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    if (!isAdminRole((user as any).role)) {
+      return res.status(403).json({ message: "Only admin or super_admin can review payments." });
+    }
+
+    const order = await OrderModel.findById(orderId).lean();
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const payment = order.payment as any;
+    if (payment?.mode !== "UPI") {
+      return res.status(400).json({ message: "This order is not a UPI payment. Payment review only applies to UPI orders." });
+    }
+    if (payment?.paymentReviewStatus === "APPROVED") {
+      return res.status(400).json({ message: "Payment already approved." });
+    }
+    if (payment?.paymentReviewStatus === "REJECTED") {
+      return res.status(400).json({ message: "Payment already rejected. User may need to place a new order." });
+    }
+
+    if (action === "reject") {
+      await OrderModel.updateOne(
+        { _id: orderId },
+        {
+          $set: {
+            "payment.paymentReviewStatus": "REJECTED",
+            "payment.paymentRejectionReason": typeof reason === "string" ? reason.trim().slice(0, 500) : undefined,
+            "payment.paymentReviewedAt": new Date(),
+            "payment.paymentReviewedBy": ctx.userId,
+          },
+        }
+      );
+      const updated = await OrderModel.findById(orderId).lean();
+      return res.json({ message: "Payment rejected.", order: updated });
+    }
+
+    // action === "approve"
+    const runApprove = async (session: mongoose.ClientSession | null) => {
+      const opts = session ? { session } : {};
+      const query = OrderModel.findById(orderId);
+      const orderDoc = session ? await query.session(session).exec() : await query.exec();
+      if (!orderDoc) throw new Error("Order not found");
+      const items = orderDoc.items || [];
+      const normalizedItems = items.map((it: any) => ({
+        service: String(it.service),
+        quantity: Number(it.quantity) || 1,
+        bv: Number(it.bv) || 0,
+      }));
+
+      const purchasesToInsert: { user: mongoose.Types.ObjectId; service: string; bv: number; order: mongoose.Types.ObjectId }[] = [];
+      for (const it of normalizedItems) {
+        for (let k = 0; k < it.quantity; k++) {
+          purchasesToInsert.push({
+            user: orderDoc.user,
+            service: it.service,
+            bv: it.bv,
+            order: orderDoc._id,
+          });
+        }
+      }
+
+      const createdPurchases = await PurchaseModel.insertMany(purchasesToInsert, opts);
+
+      for (const purchase of createdPurchases) {
+        await distributeBusinessVolumeWithSession({
+          userId: String(purchase.user),
+          serviceId: purchase.service,
+          purchaseId: String(purchase._id),
+          session,
+        });
+      }
+
+      await OrderModel.updateOne(
+        { _id: orderId },
+        {
+          $set: {
+            status: "CONFIRMED",
+            "payment.status": "PAID",
+            "payment.paymentReviewStatus": "APPROVED",
+            "payment.paymentReviewedAt": new Date(),
+            "payment.paymentReviewedBy": ctx.userId,
+          },
+        },
+        opts
+      );
+
+      return { purchasesCreated: createdPurchases.length };
+    };
+
+    try {
+      const session = await mongoose.startSession();
+      try {
+        await session.withTransaction(async () => runApprove(session));
+      } finally {
+        session.endSession();
+      }
+    } catch (txErr: any) {
+      const msg = String(txErr?.message ?? "");
+      if (msg.includes("replica set") || msg.includes("Transaction numbers")) {
+        await runApprove(null);
+      } else {
+        throw txErr;
+      }
+    }
+
+    const updated = await OrderModel.findById(orderId).lean();
+    return res.json({ message: "Payment approved. Order confirmed.", order: updated });
+  } catch (err: any) {
+    if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("orders PATCH payment-review error:", err);
+    return res.status(500).json({ message: err?.message || "Internal server error" });
+  }
+});
+
+/**
  * PATCH /api/orders/:id/status
  * Body: { status: "PENDING" | "CONFIRMED" | "CANCELLED" | "COMPLETED" }
+ * - Only admin or super_admin can confirm, reject (cancel), or complete orders.
  * - When status is CANCELLED: reverse referral income (delete Income records for this order's purchases).
  */
 router.patch("/:id/status", async (req, res) => {
@@ -310,13 +466,13 @@ router.patch("/:id/status", async (req, res) => {
     const user = await UserModel.findById(ctx.userId).select("role").lean();
     if (!user) return res.status(401).json({ error: "Unauthorized" });
 
+    // Only admin or super_admin can confirm, cancel, or complete orders
+    if (!isAdminRole((user as any).role)) {
+      return res.status(403).json({ message: "Only admin or super_admin can confirm, reject, or complete orders." });
+    }
+
     const order = await OrderModel.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
-
-    const isAdmin = isAdminRole((user as any).role);
-    if (!isAdmin && String(order.user) !== String(ctx.userId)) {
-      return res.status(403).json({ message: "You can only update your own orders" });
-    }
 
     if (status === "CANCELLED") {
       const runCancel = async (session: mongoose.ClientSession | null) => {

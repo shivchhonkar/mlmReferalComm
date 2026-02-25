@@ -113,8 +113,14 @@ router.get("/", async (req, res) => {
       const parentNode = byId.get(pid)
       if (!parentNode) continue
 
-      kids.sort((a, b) => (a.position === "left" ? 0 : 1) - (b.position === "left" ? 0 : 1))
-      parentNode.children = kids.slice(0, 2)
+      // Unilevel: sort by join date (joinedAt), then legacy left/right
+      kids.sort((a, b) => {
+        const aDate = a.joinedAt ? new Date(a.joinedAt).getTime() : 0
+        const bDate = b.joinedAt ? new Date(b.joinedAt).getTime() : 0
+        if (aDate !== bDate) return aDate - bDate
+        return (a.position === "left" ? 0 : 1) - (b.position === "left" ? 0 : 1)
+      })
+      parentNode.children = kids
     }
 
     const total = downline.length
@@ -125,12 +131,11 @@ router.get("/", async (req, res) => {
     const depthFound = downline.reduce((m, x) => Math.max(m, (x.level ?? 0) + 1), 0)
 
     const directKids = childrenByParent.get(rootNode.id) ?? []
-    const directLeft = directKids.filter((k) => k.position === "left").length
-    const directRight = directKids.filter((k) => k.position === "right").length
+    const directCount = directKids.length
 
     return res.json({
       root: rootNode,
-      stats: { directLeft, directRight, allUsers, total, active, depth: depthFound },
+      stats: { directCount, directLeft: directKids.filter((k) => k.position === "left").length, directRight: directKids.filter((k) => k.position === "right").length, allUsers, total, active, depth: depthFound },
     })
   } catch (e: any) {
     // Your global error handler returns 400 for thrown errors.

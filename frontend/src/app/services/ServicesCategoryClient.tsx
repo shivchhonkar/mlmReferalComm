@@ -166,7 +166,12 @@ export default function ServicesCategoryClient({
       return [{ category: cat, services: filteredServices }];
     }
 
-    const uncategorized = filteredServices.filter((s) => !(s as any).categoryId);
+    const categoryIds = new Set(categories.map((c) => c._id));
+    const uncategorized = filteredServices.filter((s) => {
+      const cid = (s as any).categoryId;
+      if (!cid) return true;
+      return !categoryIds.has(cid); // Include orphaned (categoryId not in categories)
+    });
     const categorized = categories.map((category) => ({
       category,
       services: filteredServices.filter((s) => (s as any).categoryId === category._id),
@@ -209,26 +214,46 @@ export default function ServicesCategoryClient({
     setPriceMax("");
   };
 
+  const totalCount = services.length;
+  const totalCategories = categories.length;
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-          Services Marketplace
-        </h1>
-        <p className="text-slate-600">
-          Browse services to generate <span className="font-semibold text-emerald-700">Business Volume (BV)</span> and grow your referral income.
-        </p>
-        {/* <div className="flex flex-wrap gap-2">
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-            <Star className="h-3.5 w-3.5" />
-            Quality Assured
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
-            <TrendingUp className="h-3.5 w-3.5" />
-            Instant BV
-          </span>
-        </div> */}
+    <div className="space-y-8">
+      {/* Hero + Stats */}
+      <div className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="bg-gradient-to-br from-emerald-600 via-teal-600 to-sky-600 px-6 py-8 sm:px-8 sm:py-10">
+          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">
+            Services Marketplace
+          </h1>
+          <p className="mt-2 max-w-2xl text-emerald-50/95 text-sm sm:text-base">
+            Browse services to generate <span className="font-semibold text-white">Business Volume (BV)</span> and grow your referral income.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-4">
+            <div className="flex items-center gap-3 rounded-xl bg-white/15 backdrop-blur px-4 py-3">
+              <Package className="h-8 w-8 text-white" />
+              <div>
+                <p className="text-2xl font-bold text-white">{totalCount}</p>
+                <p className="text-xs font-medium text-emerald-100">Total services</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-white/15 backdrop-blur px-4 py-3">
+              <TrendingUp className="h-8 w-8 text-white" />
+              <div>
+                <p className="text-2xl font-bold text-white">{totalCategories}</p>
+                <p className="text-xs font-medium text-emerald-100">Categories</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 rounded-xl bg-white/15 backdrop-blur px-4 py-3">
+              <Star className="h-8 w-8 text-white" />
+              <div>
+                <p className="text-2xl font-bold text-white">{filteredServices.length}</p>
+                <p className="text-xs font-medium text-emerald-100">
+                  {activeFilterCount > 0 ? "Matching filters" : "Showing"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Filter toggle (mobile + desktop) */}
@@ -386,7 +411,7 @@ export default function ServicesCategoryClient({
               )}
             </div>
             <p className="mt-2.5 border-t border-slate-100 pt-2.5 text-[11px] text-slate-500">
-              {filteredServices.length} of {services.length} services
+              {filteredServices.length} of {totalCount} services
             </p>
           </div>
         </aside>

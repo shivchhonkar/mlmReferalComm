@@ -171,6 +171,7 @@ router.get("/", async (req, res) => {
         id: String(u._id),
         name: u.name || u.fullName || "User",
         email: u.email || "",
+        mobile: u.mobile || "",
         referralCode: u.referralCode,
         status: u.status,
         activityStatus: u.activityStatus,

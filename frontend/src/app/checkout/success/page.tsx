@@ -24,7 +24,7 @@ export default async function CheckoutSuccessPage({
               Order placed
             </h1>
             <p className="mt-2 text-slate-600">
-              Your service order has been created. Cash orders are confirmed; pay-later orders will be updated when payment is received. RazorPay integration coming soon.
+              Your service order has been created. Cash orders are confirmed; UPI orders require payment proof review; pay-later orders will be updated when payment is received.
             </p>
 
             {orderId ? (
@@ -38,7 +38,7 @@ export default async function CheckoutSuccessPage({
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
               <Link
-                href="/orders"
+                href="/dashboard/orders"
                 className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:opacity-95"
               >
                 <Receipt className="h-4 w-4" />

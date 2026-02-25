@@ -6,7 +6,6 @@ import { connectToDatabase } from "@/lib/db";
 import { signAuthToken } from "@/lib/jwt";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { generateUniqueReferralCode } from "@/lib/referral";
-import { findBinaryPlacement } from "@/lib/binaryPlacement";
 import { getBusinessOpportunityEmailContent } from "@/lib/businessOpportunity";
 import { sendEmail } from "@/lib/email";
 import { authValidation, sendValidationError, sendSuccessResponse, VALIDATION_MESSAGES, formatZodError } from "@/lib/validation";
@@ -59,15 +58,13 @@ router.post("/register", async (req, res) => {
     if (existingEmail) return sendValidationError(res, VALIDATION_MESSAGES.EMAIL_EXISTS, 409);
 
     let parentId: mongoose.Types.ObjectId | null = null;
-    let position: "left" | "right" | null = null;
 
     if (body.referralCode) {
       const sponsor = await UserModel.findOne({ referralCode: body.referralCode }).select("_id");
       if (!sponsor) return sendValidationError(res, "Invalid referral code");
 
-      const placement = await findBinaryPlacement({ sponsorId: sponsor._id });
-      parentId = placement.parentId;
-      position = placement.position;
+      // Unilevel: place directly under referrer (unlimited direct children per referral code).
+      parentId = sponsor._id;
     }
 
     const passwordHash = await hashPassword(body.password);
@@ -83,7 +80,7 @@ router.post("/register", async (req, res) => {
       role: "user",
       referralCode,
       parent: parentId,
-      position,
+      position: null,
     });
 
     // Non-blocking welcome email

@@ -36,6 +36,7 @@ type ApiNode = {
 type ApiResponse = {
   root: ApiNode | null
   stats: {
+    directCount: number
     directLeft: number
     directRight: number
     total: number

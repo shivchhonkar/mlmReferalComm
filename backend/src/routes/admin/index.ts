@@ -424,7 +424,6 @@ export function registerAdminRoutes(app: Express) {
       await requireRole(req, "super_admin");
       const body = z.object({
         referralCode: z.string().min(1, "Referral code is required"),
-        position: z.enum(["left", "right"]).optional()
       }).parse(req.body);
 
       await connectToDatabase();
@@ -449,31 +448,9 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ error: "Cannot refer yourself" });
       }
 
-      // Determine position if not provided
-      let position = body.position;
-      if (!position) {
-        // Auto-assign position based on availability
-        const leftChild = await UserModel.findOne({ parent: parentUser._id, position: "left" });
-        const rightChild = await UserModel.findOne({ parent: parentUser._id, position: "right" });
-
-        if (!leftChild) {
-          position = "left";
-        } else if (!rightChild) {
-          position = "right";
-        } else {
-          return res.status(400).json({ error: "Both positions under this referral are already filled" });
-        }
-      } else {
-        // Check if the specified position is available
-        const existingChild = await UserModel.findOne({ parent: parentUser._id, position });
-        if (existingChild) {
-          return res.status(400).json({ error: `The ${position} position under this referral is already filled` });
-        }
-      }
-
-      // Update the user with parent and position
+      // Unilevel: assign parent directly (unlimited direct children per referral code).
       user.parent = parentUser._id;
-      user.position = position;
+      user.position = null;
       await user.save();
 
       return res.json({ 
@@ -1017,15 +994,44 @@ export function registerAdminRoutes(app: Express) {
 
       const page = Number.parseInt(req.query.page as string) || 1;
       const limit = Number.parseInt(req.query.limit as string) || 10;
+      const search = (req.query.search as string)?.trim();
 
-      const services = await ServiceModel.find({ status: { $in: ["pending", "pending_approval"] } })
+      const matchQuery: Record<string, unknown> = { status: { $in: ["draft", "pending", "pending_approval"] } };
+
+      if (search) {
+        const User = mongoose.model("User");
+        const Category = mongoose.model("Category");
+        const sellerIds = await User.find({
+          $or: [
+            { name: new RegExp(search, "i") },
+            { fullName: new RegExp(search, "i") },
+            { email: new RegExp(search, "i") },
+            { mobile: new RegExp(search, "i") },
+          ],
+        }).distinct("_id");
+        const categoryIds = await Category.find({
+          $or: [{ name: new RegExp(search, "i") }, { code: new RegExp(search, "i") }],
+        }).distinct("_id");
+        const orConditions: Record<string, unknown>[] = [
+          { name: new RegExp(search, "i") },
+          { slug: new RegExp(search, "i") },
+          { description: new RegExp(search, "i") },
+          { shortDescription: new RegExp(search, "i") },
+        ];
+        if (sellerIds.length) orConditions.push({ sellerId: { $in: sellerIds } });
+        if (categoryIds.length) orConditions.push({ categoryId: { $in: categoryIds } });
+        matchQuery.$or = orConditions;
+      }
+
+      const services = await ServiceModel.find(matchQuery)
         .populate("sellerId", "name email fullName mobile")
         .populate("categoryId", "name code")
         .sort({ createdAt: -1 })
         .skip((page - 1) * limit)
-        .limit(limit);
+        .limit(limit)
+        .lean();
 
-      const total = await ServiceModel.countDocuments({ status: { $in: ["pending", "pending_approval"] } });
+      const total = await ServiceModel.countDocuments(matchQuery);
 
       return res.json({
         services,

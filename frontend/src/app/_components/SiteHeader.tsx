@@ -21,10 +21,10 @@ export default function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 bg-white backdrop-blur border-b border-gray-200 shadow-sm">
       <div className="mx-auto max-w-7xl">
-        <div className=" flex items-center justify-between px-4 lg:px-6 h-16 bg-red">
+        <div className="flex items-center justify-between px-4 lg:px-6 h-16">
           {/* Logo */}
           <Link className="items-left gap-3 group" href="/">
-            <div className="relative text-left h-16 w-[125px] sm:w-[125px] bg-red">
+            <div className="relative text-left h-16 w-[125px] sm:w-[125px]">
               <Image
                  src="/brand/logo.png"
                 alt="Sambhariya Marketing"
