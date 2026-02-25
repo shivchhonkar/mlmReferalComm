@@ -21,6 +21,8 @@ import adminSetupRoutes from "@/routes/admin/setupRoutes";
 import { registerAdminRoutes } from "@/routes/admin/index";
 import { registerSellerServiceRoutes } from "@/routes/sellerServiceRoutes";
 import requestRoutes from "@/routes/requestRoutes";
+import kycRoutes from "@/routes/kycRoutes";
+import adminKycRoutes from "@/routes/admin/kycAdminRoutes";
 
 /**
  * Register all application routes
@@ -35,9 +37,14 @@ export function registerRoutes(app: Express) {
   app.use("/api/auth", authRoutes);
 
   // ============================================================================
+  // KYC ROUTES (mounted at /api/kyc before broad /api userRoutes)
+  // ============================================================================
+  app.use("/api/kyc", kycRoutes);
+
+  // ============================================================================
   // USER ROUTES
   // ============================================================================
-  // Profile management, image upload, KYC submission
+  // Profile management, image upload
   app.use("/api", userRoutes);
 
   // ============================================================================
@@ -90,6 +97,9 @@ export function registerRoutes(app: Express) {
   
   // All admin functionality (must be before adminSetupRoutes so specific routes match first)
   registerAdminRoutes(app);
+
+  // Admin KYC routes - mounted explicitly before adminSetupRoutes to ensure /list and /counts work
+  app.use("/api/admin/kyc", adminKycRoutes);
 
   // Admin setup (initial admin account creation) - mounted after specific admin routes
   app.use("/api/admin", adminSetupRoutes);

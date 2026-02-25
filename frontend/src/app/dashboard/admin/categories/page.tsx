@@ -461,7 +461,7 @@ export default function CategoriesPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={refreshAll}
-              className="flex items-center px-4 py-2 border border-gray-300 bg-white rounded-lg hover:bg-gray-50 transition-colors"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 hover:cursor-pointer"
               title="Refresh"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
@@ -471,7 +471,7 @@ export default function CategoriesPage() {
             {activeTab === "manage" && (
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition bg-emerald-600 hover:bg-emerald-700 hover:cursor-pointer"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Create Category
@@ -484,7 +484,7 @@ export default function CategoriesPage() {
         <div className="flex gap-4 border-b border-gray-200 mb-6">
           <button
             onClick={() => setActiveTab("manage")}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+            className={`px-4 py-3 font-medium border-b-2 transition-colors hover:cursor-pointer ${
               activeTab === "manage"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-600 hover:text-gray-900"
@@ -494,7 +494,7 @@ export default function CategoriesPage() {
           </button>
           <button
             onClick={() => setActiveTab("bulk")}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+            className={`px-4 py-3 font-medium border-b-2 transition-colors hover:cursor-pointer ${
               activeTab === "bulk"
                 ? "border-blue-600 text-blue-600"
                 : "border-transparent text-gray-600 hover:text-gray-900"
@@ -799,7 +799,7 @@ export default function CategoriesPage() {
               <button
                 onClick={createCategory}
                 disabled={busy || !formData.name.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition bg-emerald-600 hover:bg-emerald-700"
               >
                 {busy ? "Creating…" : "Create Category"}
               </button>

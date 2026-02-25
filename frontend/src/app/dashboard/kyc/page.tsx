@@ -75,13 +75,18 @@ function parseBackendValidationError(raw: string): string {
   return raw;
 }
 
+type KYCStatus = "pending" | "submitted" | "verified" | "rejected";
+
 export default function KYCPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [kycLoading, setKycLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null);
+  const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(null);
   const [formData, setFormData] = useState<KYCData>({
     fullName: "",
     fatherName: "",
@@ -102,9 +107,58 @@ export default function KYCPage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
-    } else if (user && (user as { kycStatus?: string }).kycStatus === "verified") {
-      router.push("/dashboard/profile");
     }
+  }, [user, authLoading, router]);
+
+  // Fetch existing KYC data to pre-fill form
+  useEffect(() => {
+    if (!user || authLoading) return;
+    const fetchKyc = async () => {
+      setKycLoading(true);
+      try {
+        const res = await apiFetch("/api/kyc", { method: "GET" });
+        const body = await readApiBody(res);
+        const data = body.json as { kyc?: Record<string, unknown> };
+        if (res.ok && data?.kyc) {
+          const k = data.kyc as Record<string, unknown>;
+          const status = (k.kycStatus as KYCStatus) || "pending";
+          setKycStatus(status);
+          setKycRejectionReason((k.kycRejectionReason as string) || null);
+          setFormData({
+            fullName: String(k.fullName ?? ""),
+            fatherName: String(k.fatherName ?? ""),
+            address: String(k.address ?? ""),
+            dob: String(k.dob ?? ""),
+            occupation: String(k.occupation ?? ""),
+            incomeSlab: String(k.incomeSlab ?? ""),
+            profileImage: k.profileImage as string | undefined,
+            panNumber: String(k.panNumber ?? ""),
+            panDocument: k.panDocument as string | undefined,
+            aadhaarNumber: String(k.aadhaarNumber ?? ""),
+            aadhaarDocument: k.aadhaarDocument as string | undefined,
+            bankAccountName: String(k.bankAccountName ?? ""),
+            bankAccountNumber: String(k.bankAccountNumber ?? ""),
+            bankName: String(k.bankName ?? ""),
+            bankAddress: String(k.bankAddress ?? ""),
+            bankIfsc: String(k.bankIfsc ?? ""),
+            bankDocument: k.bankDocument as string | undefined,
+            nominees: Array.isArray(k.nominees)
+              ? (k.nominees as Array<{ relation?: string; name?: string; dob?: string; mobile?: string }>).map((n) => ({
+                  relation: String(n.relation ?? ""),
+                  name: String(n.name ?? ""),
+                  dob: String(n.dob ?? ""),
+                  mobile: String(n.mobile ?? ""),
+                }))
+              : [],
+          });
+        }
+      } catch {
+        // Ignore - form stays empty for new users
+      } finally {
+        setKycLoading(false);
+      }
+    };
+    fetchKyc();
   }, [user, authLoading, router]);
 
   const handleInputChange = (field: keyof KYCData, value: string) => {
@@ -229,7 +283,11 @@ export default function KYCPage() {
 
   const stepLabels = ["Personal", "Documents", "Bank", "Nominees"];
 
-  if (authLoading) {
+  const isSubmitted = kycStatus === "submitted";
+  const isVerified = kycStatus === "verified";
+  const isFormReadOnly = isSubmitted || isVerified;
+
+  if (authLoading || kycLoading) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-8">
         <div className="animate-pulse space-y-6">
@@ -290,16 +348,46 @@ export default function KYCPage() {
 
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
-            <Shield className="h-6 w-6 text-emerald-600" />
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
+              <Shield className="h-6 w-6 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">Your KYC Verification</h1>
+              <p className="mt-0.5 text-sm text-zinc-600">
+                Complete verification to access all platform features
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">KYC Verification</h1>
-            <p className="mt-0.5 text-sm text-zinc-600">
-              Complete verification to access all platform features
-            </p>
-          </div>
+          {/* KYC Status Badge */}
+          {!kycLoading && kycStatus && (
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">Status</span>
+              {kycStatus === "verified" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4" />
+                  Approved
+                </span>
+              ) : kycStatus === "submitted" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800">
+                  <FileCheck className="h-4 w-4" />
+                  Submitted for approval
+                </span>
+              ) : kycStatus === "rejected" ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800">
+                  Rejected
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700">
+                  Pending
+                </span>
+              )}
+              {kycStatus === "rejected" && kycRejectionReason && (
+                <p className="max-w-xs text-xs text-red-600">Reason: {kycRejectionReason}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -346,7 +434,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="Enter your full name"
                 />
               </div>
@@ -356,7 +445,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.fatherName}
                   onChange={(e) => handleInputChange("fatherName", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="Father&apos;s name"
                 />
               </div>
@@ -366,7 +456,8 @@ export default function KYCPage() {
                   type="date"
                   value={formData.dob}
                   onChange={(e) => handleInputChange("dob", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                 />
               </div>
               <div>
@@ -374,7 +465,8 @@ export default function KYCPage() {
                 <select
                   value={formData.occupation}
                   onChange={(e) => handleInputChange("occupation", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  disabled={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                 >
                   <option value="">Select occupation</option>
                   {occupations.map((occ) => (
@@ -387,7 +479,8 @@ export default function KYCPage() {
                 <select
                   value={formData.incomeSlab}
                   onChange={(e) => handleInputChange("incomeSlab", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  disabled={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                 >
                   <option value="">Select income slab</option>
                   {incomeSlabs.map((slab) => (
@@ -398,22 +491,26 @@ export default function KYCPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-zinc-700">Profile Image</label>
                 <div className="flex items-center gap-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload("profileImage", e.target.files[0])}
-                    className="hidden"
-                    id="profileImage"
-                  />
-                  <label
-                    htmlFor="profileImage"
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Upload Photo
-                  </label>
-                  {formData.profileImage && (
-                    <span className="text-sm font-medium text-emerald-600">Uploaded</span>
+                  {!isFormReadOnly && (
+                    <>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => e.target.files?.[0] && handleFileUpload("profileImage", e.target.files[0])}
+                        className="hidden"
+                        id="profileImage"
+                      />
+                      <label
+                        htmlFor="profileImage"
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
+                      >
+                        <Upload className="h-4 w-4" />
+                        Upload Photo
+                      </label>
+                    </>
+                  )}
+                  {(formData.profileImage || isFormReadOnly) && (
+                    <span className="text-sm font-medium text-emerald-600">{formData.profileImage ? "Uploaded" : "—"}</span>
                   )}
                 </div>
               </div>
@@ -423,8 +520,9 @@ export default function KYCPage() {
               <textarea
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
+                readOnly={isFormReadOnly}
                 rows={3}
-                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                 placeholder="Complete address"
               />
             </div>
@@ -442,7 +540,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.panNumber}
                   onChange={(e) => handleInputChange("panNumber", e.target.value.toUpperCase())}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="10 characters (e.g. ABCDE1234F)"
                   maxLength={10}
                 />
@@ -451,10 +550,14 @@ export default function KYCPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-zinc-700">PAN Document</label>
                 <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("panDocument", e.target.files[0])} className="hidden" id="panDocument" />
-                  <label htmlFor="panDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                    <Upload className="h-4 w-4" /> Upload PAN
-                  </label>
+                  {!isFormReadOnly && (
+                    <>
+                      <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("panDocument", e.target.files[0])} className="hidden" id="panDocument" />
+                      <label htmlFor="panDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                        <Upload className="h-4 w-4" /> Upload PAN
+                      </label>
+                    </>
+                  )}
                   {formData.panDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
                 </div>
               </div>
@@ -465,7 +568,8 @@ export default function KYCPage() {
                   inputMode="numeric"
                   value={formData.aadhaarNumber}
                   onChange={(e) => handleInputChange("aadhaarNumber", e.target.value.replace(/\D/g, ""))}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="12 digits (numbers only)"
                   maxLength={12}
                 />
@@ -474,10 +578,14 @@ export default function KYCPage() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-zinc-700">Aadhaar Document</label>
                 <div className="flex items-center gap-3">
-                  <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("aadhaarDocument", e.target.files[0])} className="hidden" id="aadhaarDocument" />
-                  <label htmlFor="aadhaarDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                    <Upload className="h-4 w-4" /> Upload Aadhaar
-                  </label>
+                  {!isFormReadOnly && (
+                    <>
+                      <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("aadhaarDocument", e.target.files[0])} className="hidden" id="aadhaarDocument" />
+                      <label htmlFor="aadhaarDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                        <Upload className="h-4 w-4" /> Upload Aadhaar
+                      </label>
+                    </>
+                  )}
                   {formData.aadhaarDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
                 </div>
               </div>
@@ -496,7 +604,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.bankAccountName}
                   onChange={(e) => handleInputChange("bankAccountName", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="As per bank record"
                 />
               </div>
@@ -506,7 +615,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.bankAccountNumber}
                   onChange={(e) => handleInputChange("bankAccountNumber", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="Bank account number"
                 />
               </div>
@@ -516,7 +626,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.bankName}
                   onChange={(e) => handleInputChange("bankName", e.target.value)}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="Name of bank"
                 />
               </div>
@@ -526,7 +637,8 @@ export default function KYCPage() {
                   type="text"
                   value={formData.bankIfsc}
                   onChange={(e) => handleInputChange("bankIfsc", e.target.value.toUpperCase())}
-                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  readOnly={isFormReadOnly}
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                   placeholder="11 characters (e.g. SBIN0001234)"
                   maxLength={11}
                 />
@@ -538,18 +650,23 @@ export default function KYCPage() {
               <textarea
                 value={formData.bankAddress}
                 onChange={(e) => handleInputChange("bankAddress", e.target.value)}
+                readOnly={isFormReadOnly}
                 rows={3}
-                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                 placeholder="Branch address"
               />
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-zinc-700">Bank Document (optional)</label>
               <div className="flex items-center gap-3">
-                <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("bankDocument", e.target.files[0])} className="hidden" id="bankDocument" />
-                <label htmlFor="bankDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                  <Upload className="h-4 w-4" /> Upload
-                </label>
+                {!isFormReadOnly && (
+                  <>
+                    <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("bankDocument", e.target.files[0])} className="hidden" id="bankDocument" />
+                    <label htmlFor="bankDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                      <Upload className="h-4 w-4" /> Upload
+                    </label>
+                  </>
+                )}
                 {formData.bankDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
               </div>
             </div>
@@ -561,14 +678,16 @@ export default function KYCPage() {
           <div className="space-y-6">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
               <h2 className="text-lg font-semibold text-zinc-900">Nominee Details</h2>
-              <button
-                type="button"
-                onClick={addNominee}
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                <Plus className="h-4 w-4" />
-                Add Nominee
-              </button>
+              {!isFormReadOnly && (
+                <button
+                  type="button"
+                  onClick={addNominee}
+                  className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add Nominee
+                </button>
+              )}
             </div>
             {formData.nominees.length === 0 ? (
               <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 py-12 text-center">
@@ -581,7 +700,7 @@ export default function KYCPage() {
                   <div key={index} className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-4">
                     <div className="mb-4 flex items-center justify-between">
                       <h3 className="font-medium text-zinc-900">Nominee {index + 1}</h3>
-                      {formData.nominees.length > 1 && (
+                      {!isFormReadOnly && formData.nominees.length > 1 && (
                         <button type="button" onClick={() => removeNominee(index)} className="rounded-lg p-1.5 text-red-600 hover:bg-red-50">
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -594,7 +713,8 @@ export default function KYCPage() {
                           type="text"
                           value={nominee.name}
                           onChange={(e) => handleNomineeChange(index, "name", e.target.value)}
-                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          readOnly={isFormReadOnly}
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                           placeholder="Nominee name"
                         />
                       </div>
@@ -604,7 +724,8 @@ export default function KYCPage() {
                           type="text"
                           value={nominee.relation}
                           onChange={(e) => handleNomineeChange(index, "relation", e.target.value)}
-                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          readOnly={isFormReadOnly}
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                           placeholder="e.g. Spouse, Son, Daughter"
                         />
                       </div>
@@ -614,7 +735,8 @@ export default function KYCPage() {
                           type="date"
                           value={nominee.dob}
                           onChange={(e) => handleNomineeChange(index, "dob", e.target.value)}
-                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          readOnly={isFormReadOnly}
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                         />
                       </div>
                       <div>
@@ -623,7 +745,8 @@ export default function KYCPage() {
                           type="tel"
                           value={nominee.mobile}
                           onChange={(e) => handleNomineeChange(index, "mobile", e.target.value.replace(/\D/g, ""))}
-                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          readOnly={isFormReadOnly}
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:bg-zinc-50 disabled:text-zinc-600"
                           placeholder="10 digit mobile"
                           maxLength={10}
                         />
@@ -651,12 +774,28 @@ export default function KYCPage() {
             <button
               type="button"
               onClick={() => setCurrentStep(currentStep + 1)}
-              disabled={!validateStep(currentStep)}
+              disabled={isFormReadOnly ? false : !validateStep(currentStep)}
               className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
             >
               Next
               <ArrowRight className="h-4 w-4" />
             </button>
+          ) : isFormReadOnly ? (
+            <div className="flex items-center gap-3">
+              {isVerified ? (
+                <>
+                  <p className="text-sm font-medium text-emerald-700">Your KYC has been approved.</p>
+                  <Link
+                    href="/dashboard/profile"
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    Go to Profile
+                  </Link>
+                </>
+              ) : (
+                <p className="text-sm font-medium text-amber-700">Your KYC is under review. You cannot make changes at this time.</p>
+              )}
+            </div>
           ) : (
             <button
               type="button"
@@ -672,7 +811,7 @@ export default function KYCPage() {
               ) : (
                 <>
                   <FileCheck className="h-4 w-4" />
-                  Submit KYC
+                  {kycStatus === "rejected" ? "Resubmit KYC" : "Submit KYC"}
                 </>
               )}
             </button>

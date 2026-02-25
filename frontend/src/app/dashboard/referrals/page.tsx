@@ -415,9 +415,9 @@ export default function ReferralsPage() {
             <h1 className="mt-4 text-3xl tracking-tight text-zinc-900 sm:text-4xl text-wrap inline-flex items-center gap-3">
               <Network className="h-4 w-4" /> Referral Network
             </h1>
-            <p className="mt-2 text-sm text-zinc-600">
+            {/* <p className="mt-2 text-sm text-zinc-600">
               React Flow Tree (zoom/pan/minimap) + List View (search + pagination).
-            </p>
+            </p> */}
           </div>
 
           <Link
@@ -431,8 +431,8 @@ export default function ReferralsPage() {
 
         {/* Toggle + search */}
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex gap-2">
-            <button
+          {/* <div className="flex gap-2"> */}
+            {/* <button
               type="button"
               onClick={() => setView("list")}
               className={[
@@ -444,8 +444,8 @@ export default function ReferralsPage() {
             >
               <ListIcon className="h-4 w-4" />
               List View
-            </button>
-             <button
+            </button> */}
+             {/* <button
               type="button"
               onClick={() => setView("tree")}
               className={[
@@ -457,8 +457,8 @@ export default function ReferralsPage() {
             >
               <GitBranch className="h-4 w-4" />
               Tree View
-            </button>
-          </div>
+            </button> */}
+          {/* </div> */}
 
           {view === "list" ? (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">

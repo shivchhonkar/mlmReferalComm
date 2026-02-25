@@ -237,9 +237,9 @@ export default function AdminPage() {
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 sm:inline">
-              {roleDisplay.badgeText}
+              You have {roleDisplay.badgeText} role
             </span>
-            <Link
+            {/* <Link
               href="/dashboard"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
@@ -252,7 +252,7 @@ export default function AdminPage() {
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Site</span>
-            </Link>
+            </Link> */}
           </div>
         </div>
       </div>
@@ -267,7 +267,7 @@ export default function AdminPage() {
                 type="button"
                 onClick={loadDashboardStats}
                 disabled={statsLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 hover:cursor-pointer"
               >
                 <RefreshCw className={`h-4 w-4 ${statsLoading ? "animate-spin" : ""}`} />
                 Refresh
@@ -293,7 +293,7 @@ export default function AdminPage() {
               <button
                 type="button"
                 onClick={loadDashboardStats}
-                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200"
+                className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-medium text-amber-800 hover:bg-amber-200 hover:cursor-pointer"
               >
                 <RefreshCw className="h-4 w-4" />
                 Try again
@@ -342,7 +342,7 @@ export default function AdminPage() {
                 type="button"
                 onClick={loadAnalytics}
                 disabled={analyticsLoading}
-                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-100 disabled:opacity-50 hover:cursor-pointer"
               >
                 <RefreshCw className={`h-4 w-4 ${analyticsLoading ? "animate-spin" : ""}`} />
                 Refresh

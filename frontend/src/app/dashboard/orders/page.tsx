@@ -462,17 +462,17 @@ export default function OrdersPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Link
+            {/* <Link
               href="/services"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <ShoppingBag className="h-4 w-4" />
               Browse services
-            </Link>
+            </Link> */}
             <button
               onClick={loadOrders}
               disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 hover:cursor-pointer"
             >
               <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Refresh
@@ -628,7 +628,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-semibold text-slate-900">
+                        <span className="text-slate-900">
                           {order.orderNumber}
                         </span>
                         <OrderStatusBadge status={order.status} />

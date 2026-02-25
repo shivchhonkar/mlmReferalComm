@@ -454,61 +454,6 @@ router.put("/profile/change-email", async (req, res) => {
   }
 });
 
-// KYC submission
-router.put("/kyc", async (req, res) => {
-  try {
-    const ctx = await requireAuth(req);
-    const body = z.object({
-      fullName: z.string().min(1),
-      fatherName: z.string().optional(),
-      address: z.string().min(1),
-      dob: z.string().transform(val => new Date(val)),
-      occupation: z.string().min(1),
-      incomeSlab: z.string().min(1),
-      profileImage: z.string().optional(),
-      panNumber: z.string().min(10),
-      panDocument: z.string().optional(),
-      aadhaarNumber: z.string().min(12),
-      aadhaarDocument: z.string().optional(),
-      bankAccountName: z.string().min(1),
-      bankAccountNumber: z.string().min(1),
-      bankName: z.string().min(1),
-      bankAddress: z.string().min(1),
-      bankIfsc: z.string().min(11),
-      bankDocument: z.string().optional(),
-      nominees: z.array(z.object({
-        relation: z.string().min(1),
-        name: z.string().min(1),
-        dob: z.string().transform(val => new Date(val)),
-        mobile: z.string().min(10)
-      })).optional()
-    }).parse(req.body);
-
-    await connectToDatabase();
-
-    const user = await UserModel.findByIdAndUpdate(
-      ctx.userId,
-      {
-        $set: {
-          ...body,
-          kycStatus: "submitted",
-          kycSubmittedAt: new Date()
-        }
-      },
-      { new: true, runValidators: true }
-    ).select("-passwordHash");
-
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    return res.json({ message: "KYC submitted successfully", user });
-  } catch (err: unknown) {
-    console.error('Error submitting KYC:', err);
-    const msg = err instanceof Error ? err.message : "Unable to submit KYC information";
-    const status = msg.includes("permission") || msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
-    return res.status(status).json({ error: msg });
-  }
-});
-
 export default router;
 
 

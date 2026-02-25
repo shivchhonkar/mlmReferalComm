@@ -597,7 +597,7 @@ export default function ProfilePage() {
                   key={tab.id}
                   onClick={() => setActiveSection(tab.id)}
                   className={[
-                    "flex shrink-0 flex-col items-start gap-0.5 border-b-2 px-5 py-4 text-left transition sm:flex-row sm:items-center sm:gap-2",
+                    "flex shrink-0 flex-col items-start gap-0.5 border-b-2 px-5 py-4 text-left transition sm:flex-row sm:items-center sm:gap-2 hover:cursor-pointer",
                     active
                       ? "border-emerald-600 bg-white text-emerald-700 shadow-sm"
                       : "border-transparent text-slate-600 hover:bg-white/60 hover:text-slate-900",
@@ -645,7 +645,7 @@ export default function ProfilePage() {
                 <button
                   onClick={saveBasicInfo}
                   disabled={saving}
-                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60"
+                  className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:from-emerald-700 hover:to-teal-700 disabled:opacity-60 hover:cursor-pointer"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                   {saving ? "Saving..." : "Save Changes"}

@@ -418,10 +418,20 @@ export function registerAdminRoutes(app: Express) {
   });
 
 
-  // Update user referral parent (only super_admin can assign parent to users without one)
+  // Update user referral parent (admin/super_admin/moderator can assign when user has none)
+  // Uses role from DB to avoid stale JWT after role change
   app.put("/api/admin/users/:id/referral", async (req: Request, res: Response) => {
     try {
-      await requireRole(req, "super_admin");
+      const ctx = await requireAuth(req);
+      await connectToDatabase();
+      const adminUser = await UserModel.findById(ctx.userId).select("role").lean();
+      const role = adminUser?.role ?? ctx.role;
+      if (!adminUser || !["super_admin", "admin", "moderator"].includes(role)) {
+        return res.status(403).json({
+          error: "Admin access required to assign referral parent.",
+          debug: process.env.NODE_ENV !== "production" ? { yourRole: role } : undefined,
+        });
+      }
       const body = z.object({
         referralCode: z.string().min(1, "Referral code is required"),
       }).parse(req.body);
@@ -473,7 +483,10 @@ export function registerAdminRoutes(app: Express) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;
-      return res.status(status).json({ error: msg });
+      const errorMsg = status === 403
+        ? "Admin access required to assign referral parent. Please ensure you are logged in as Admin or Super Admin."
+        : msg;
+      return res.status(status).json({ error: errorMsg });
     }
   });
 
@@ -1663,97 +1676,6 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
-  // ============================================================================
-  // KYC MANAGEMENT
-  // ============================================================================
-  
-  app.get("/api/admin/kyc/pending", async (req: Request, res: Response) => {
-    try {
-      await requireAdminRole(req);
-      await connectToDatabase();
-
-      const page = Number.parseInt(req.query.page as string) || 1;
-      const limit = Number.parseInt(req.query.limit as string) || 10;
-
-      const users = await UserModel.find({ kycStatus: "submitted" })
-        .select("-passwordHash")
-        .sort({ kycSubmittedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit);
-
-      const total = await UserModel.countDocuments({ kycStatus: "submitted" });
-
-      return res.json({
-        users,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit)
-        }
-      });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      const status = msg === "Forbidden" ? 403 : 400;
-      return res.status(status).json({ error: msg });
-    }
-  });
-
-  app.put("/api/admin/kyc/:id/approve", async (req: Request, res: Response) => {
-    try {
-      await requireAdminRole(req);
-      await connectToDatabase();
-
-      const user = await UserModel.findByIdAndUpdate(
-        req.params.id,
-        {
-          $set: {
-            kycStatus: "verified",
-            kycVerifiedAt: new Date()
-          }
-        },
-        { new: true, runValidators: true }
-      ).select("-passwordHash");
-
-      if (!user) return res.status(404).json({ error: "User not found" });
-
-      return res.json({ message: "KYC approved successfully", user });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      const status = msg === "Forbidden" ? 403 : 400;
-      return res.status(status).json({ error: msg });
-    }
-  });
-
-  app.put("/api/admin/kyc/:id/reject", async (req: Request, res: Response) => {
-    try {
-      await requireAdminRole(req);
-      const body = z.object({
-        reason: z.string().min(1, "Rejection reason is required")
-      }).parse(req.body);
-
-      await connectToDatabase();
-
-      const user = await UserModel.findByIdAndUpdate(
-        req.params.id,
-        {
-          $set: {
-            kycStatus: "rejected",
-            kycRejectedAt: new Date(),
-            kycRejectionReason: body.reason
-          }
-        },
-        { new: true, runValidators: true }
-      ).select("-passwordHash");
-
-      if (!user) return res.status(404).json({ error: "User not found" });
-
-      return res.json({ message: "KYC rejected successfully", user });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Bad request";
-      const status = msg === "Forbidden" ? 403 : 400;
-      return res.status(status).json({ error: msg });
-    }
-  });
+  // KYC management routes moved to admin/kycAdminRoutes.ts and mounted at /api/admin/kyc
 }
 

@@ -65,6 +65,17 @@ export async function requireAdminRole(req: Request): Promise<AuthContext> {
   return ctx;
 }
 
+/** Like requireAdminRole but re-fetches role from DB (fixes stale JWT after role change) */
+export async function requireAdminRoleFromDb(req: Request): Promise<AuthContext> {
+  const ctx = await requireAuth(req);
+  await connectToDatabase();
+  const user = await UserModel.findById(ctx.userId).select("role").lean();
+  if (!user || !["super_admin", "admin", "moderator"].includes(user.role)) {
+    throw new Error("Forbidden");
+  }
+  return { ...ctx, role: user.role };
+}
+
 export async function requireSuperAdminOrAdmin(req: Request): Promise<AuthContext> {
   const ctx = await requireAuth(req);
   if (!["super_admin", "admin"].includes(ctx.role)) throw new Error("Forbidden");

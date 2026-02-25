@@ -365,16 +365,16 @@ export default function DashboardPage() {
                 Become a Seller
               </button>
             ) : null}
-            <Link
+            {/* <Link
               className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/cart"
             >
               <ShoppingCart className="h-4 w-4 text-emerald-600" />
               Cart <span className="text-zinc-500">({cart.totalQuantity})</span>
-            </Link>
+            </Link> */}
             <button
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60 hover:cursor-pointer text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
               onClick={logout}
               disabled={busy}
               type="button"
