@@ -367,7 +367,7 @@ export default function OrdersPage() {
   }, [safePage, totalPages]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
       <div className="mx-auto max-w-5xl px-4 py-8 sm:py-10">

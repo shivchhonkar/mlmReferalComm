@@ -181,7 +181,7 @@ export default function AnalyticsPage() {
   /* ---------------- Main UI ---------------- */
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/70 via-white to-zinc-50">
+    <div className="min-h-screen">
       {/* Top Brand Strip */}
       <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 

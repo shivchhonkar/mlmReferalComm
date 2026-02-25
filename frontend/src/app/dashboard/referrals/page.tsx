@@ -395,7 +395,7 @@ export default function ReferralsPage() {
   )
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+    <div className="min-h-screen bg-white">
       <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">

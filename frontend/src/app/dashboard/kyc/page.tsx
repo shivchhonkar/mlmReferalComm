@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/useAuth";
 import { useRouter } from "next/navigation";
-import { User, FileCheck, Upload, Plus, Trash2, Calendar, Briefcase, CreditCard, Users, MapPin } from "lucide-react";
+import Link from "next/link";
+import { FileCheck, Upload, Plus, Trash2, Users, MapPin, ArrowLeft, ArrowRight, CheckCircle2, Shield } from "lucide-react";
 import { showSuccessToast, showErrorToast, showWarningToast } from "@/lib/toast";
+import { apiFetch, readApiBody } from "@/lib/apiClient";
 
 interface KYCData {
   fullName: string;
@@ -53,6 +55,26 @@ const occupations = [
   "Other"
 ];
 
+function parseBackendValidationError(raw: string): string {
+  try {
+    const parsed = JSON.parse(raw) as Array<{ path?: string[]; message?: string; minimum?: number, code?: string }>;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const messages = parsed.map((p) => {
+        const field = p.path?.[0] ?? "field";
+        const name = field === "aadhaarNumber" ? "Aadhaar number" : field === "bankIfsc" ? "IFSC code" : field === "panNumber" ? "PAN number" : field;
+        if (p.code === "too_small" && p.minimum !== undefined) {
+          return `${name} must be at least ${p.minimum} characters`;
+        }
+        return p.message ? `${name}: ${p.message}` : `${name} is invalid`;
+      });
+      return messages.join(". ");
+    }
+  } catch {
+    // not JSON, use as-is
+  }
+  return raw;
+}
+
 export default function KYCPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -80,8 +102,8 @@ export default function KYCPage() {
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
-    } else if (user && user.kycStatus === "verified") {
-      router.push("/profile");
+    } else if (user && (user as { kycStatus?: string }).kycStatus === "verified") {
+      router.push("/dashboard/profile");
     }
   }, [user, authLoading, router]);
 
@@ -124,14 +146,25 @@ export default function KYCPage() {
     setFormData(prev => ({ ...prev, [field]: mockUrl }));
   };
 
+  const aadhaarDigits = (formData.aadhaarNumber || "").replace(/\D/g, "");
+  const panClean = (formData.panNumber || "").trim().toUpperCase();
+  const ifscClean = (formData.bankIfsc || "").trim().toUpperCase();
+
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
         return !!(formData.fullName && formData.dob && formData.occupation && formData.incomeSlab && formData.address);
       case 2:
-        return !!(formData.panNumber && formData.aadhaarNumber);
+        return panClean !=="" && aadhaarDigits !=="" ;
+
       case 3:
-        return !!(formData.bankAccountName && formData.bankAccountNumber && formData.bankName && formData.bankAddress && formData.bankIfsc);
+        return !!(
+          formData.bankAccountName &&
+          formData.bankAccountNumber &&
+          formData.bankName &&
+          formData.bankAddress &&
+          ifscClean.length > 8
+        );
       case 4:
         return formData.nominees.length > 0 && formData.nominees.every(n => n.relation && n.name && n.dob && n.mobile);
       default:
@@ -139,10 +172,23 @@ export default function KYCPage() {
     }
   };
 
+  const getPayloadValidationError = (): string | null => {
+    if (panClean.length !== 10) return "PAN number must be exactly 10 characters.";
+    if (aadhaarDigits.length !== 12) return "Aadhaar number must be exactly 12 digits.";
+    if (ifscClean.length !== 11) return "IFSC code must be exactly 11 characters.";
+    return null;
+  };
+
   const handleSubmit = async () => {
-    if (!validateStep(currentStep)) {
-      showWarningToast("Please fill in all required fields");
-      setError("Please fill in all required fields");
+    const payloadErr = getPayloadValidationError();
+    if (payloadErr) {
+      setError(payloadErr);
+      showWarningToast(payloadErr);
+      return;
+    }
+    if (!validateStep(1) || !validateStep(2) || !validateStep(3) || !validateStep(4)) {
+      showWarningToast("Please complete all steps and fill required fields.");
+      setError("Please complete all steps. Check Personal, Documents, Bank, and Nominees.");
       return;
     }
 
@@ -150,20 +196,27 @@ export default function KYCPage() {
     setError(null);
 
     try {
-      const response = await fetch("/api/user/kyc", {
+      const payload = {
+        ...formData,
+        panNumber: panClean,
+        aadhaarNumber: aadhaarDigits,
+        bankIfsc: ifscClean,
+      };
+      const response = await apiFetch("/api/kyc", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
+      const body = await readApiBody(response);
+      const data = body.json as { error?: string };
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to submit KYC");
+        const raw = data?.error ?? body.text ?? "Failed to submit KYC";
+        const friendly = parseBackendValidationError(raw);
+        throw new Error(friendly);
       }
 
-      showSuccessToast("KYC information submitted successfully!");
+      showSuccessToast("KYC submitted successfully!");
       setSuccess(true);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "An error occurred";
@@ -174,23 +227,20 @@ export default function KYCPage() {
     }
   };
 
+  const stepLabels = ["Personal", "Documents", "Bank", "Nominees"];
+
   if (authLoading) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="animate-pulse">
-          <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-          <div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-          <div className="space-y-6">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white p-6 rounded-lg border border-gray-200">
-                <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
-                <div className="space-y-3">
-                  {[...Array(3)].map((_, j) => (
-                    <div key={j} className="h-10 bg-gray-200 rounded"></div>
-                  ))}
-                </div>
-              </div>
-            ))}
+      <div className="mx-auto max-w-3xl px-4 py-8">
+        <div className="animate-pulse space-y-6">
+          <div className="h-8 w-48 rounded bg-zinc-200" />
+          <div className="h-4 w-3/4 rounded bg-zinc-100" />
+          <div className="rounded-2xl border border-zinc-200 bg-white p-8">
+            <div className="space-y-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-12 rounded-xl bg-zinc-100" />
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -199,131 +249,132 @@ export default function KYCPage() {
 
   if (success) {
     return (
-      <div className="container mx-auto px-4 py-12 max-w-4xl">
-        <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <FileCheck className="w-8 h-8 text-green-600" />
+      <div className="mx-auto max-w-2xl px-4 py-8">
+        <div className="rounded-2xl border border-emerald-200 bg-white p-10 shadow-sm text-center">
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100">
+            <FileCheck className="h-10 w-10 text-emerald-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">KYC Submitted Successfully</h1>
-          <p className="text-lg text-gray-600 mb-8">
-            Your KYC application has been submitted and is currently under review. We will notify you once the verification is complete.
+          <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">KYC Submitted Successfully</h1>
+          <p className="mt-3 text-zinc-600">
+            Your application is under review. We will notify you once verification is complete.
           </p>
-          <button
-            onClick={() => router.push("/profile")}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Profile
-          </button>
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            <Link
+              href="/dashboard/profile"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+            >
+              Go to Profile
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Dashboard
+            </Link>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-12 max-w-4xl">
+    <div className="px-4 py-6 sm:py-8">
+      <Link
+        href="/dashboard"
+        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-zinc-600 hover:text-zinc-900"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Back to Dashboard
+      </Link>
+
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-900 mb-4">KYC Verification</h1>
-        <p className="text-lg text-gray-600">
-          Complete your Know Your Customer (KYC) verification to access all platform features
-        </p>
-      </div>
-
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          {[1, 2, 3, 4].map((step) => (
-            <div key={step} className="flex items-center">
-              <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium ${
-                  step <= currentStep
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-200 text-gray-500"
-                }`}
-              >
-                {step}
-              </div>
-              <div className="ml-3">
-                <p className={`text-sm font-medium ${
-                  step <= currentStep ? "text-blue-600" : "text-gray-500"
-                }`}>
-                  {step === 1 && "Personal Info"}
-                  {step === 2 && "Documents"}
-                  {step === 3 && "Bank Details"}
-                  {step === 4 && "Nominees"}
-                </p>
-              </div>
-              {step < 4 && (
-                <div className={`w-16 h-1 mx-4 ${
-                  step < currentStep ? "bg-blue-600" : "bg-gray-200"
-                }`} />
-              )}
-            </div>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100">
+            <Shield className="h-6 w-6 text-emerald-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-zinc-900 sm:text-3xl">KYC Verification</h1>
+            <p className="mt-0.5 text-sm text-zinc-600">
+              Complete verification to access all platform features
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* Error Display */}
+      {/* Step indicator */}
+      <div className="mb-8 flex items-center gap-2 rounded-xl border border-zinc-200 bg-white p-2 shadow-sm">
+        {[1, 2, 3, 4].map((step) => (
+          <div key={step} className="flex flex-1 items-center gap-1.5">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-semibold transition ${
+                step === currentStep
+                  ? "bg-emerald-600 text-white"
+                  : step < currentStep
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-zinc-100 text-zinc-500"
+              }`}
+            >
+              {step < currentStep ? <CheckCircle2 className="h-5 w-5" /> : step}
+            </div>
+            <span className={`hidden text-xs font-medium sm:block ${step <= currentStep ? "text-zinc-900" : "text-zinc-500"}`}>
+              {stepLabels[step - 1]}
+            </span>
+            {step < 4 && <div className="ml-1 h-0.5 flex-1 rounded bg-zinc-200" />}
+          </div>
+        ))}
+      </div>
+
+      {/* Error */}
       {error && (
-        <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600">{error}</p>
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
         </div>
       )}
 
-      {/* Form Content */}
-      <div className="bg-white rounded-lg border border-gray-200 p-8">
+      {/* Form card */}
+      <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-8">
         {/* Step 1: Personal Information */}
         {currentStep === 1 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Personal Information</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Personal Information</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Full Name *</label>
                 <input
                   type="text"
                   value={formData.fullName}
                   onChange={(e) => handleInputChange("fullName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   placeholder="Enter your full name"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Father&apos;s Name
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Father&apos;s Name</label>
                 <input
                   type="text"
                   value={formData.fatherName}
                   onChange={(e) => handleInputChange("fatherName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter father&apos;s name"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="Father&apos;s name"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Date of Birth *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Date of Birth *</label>
                 <input
                   type="date"
                   value={formData.dob}
                   onChange={(e) => handleInputChange("dob", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Occupation *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Occupation *</label>
                 <select
                   value={formData.occupation}
                   onChange={(e) => handleInputChange("occupation", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   <option value="">Select occupation</option>
                   {occupations.map((occ) => (
@@ -331,15 +382,12 @@ export default function KYCPage() {
                   ))}
                 </select>
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Income Slab *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Income Slab *</label>
                 <select
                   value={formData.incomeSlab}
                   onChange={(e) => handleInputChange("incomeSlab", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   <option value="">Select income slab</option>
                   {incomeSlabs.map((slab) => (
@@ -347,12 +395,9 @@ export default function KYCPage() {
                   ))}
                 </select>
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Profile Image
-                </label>
-                <div className="flex items-center space-x-4">
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Profile Image</label>
+                <div className="flex items-center gap-3">
                   <input
                     type="file"
                     accept="image/*"
@@ -362,28 +407,25 @@ export default function KYCPage() {
                   />
                   <label
                     htmlFor="profileImage"
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer flex items-center"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
                   >
-                    <Upload className="w-4 h-4 mr-2" />
+                    <Upload className="h-4 w-4" />
                     Upload Photo
                   </label>
                   {formData.profileImage && (
-                    <span className="text-sm text-green-600">Photo uploaded</span>
+                    <span className="text-sm font-medium text-emerald-600">Uploaded</span>
                   )}
                 </div>
               </div>
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Address *
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Address *</label>
               <textarea
                 value={formData.address}
                 onChange={(e) => handleInputChange("address", e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter your complete address"
+                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                placeholder="Complete address"
               />
             </div>
           </div>
@@ -392,84 +434,51 @@ export default function KYCPage() {
         {/* Step 2: Documents */}
         {currentStep === 2 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Identity Documents</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Identity Documents</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  PAN Number *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">PAN Number *</label>
                 <input
                   type="text"
                   value={formData.panNumber}
                   onChange={(e) => handleInputChange("panNumber", e.target.value.toUpperCase())}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter PAN number"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="10 characters (e.g. ABCDE1234F)"
                   maxLength={10}
                 />
+                <p className="mt-1 text-xs text-zinc-500">{formData.panNumber.trim().length}/10 characters</p>
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  PAN Document
-                </label>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload("panDocument", e.target.files[0])}
-                    className="hidden"
-                    id="panDocument"
-                  />
-                  <label
-                    htmlFor="panDocument"
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer flex items-center"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload PAN
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">PAN Document</label>
+                <div className="flex items-center gap-3">
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("panDocument", e.target.files[0])} className="hidden" id="panDocument" />
+                  <label htmlFor="panDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                    <Upload className="h-4 w-4" /> Upload PAN
                   </label>
-                  {formData.panDocument && (
-                    <span className="text-sm text-green-600">Document uploaded</span>
-                  )}
+                  {formData.panDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
                 </div>
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Aadhaar Number *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Aadhaar Number *</label>
                 <input
                   type="text"
+                  inputMode="numeric"
                   value={formData.aadhaarNumber}
                   onChange={(e) => handleInputChange("aadhaarNumber", e.target.value.replace(/\D/g, ""))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter Aadhaar number"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="12 digits (numbers only)"
                   maxLength={12}
                 />
+                <p className="mt-1 text-xs text-zinc-500">{formData.aadhaarNumber.replace(/\D/g, "").length}/12 digits</p>
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Aadhaar Document
-                </label>
-                <div className="flex items-center space-x-4">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={(e) => e.target.files?.[0] && handleFileUpload("aadhaarDocument", e.target.files[0])}
-                    className="hidden"
-                    id="aadhaarDocument"
-                  />
-                  <label
-                    htmlFor="aadhaarDocument"
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer flex items-center"
-                  >
-                    <Upload className="w-4 h-4 mr-2" />
-                    Upload Aadhaar
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Aadhaar Document</label>
+                <div className="flex items-center gap-3">
+                  <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("aadhaarDocument", e.target.files[0])} className="hidden" id="aadhaarDocument" />
+                  <label htmlFor="aadhaarDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                    <Upload className="h-4 w-4" /> Upload Aadhaar
                   </label>
-                  {formData.aadhaarDocument && (
-                    <span className="text-sm text-green-600">Document uploaded</span>
-                  )}
+                  {formData.aadhaarDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
                 </div>
               </div>
             </div>
@@ -479,98 +488,69 @@ export default function KYCPage() {
         {/* Step 3: Bank Details */}
         {currentStep === 3 && (
           <div className="space-y-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Bank Details</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <h2 className="text-lg font-semibold text-zinc-900">Bank Details</h2>
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Account Holder Name *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Account Holder Name *</label>
                 <input
                   type="text"
                   value={formData.bankAccountName}
                   onChange={(e) => handleInputChange("bankAccountName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter account holder name"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="As per bank record"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Account Number *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Account Number *</label>
                 <input
                   type="text"
                   value={formData.bankAccountNumber}
                   onChange={(e) => handleInputChange("bankAccountNumber", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter account number"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="Bank account number"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Bank Name *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">Bank Name *</label>
                 <input
                   type="text"
                   value={formData.bankName}
                   onChange={(e) => handleInputChange("bankName", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter bank name"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="Name of bank"
                 />
               </div>
-              
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  IFSC Code *
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-700">IFSC Code *</label>
                 <input
                   type="text"
                   value={formData.bankIfsc}
                   onChange={(e) => handleInputChange("bankIfsc", e.target.value.toUpperCase())}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter IFSC code"
+                  className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 font-mono text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  placeholder="11 characters (e.g. SBIN0001234)"
                   maxLength={11}
                 />
+                <p className="mt-1 text-xs text-zinc-500">{formData.bankIfsc.trim().length}/11 characters</p>
               </div>
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bank Address *
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Bank Address *</label>
               <textarea
                 value={formData.bankAddress}
                 onChange={(e) => handleInputChange("bankAddress", e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Enter bank branch address"
+                className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                placeholder="Branch address"
               />
             </div>
-            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Bank Document (Optional)
-              </label>
-              <div className="flex items-center space-x-4">
-                <input
-                  type="file"
-                  accept="image/*,.pdf"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("bankDocument", e.target.files[0])}
-                  className="hidden"
-                  id="bankDocument"
-                />
-                <label
-                  htmlFor="bankDocument"
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 cursor-pointer flex items-center"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload Bank Document
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Bank Document (optional)</label>
+              <div className="flex items-center gap-3">
+                <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("bankDocument", e.target.files[0])} className="hidden" id="bankDocument" />
+                <label htmlFor="bankDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
+                  <Upload className="h-4 w-4" /> Upload
                 </label>
-                {formData.bankDocument && (
-                  <span className="text-sm text-green-600">Document uploaded</span>
-                )}
+                {formData.bankDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
               </div>
             </div>
           </div>
@@ -579,87 +559,72 @@ export default function KYCPage() {
         {/* Step 4: Nominees */}
         {currentStep === 4 && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">Nominee Details</h2>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-lg font-semibold text-zinc-900">Nominee Details</h2>
               <button
+                type="button"
                 onClick={addNominee}
-                className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
               >
-                <Plus className="w-4 h-4 mr-2" />
+                <Plus className="h-4 w-4" />
                 Add Nominee
               </button>
             </div>
-            
             {formData.nominees.length === 0 ? (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Add at least one nominee to proceed</p>
+              <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 py-12 text-center">
+                <Users className="mx-auto mb-3 h-12 w-12 text-zinc-400" />
+                <p className="text-sm text-zinc-600">Add at least one nominee to proceed</p>
               </div>
             ) : (
               <div className="space-y-4">
                 {formData.nominees.map((nominee, index) => (
-                  <div key={index} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">Nominee {index + 1}</h3>
+                  <div key={index} className="rounded-xl border border-zinc-200 bg-zinc-50/30 p-4">
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="font-medium text-zinc-900">Nominee {index + 1}</h3>
                       {formData.nominees.length > 1 && (
-                        <button
-                          onClick={() => removeNominee(index)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-4 h-4" />
+                        <button type="button" onClick={() => removeNominee(index)} className="rounded-lg p-1.5 text-red-600 hover:bg-red-50">
+                          <Trash2 className="h-4 w-4" />
                         </button>
                       )}
                     </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Name *
-                        </label>
+                        <label className="mb-1.5 block text-sm font-medium text-zinc-700">Name *</label>
                         <input
                           type="text"
                           value={nominee.name}
                           onChange={(e) => handleNomineeChange(index, "name", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter nominee name"
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="Nominee name"
                         />
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Relation *
-                        </label>
+                        <label className="mb-1.5 block text-sm font-medium text-zinc-700">Relation *</label>
                         <input
                           type="text"
                           value={nominee.relation}
                           onChange={(e) => handleNomineeChange(index, "relation", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="e.g., Spouse, Son, Daughter"
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="e.g. Spouse, Son, Daughter"
                         />
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Date of Birth *
-                        </label>
+                        <label className="mb-1.5 block text-sm font-medium text-zinc-700">Date of Birth *</label>
                         <input
                           type="date"
                           value={nominee.dob}
                           onChange={(e) => handleNomineeChange(index, "dob", e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                         />
                       </div>
-                      
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Mobile Number *
-                        </label>
+                        <label className="mb-1.5 block text-sm font-medium text-zinc-700">Mobile *</label>
                         <input
                           type="tel"
                           value={nominee.mobile}
                           onChange={(e) => handleNomineeChange(index, "mobile", e.target.value.replace(/\D/g, ""))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter mobile number"
+                          className="w-full rounded-xl border border-zinc-300 px-3 py-2.5 text-zinc-900 placeholder-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          placeholder="10 digit mobile"
                           maxLength={10}
                         />
                       </div>
@@ -671,31 +636,45 @@ export default function KYCPage() {
           </div>
         )}
 
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between mt-8">
+        {/* Navigation */}
+        <div className="mt-8 flex items-center justify-between border-t border-zinc-200 pt-6">
           <button
+            type="button"
             onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
             disabled={currentStep === 1}
-            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-300 bg-white px-5 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:pointer-events-none disabled:opacity-50"
           >
+            <ArrowLeft className="h-4 w-4" />
             Previous
           </button>
-          
           {currentStep < 4 ? (
             <button
+              type="button"
               onClick={() => setCurrentStep(currentStep + 1)}
               disabled={!validateStep(currentStep)}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
             >
               Next
+              <ArrowRight className="h-4 w-4" />
             </button>
           ) : (
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={!validateStep(currentStep) || loading}
-              className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:pointer-events-none disabled:opacity-50"
             >
-              {loading ? "Submitting..." : "Submit KYC"}
+              {loading ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Submitting…
+                </>
+              ) : (
+                <>
+                  <FileCheck className="h-4 w-4" />
+                  Submit KYC
+                </>
+              )}
             </button>
           )}
         </div>

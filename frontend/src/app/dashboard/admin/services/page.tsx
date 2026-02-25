@@ -559,7 +559,7 @@ export default function AdminServicesPage() {
   }, [services, query, featuredFilter, sortBy]);
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen">
       <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">

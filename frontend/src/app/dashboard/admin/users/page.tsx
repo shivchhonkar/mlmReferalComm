@@ -770,8 +770,8 @@ function UsersPage() {
 
   if (loading && users.length === 0 && (activeTab === "users" || activeTab === "admins" || activeTab === "sellers")) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+      <div className="min-h-screen">
+        <div className="h-1" />
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
           <div className="animate-pulse space-y-6">
             <div className="h-9 w-64 rounded-lg bg-slate-200" />
@@ -797,8 +797,8 @@ function UsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
+    <div className="min-h-screen">
+      <div className="h-1" />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
         {/* Header */}

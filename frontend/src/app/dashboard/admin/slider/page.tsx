@@ -229,7 +229,7 @@ export default function AdminSliderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50/60 via-white to-zinc-50">
+    <div className="min-h-screen">
       <div className="h-1.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
 
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
@@ -281,14 +281,14 @@ export default function AdminSliderPage() {
 
         {/* Alerts */}
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-200 bg-white p-4 text-sm font-semibold text-red-700 shadow-sm flex items-center gap-2">
+          <div className="mb-6 bg-white p-4 text-sm font-semibold text-red-700 shadow-sm flex items-center gap-2">
             <AlertCircle className="h-4 w-4" />
             {error}
           </div>
         )}
 
         {/* Create New Slider */}
-        <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <div className="mb-6 bg-white p-6 ">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
               <Plus className="h-5 w-5" />

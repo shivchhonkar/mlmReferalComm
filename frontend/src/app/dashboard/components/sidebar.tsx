@@ -75,11 +75,11 @@ export default function DashboardSidebar() {
   };
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200/80 bg-white/90 shadow-sm">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-zinc-200/80 bg-green-700 shadow-sm">
       <div className="flex h-12 items-center border-b border-zinc-200/80 px-4">
         <Link
           href="/dashboard"
-          className="text-sm font-semibold tracking-tight text-zinc-900 hover:text-emerald-700"
+          className="text-sm font-semibold tracking-tight text-white-900 hover:text-emerald-700"
           prefetch={false}
         >
           Dashboard
@@ -98,10 +98,10 @@ export default function DashboardSidebar() {
                 "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                 active
                   ? "bg-emerald-50 text-emerald-800"
-                  : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                  : "text-white hover:bg-zinc-50 hover:text-zinc-900"
               )}
             >
-              <Icon className={cn("h-5 w-5 shrink-0", active ? "text-emerald-600" : "text-zinc-500")} />
+              <Icon className={cn("h-5 w-5 shrink-0", active ? "text-zinc-500" : "text-white")} />
               {label}
             </Link>
           );
@@ -125,7 +125,7 @@ export default function DashboardSidebar() {
 
         {isAdmin && (
           <>
-            <div className="mt-4 mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-violet-600">
+            <div className="mt-4 mb-1 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-white-600">
               Admin
             </div>
             {adminNavItems.map(({ href, label, icon: Icon }) => {
@@ -140,11 +140,11 @@ export default function DashboardSidebar() {
                   className={cn(
                     "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                     active
-                      ? "bg-violet-50 text-violet-800"
-                      : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900"
+                      ? "bg-zinc-50 text-zinc-800"
+                      : "text-white hover:bg-zinc-50 hover:text-zinc-900"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5 shrink-0", active ? "text-violet-600" : "text-zinc-500")} />
+                  <Icon className={cn("h-5 w-5 shrink-0", active ? "text-zinc-600" : "text-white")} />
                   {label}
                 </Link>
               );
