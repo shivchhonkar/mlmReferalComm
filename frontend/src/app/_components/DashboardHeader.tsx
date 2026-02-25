@@ -78,8 +78,8 @@ export default function DashboardHeader() {
       <div className="mx-auto max-w-7xl">
         <div className="flex h-14 items-center justify-between px-4 lg:px-6">
           {/* Logo */}
-          <Link className="flex items-center gap-2" href="/dashboard" prefetch={false}>
-            <div className="relative h-9 w-[100px] sm:w-[110px]">
+          <Link className="flex items-center gap-2" href="/" prefetch={false}>
+            <div className="relative h-9 w-[200px] sm:w-[210px]">
               <Image
                 src="/brand/logo.png"
                 alt="Sambhariya Marketing"

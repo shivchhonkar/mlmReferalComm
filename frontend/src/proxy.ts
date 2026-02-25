@@ -7,7 +7,7 @@ export function proxy(request: NextRequest) {
 
   // Protected routes that require authentication
   const protectedRoutes = ["/dashboard", "/referrals", "/account"];
-  const adminRoutes = ["/admin"];
+  const adminRoutes = ["/dashboard/admin"];
 
   const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route));
   const isAdminRoute = adminRoutes.some((route) => pathname.startsWith(route));

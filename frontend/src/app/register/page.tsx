@@ -133,7 +133,7 @@ export default function RegisterPage() {
         // ignore
       }
 
-      router.push(userRole === "admin" ? "/admin" : "/dashboard");
+      router.push(userRole === "admin" ? "/dashboard/admin" : "/dashboard");
       router.refresh();
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);

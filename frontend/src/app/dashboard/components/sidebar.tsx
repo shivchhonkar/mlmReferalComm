@@ -46,7 +46,7 @@ const adminNavItems: { href: string; label: string; icon: React.ComponentType<{ 
   { href: "/dashboard/admin/service-approval", label: "Service Approval", icon: CheckSquare },
   // { href: "/dashboard/admin/slider", label: "Slider", icon: ImageIcon },
   // { href: "/dashboard/admin/payment-settings", label: "Payment Settings", icon: CreditCard },
-  { href: "/dashboard/admin/kyc", label: "KYC", icon: FileCheck },
+  { href: "/dashboard/admin/kyc", label: "Manage KYC", icon: FileCheck },
   { href: "/dashboard/admin/contacts", label: "Contacts", icon: Mail },
   // { href: "/dashboard/admin/rules", label: "Rules", icon: Scale },
 ];
@@ -95,13 +95,13 @@ export default function DashboardSidebar() {
               href={href}
               prefetch={false}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                 active
                   ? "bg-emerald-50 text-emerald-800"
-                  : "text-white hover:bg-zinc-50 hover:text-zinc-900"
+                  : "text-white hover:bg-green-600 hover:text-white"
               )}
             >
-              <Icon className={cn("h-5 w-5 shrink-0", active ? "text-zinc-500" : "text-white")} />
+              <Icon className={cn("h-5 w-5 shrink-0 transition", active ? "text-zinc-500" : "text-white group-hover:text-white")} />
               {label}
             </Link>
           );
@@ -112,13 +112,13 @@ export default function DashboardSidebar() {
             href="/dashboard/seller/services"
             prefetch={false}
             className={cn(
-              "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
               pathname.startsWith("/dashboard/seller")
                ? "bg-emerald-50 text-emerald-800"
-                 : "text-white hover:bg-zinc-50 hover:text-zinc-900"
+                 : "text-white hover:bg-green-600 hover:text-white"
             )}
           >
-            <Package className={cn("h-5 w-5 shrink-0", pathname.startsWith("/dashboard/seller") ? "text-zinc-500" : "text-white")} />
+            <Package className={cn("h-5 w-5 shrink-0 transition", pathname.startsWith("/dashboard/seller") ? "text-zinc-500" : "text-white group-hover:text-white")} />
             My Services
           </Link>
         )}
@@ -138,13 +138,13 @@ export default function DashboardSidebar() {
                   href={href}
                   prefetch={false}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
+                    "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                     active
                       ? "bg-zinc-50 text-zinc-800"
-                      : "text-white hover:bg-zinc-50 hover:text-zinc-900"
+                      : "text-white hover:bg-green-600 hover:text-white"
                   )}
                 >
-                  <Icon className={cn("h-5 w-5 shrink-0", active ? "text-zinc-600" : "text-white")} />
+                  <Icon className={cn("h-5 w-5 shrink-0 transition", active ? "text-zinc-600" : "text-white group-hover:text-white")} />
                   {label}
                 </Link>
               );

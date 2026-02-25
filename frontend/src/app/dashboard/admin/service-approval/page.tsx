@@ -238,7 +238,7 @@ export default function ServiceApprovalPage() {
                 setSearchTerm(e.target.value);
               }}
               placeholder="Search by name, seller, category..."
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-11 pr-4 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
+              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 !pl-11 pr-4 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500"
             />
           </div>
           <div className="flex items-center gap-4">

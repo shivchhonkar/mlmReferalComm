@@ -862,7 +862,7 @@ function UsersPage() {
               </button>
             )}
             <Link
-              href="/admin"
+              href="/dashboard/admin"
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -1133,7 +1133,7 @@ function UsersPage() {
                     placeholder="Search by name, email, mobile..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-500 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 !pl-10 pr-4 text-sm text-slate-900 placeholder-slate-500 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                   />
                 </div>
                 <select

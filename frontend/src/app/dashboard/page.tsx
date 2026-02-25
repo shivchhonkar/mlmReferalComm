@@ -304,7 +304,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={copyReferralCode}
-                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-600 px-2 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700"
+                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-emerald-600 px-2 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 hover:cursor-pointer"
                 >
                   {copiedCode ? (
                     <>
@@ -313,7 +313,7 @@ export default function DashboardPage() {
                     </>
                   ) : (
                     <>
-                      <Copy className="h-4 w-4" />
+                      <Copy className="h-4 w-4 hover:cursor-pointer" />
                       Copy code
                     </>
                   )}
@@ -329,7 +329,7 @@ export default function DashboardPage() {
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
                 prefetch={false}
-                href="/admin"
+                href="/dashboard/admin"
               >
                 <Settings2 className="h-4 w-4" />
                 Admin Panel
@@ -744,7 +744,7 @@ export default function DashboardPage() {
                         {/* {inc.fromUser?.referralCode ? <span className="text-zinc-500">{inc.fromUser?.referralCode}</span> : ''} */}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
                           L{inc.level}
                         </span>
                       </td>

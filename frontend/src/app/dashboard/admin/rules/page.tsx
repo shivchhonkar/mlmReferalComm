@@ -128,13 +128,13 @@ export default function AdminRulesPage() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* <Link
-              href="/admin"
+              href="/dashboard/admin"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Admin home
             </Link>
             <Link
-              href="/admin/services"
+              href="/dashboard/admin/services"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Services

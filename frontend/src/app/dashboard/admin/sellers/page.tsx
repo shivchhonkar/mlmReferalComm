@@ -11,7 +11,7 @@ export default function AdminSellersRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/admin/users?tab=sellers");
+    router.replace("/dashboard/admin/users?tab=sellers");
   }, [router]);
 
   return (

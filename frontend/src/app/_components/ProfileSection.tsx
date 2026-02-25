@@ -160,7 +160,7 @@ export default function ProfileSection() {
   const BRAND_RING = "focus-visible:ring-[var(--primary)]";
 
   const menuItemBase =
-    "mx-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-gray-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30";
+    "mx-2 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-gray-700 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]/30";
   const menuItemHover =
     "hover:bg-[var(--gray-50)] hover:text-[var(--gray-900)] active:bg-[var(--gray-100)]";
 
@@ -213,7 +213,7 @@ export default function ProfileSection() {
         </span>
 
         <ChevronDown
-          className={`w-4 h-4 text-gray-500 transition-transform ${
+          className={`w-4 h-4 text-gray-500 transition-transform hover:cursor-pointer ${
             isProfileDropdownOpen ? "rotate-180" : ""
           }`}
         />
@@ -244,20 +244,20 @@ export default function ProfileSection() {
                       }}
                     />
                   ) : (
-                    <User className="h-5 w-5 text-white" />
+                    <User className="h-5 w-5 text-white hover:cursor-pointer" />
                   )
                 ) : (
-                  <UserCircle className="h-5 w-5 text-white" />
+                  <UserCircle className="h-5 w-5 text-white hover:cursor-pointer" />
                 )}
               </div>
 
               <div className="min-w-0 flex-1">
                 <div className="text-xs text-gray-500">Signed in as</div>
-                <div className="text-sm font-semibold text-gray-900 truncate">
+                <div className="text-sm text-gray-900 truncate">
                   {user ? user.name || user.email || "User" : "Guest"}
                 </div>
 
-                {/* <div className="mt-1 inline-flex items-center rounded-full border border-[var(--gray-200)] bg-white px-2 py-0.5 text-[11px] font-semibold text-gray-600">
+                {/* <div className="mt-1 inline-flex items-center rounded-full border border-[var(--gray-200)] bg-white px-2 py-0.5 text-[11px] text-gray-600">
                   {user ? (user.role === "admin" ? "Admin" : "Member") : "Visitor"}
                 </div> */}
               </div>
@@ -278,7 +278,7 @@ export default function ProfileSection() {
                 </Link>
 
                 <Link
-                  href="/profile"
+                  href="/dashboard/profile"
                   className={`${menuItemBase} ${menuItemHover}`}
                   onClick={closeMenu}
                 >
@@ -287,7 +287,7 @@ export default function ProfileSection() {
                 </Link>
 
                 <Link
-                  href="/orders"
+                  href="/dashboard/orders"
                   className={`${menuItemBase} ${menuItemHover}`}
                   onClick={closeMenu}
                 >
@@ -296,7 +296,7 @@ export default function ProfileSection() {
                 </Link>
 
                 <Link
-                  href="/referrals"
+                  href="/dashboard/referrals"
                   className={`${menuItemBase} ${menuItemHover}`}
                   onClick={closeMenu}
                 >
@@ -309,7 +309,7 @@ export default function ProfileSection() {
                     <div className="my-2 border-t border-[var(--gray-200)]" />
 
                     <Link
-                      href="/admin"
+                      href="/dashboard/admin"
                       className={`${menuItemBase} ${menuItemHover}`}
                       onClick={closeMenu}
                     >
@@ -318,7 +318,7 @@ export default function ProfileSection() {
                     </Link>
 
                     <Link
-                      href="/admin/users"
+                      href="/dashboard/admin/users"
                       className={`${menuItemBase} ${menuItemHover}`}
                       onClick={closeMenu}
                     >
@@ -326,27 +326,27 @@ export default function ProfileSection() {
                       Manage Users
                     </Link>
 
-                    <Link
-                      href="/admin/slider"
+                    {/* <Link
+                      href="/dashboard/admin/slider"
                       className={`${menuItemBase} ${menuItemHover}`}
                       onClick={closeMenu}
                     >
                       <ImageIcon className={`w-4 h-4 ${BRAND_TEXT}`} />
                       Manage Sliders
-                    </Link>
+                    </Link> */}
                   </>
                 )}
 
                 <div className="my-2 border-t border-[var(--gray-200)]" />
 
-                <Link
-                  href="/settings"
+                {/* <Link
+                  href="/dashboard/settings"
                   className={`${menuItemBase} ${menuItemHover}`}
                   onClick={closeMenu}
                 >
                   <Settings className={`w-4 h-4 ${BRAND_TEXT}`} />
                   Settings
-                </Link>
+                </Link> */}
 
                 <button
                   onClick={() => {

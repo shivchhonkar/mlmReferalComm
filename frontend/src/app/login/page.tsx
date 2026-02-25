@@ -91,7 +91,7 @@ export default function LoginPage() {
 
       // Redirect based on role - admin roles go to admin panel, others to dashboard
       const isAdminRole = ["super_admin", "admin", "moderator"].includes(userRole);
-      router.push(isAdminRole ? "/admin" : "/dashboard");
+      router.push(isAdminRole ? "/dashboard/admin" : "/dashboard");
       router.refresh();
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
