@@ -597,7 +597,7 @@ export default function AdminServicesPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Link
+            {/* <Link
               href="/admin"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
@@ -608,7 +608,7 @@ export default function AdminServicesPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
             >
               Rules
-            </Link>
+            </Link> */}
             <button
               type="button"
               onClick={() => load().catch((e) => setError(String(e?.message ?? e)))}

@@ -252,30 +252,30 @@ export default function AdminSliderPage() {
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Link
+            {/* <Link
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/admin"
             >
               <ArrowLeft className="h-4 w-4" />
               Back to Admin
-            </Link>
+            </Link> */}
 
-            <Link
+            {/* <Link
               className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
-              href="/admin/services"
+              href="/dashboard/admin/services"
             >
               Services
-            </Link>
+            </Link> */}
 
-            <Link
+            {/* <Link
               className="inline-flex items-center justify-center rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50"
               prefetch={false}
               href="/dashboard"
             >
               Dashboard
-            </Link>
+            </Link> */}
           </div>
         </div>
 

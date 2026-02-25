@@ -117,7 +117,7 @@ function UsersPage() {
 
   const setActiveTab = (tab: AdminUsersTab) => {
     const q = tab === "admins" ? "" : `?tab=${tab}`;
-    router.replace(`/admin/users${q}`, { scroll: false });
+    router.replace(`/dashboard/admin/users${q}`, { scroll: false });
   };
 
   const [users, setUsers] = useState<User[]>([]);
