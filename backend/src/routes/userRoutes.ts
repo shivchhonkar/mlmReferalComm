@@ -299,6 +299,70 @@ router.post("/upload/profile-image", async (req, res) => {
   }
 });
 
+// Service image upload - for admin/seller when creating/editing services (max 2MB)
+router.post("/upload/service-image", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const user = await UserModel.findById(ctx.userId).select("role isSeller sellerStatus").lean();
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+
+    const isAdmin = ["super_admin", "admin", "moderator"].includes(user.role);
+    const isApprovedSeller = user.isSeller && user.sellerStatus === "approved";
+    if (!isAdmin && !isApprovedSeller) {
+      return res.status(403).json({ error: "Admin or seller access required" });
+    }
+
+    const multer = require("multer");
+    const path = require("path");
+    const fs = require("fs");
+
+    const uploadsDir = path.join(process.cwd(), "uploads", "service-images");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const MAX_SIZE = 2 * 1024 * 1024; // 2MB
+
+    const storage = multer.diskStorage({
+      destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+      filename: (_req: any, file: Express.Multer.File, cb: any) => {
+        const ext = (path.extname(file.originalname) || ".png").toLowerCase();
+        const safeExt = [".jpg", ".jpeg", ".png", ".gif", ".webp"].includes(ext) ? ext : ".png";
+        const name = `service-${ctx.userId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+        cb(null, name);
+      },
+    });
+
+    const upload = multer({
+      storage,
+      limits: { fileSize: MAX_SIZE },
+      fileFilter: (_req: any, file: Express.Multer.File, cb: any) => {
+        if (!file.mimetype.startsWith("image/")) {
+          return cb(new Error("Only image files are allowed (JPG, PNG, GIF, WebP). Max size: 2MB."));
+        }
+        cb(null, true);
+      },
+    });
+
+    upload.single("image")(req, res, async (err: any) => {
+      if (err) {
+        const msg = err.code === "LIMIT_FILE_SIZE" ? "Image size cannot exceed 2MB." : err.message;
+        return res.status(400).json({ error: msg });
+      }
+      if (!req.file) return res.status(400).json({ error: "No image provided" });
+
+      const url = `/uploads/service-images/${req.file.filename}`;
+      return res.json({ success: true, imageUrl: url });
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unable to upload service image";
+    const status = msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
 // Payment proof (UPI screenshot) upload - for order checkout
 router.post("/upload/payment-proof", async (req, res) => {
   try {

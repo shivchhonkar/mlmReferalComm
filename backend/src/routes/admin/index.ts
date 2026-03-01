@@ -833,8 +833,17 @@ export function registerAdminRoutes(app: Express) {
       const body = schema.parse(req.body);
       await connectToDatabase();
 
-      const service = await ServiceModel.findByIdAndUpdate(req.params.id, body, { new: true });
-      if (!service) return res.status(404).json({ error: "Not found" });
+      const id = req.params.id;
+      if (!id || typeof id !== "string" || id.trim() === "") {
+        return res.status(400).json({ error: "Service ID is required" });
+      }
+
+      // Service model uses CUID (string) for _id; support ObjectId for legacy data
+      let service = await ServiceModel.findByIdAndUpdate(id, body, { new: true });
+      if (!service && mongoose.Types.ObjectId.isValid(id) && id.length === 24) {
+        service = await ServiceModel.findByIdAndUpdate(new mongoose.Types.ObjectId(id), body, { new: true });
+      }
+      if (!service) return res.status(404).json({ error: "Service not found" });
       return res.json({ service });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";

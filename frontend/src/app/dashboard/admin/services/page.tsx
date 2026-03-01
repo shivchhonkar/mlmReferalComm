@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { apiFetch } from "@/lib/apiClient";
 import { useAuth } from "@/lib/useAuth";
+import { showErrorToast } from "@/lib/toast";
 import {
   AlertCircle,
   Settings,
@@ -27,6 +28,7 @@ import {
   LayoutDashboard,
   BarChart3,
   IndianRupee,
+  Loader2,
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import AdminServiceUpload from "./AdminServiceUpload";
@@ -75,16 +77,23 @@ function generateSlug(text: string) {
     .replace(/(^-|-$)/g, "");
 }
 
+function hasDisplayableImage(url: string | undefined): boolean {
+  if (!url || !url.trim()) return false;
+  if (url.includes("default-service") || url.includes("no-image")) return false;
+  return true;
+}
+
 function ServiceImage({ src, name }: { src?: string; name: string }) {
+  const hasImage = src && (src.startsWith("http") || src.startsWith("/uploads") || src.startsWith("data:"));
   return (
     <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
       <div className="aspect-[16/10] w-full flex items-center justify-center">
-        {src?.includes("http") ? (
+        {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={name}
-            className="h-full w-full object-cover"
+            className="max-w-sm max-h-sm object-cover"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = "";
             }}
@@ -226,6 +235,46 @@ export default function AdminServicesPage() {
   const [editIsFeatured, setEditIsFeatured] = useState(false);
   const [editStatus, setEditStatus] = useState<"draft" | "pending" | "pending_approval" | "active" | "inactive" | "approved" | "rejected" | "out_of_stock">("active");
 
+  // Image upload
+  const [imageUploading, setImageUploading] = useState(false);
+  const [editImageUploading, setEditImageUploading] = useState(false);
+
+  const SERVICE_IMAGE_MAX_MB = 2;
+
+  async function uploadServiceImage(file: File, isEdit: boolean): Promise<string | null> {
+    const MAX_BYTES = SERVICE_IMAGE_MAX_MB * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      showErrorToast(`Image size must be under ${SERVICE_IMAGE_MAX_MB}MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`);
+      return null;
+    }
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      showErrorToast("Only JPG, PNG, GIF, and WebP images are allowed.");
+      return null;
+    }
+    if (isEdit) setEditImageUploading(true);
+    else setImageUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const res = await fetch("/api/upload/service-image", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+        headers: { accept: "application/json" },
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error ?? "Upload failed");
+      return data?.imageUrl ?? null;
+    } catch (e) {
+      showErrorToast(e instanceof Error ? e.message : "Image upload failed");
+      return null;
+    } finally {
+      if (isEdit) setEditImageUploading(false);
+      else setImageUploading(false);
+    }
+  }
+
   // Delete modal
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Service | null>(null);
@@ -317,9 +366,9 @@ export default function AdminServicesPage() {
         body: JSON.stringify({
           name,
           slug: finalSlug,
-          price,
-          originalPrice,
-          businessVolume,
+          price: Number(price),
+          originalPrice: originalPrice !== "" ? Number(originalPrice) : undefined,
+          businessVolume: Number(businessVolume),
           image: image || undefined,
           shortDescription: shortDescription || undefined,
           categoryId: categoryId || undefined,
@@ -377,26 +426,33 @@ export default function AdminServicesPage() {
       setError("Only admin/super_admin can update services.");
       return;
     }
+    const serviceId = editing._id;
+    if (!serviceId || typeof serviceId !== "string") {
+      setError("Invalid service: missing ID. Please refresh the page and try again.");
+      return;
+    }
 
     setBusy(true);
     setError(null);
 
     try {
-      const res = await apiFetch(`/api/admin/services/${editing._id}`, {
+      const payload: Record<string, unknown> = {
+        name: editName,
+        slug: editSlug || generateSlug(editName),
+        image: editImage || undefined,
+        shortDescription: editShortDescription || undefined,
+        categoryId: editCategoryId || undefined,
+        isFeatured: editIsFeatured,
+        status: editStatus,
+      };
+      if (editPrice !== "") payload.price = Number(editPrice);
+      if (editOriginalPrice !== "") payload.originalPrice = Number(editOriginalPrice);
+      if (editBusinessVolume !== "") payload.businessVolume = Number(editBusinessVolume);
+
+      const res = await apiFetch(`/api/admin/services/${serviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: editName,
-          slug: editSlug || generateSlug(editName),
-          price: editPrice,
-          originalPrice: editOriginalPrice, // Original price is not editable here
-          businessVolume: editBusinessVolume,
-          image: editImage || undefined,
-          shortDescription: editShortDescription || undefined,
-          categoryId: editCategoryId || undefined,
-          isFeatured: editIsFeatured,
-          status: editStatus,
-        }),
+        body: JSON.stringify(payload),
       });
 
       const json = await res.json();
@@ -938,15 +994,99 @@ export default function AdminServicesPage() {
             />
           </div>
           <div className="md:col-span-2">
-            <label className={formLabelClass}>Image URL</label>
-            <input
-              className={formInputClass}
-              type="url"
-              value={image}
-              onChange={(e) => setImage(e.target.value)}
-              placeholder="https://..."
-              disabled={!canManage}
-            />
+            <label className={formLabelClass}>Service image</label>
+            <p className="mb-2 text-xs text-slate-500">
+              Max {SERVICE_IMAGE_MAX_MB}MB · JPG, PNG, GIF, WebP
+            </p>
+            {hasDisplayableImage(image) ? (
+              <div className="flex flex-col gap-3">
+                <div className="w-full max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="aspect-[8/5] max-w-sm">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image}
+                      alt="Service preview"
+                      className="max-w-sm max-h-sm object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Upload className="h-4 w-4" />
+                    {imageUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change image"
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      disabled={!canManage || imageUploading}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        e.target.value = "";
+                        const url = await uploadServiceImage(f, false);
+                        if (url) setImage(url);
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setImage("")}
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove image
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Upload className="h-4 w-4" />
+                  {imageUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    "Upload image"
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    disabled={!canManage || imageUploading}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      e.target.value = "";
+                      const url = await uploadServiceImage(f, false);
+                      if (url) setImage(url);
+                    }}
+                  />
+                </label>
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <span>or</span>
+                </div>
+                <input
+                  className={formInputClass}
+                  type="url"
+                  value={image}
+                  onChange={(e) => setImage(e.target.value)}
+                  placeholder="Paste image URL (https://...)"
+                  disabled={!canManage}
+                />
+              </div>
+            )}
           </div>
           <div className="md:col-span-2">
             <label className={formLabelClass}>Short description</label>
@@ -1080,14 +1220,99 @@ export default function AdminServicesPage() {
             />
           </div>
           <div className="md:col-span-2">
-            <label className={formLabelClass}>Image URL</label>
-            <input
-              className={formInputClass}
-              value={editImage}
-              onChange={(e) => setEditImage(e.target.value)}
-              placeholder="https://..."
-              disabled={!canManage}
-            />
+            <label className={formLabelClass}>Service image</label>
+            <p className="mb-2 text-xs text-slate-500">
+              Max {SERVICE_IMAGE_MAX_MB}MB · JPG, PNG, GIF, WebP
+            </p>
+            {hasDisplayableImage(editImage) ? (
+              <div className="flex flex-col gap-3">
+                <div className="w-full max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="aspect-[8/5] w-full">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={editImage}
+                      alt="Service preview"
+                      className="max-w-sm max-h-sm object-cover"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                    <Upload className="h-4 w-4" />
+                    {editImageUploading ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change image"
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                      className="hidden"
+                      disabled={!canManage || editImageUploading}
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        e.target.value = "";
+                        const url = await uploadServiceImage(f, true);
+                        if (url) setEditImage(url);
+                      }}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setEditImage("")}
+                    className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 hover:bg-red-100"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove image
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60">
+                  <Upload className="h-4 w-4" />
+                  {editImageUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    "Upload image"
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    disabled={!canManage || editImageUploading}
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      e.target.value = "";
+                      const url = await uploadServiceImage(f, true);
+                      if (url) setEditImage(url);
+                    }}
+                  />
+                </label>
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <span>or</span>
+                </div>
+                <input
+                  className={formInputClass}
+                  type="url"
+                  value={editImage}
+                  onChange={(e) => setEditImage(e.target.value)}
+                  placeholder="Paste image URL (https://...)"
+                  disabled={!canManage}
+                />
+              </div>
+            )}
           </div>
           <div className="md:col-span-2">
             <label className={formLabelClass}>Short description</label>
