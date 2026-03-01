@@ -490,7 +490,7 @@ export default function ReferralsPage() {
 
         {/* Stats */}
         {stats ? (
-          <div className="mb-6 rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="mb-6 rounded-lg border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-center gap-3">
               <Badge>
                 <GitBranch className="mr-2 h-4 w-4" /> Direct: {stats.directCount ?? stats.directLeft + stats.directRight}
@@ -515,7 +515,7 @@ export default function ReferralsPage() {
         {view === "tree" ? (
           <div className="grid gap-6 lg:grid-cols-3">
             {/* ReactFlow canvas */}
-            <div className="lg:col-span-2 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
+            <div className="lg:col-span-2 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm">
               <div className="h-[70vh] min-h-[520px] w-full overflow-hidden rounded-2xl">
                 <ReactFlow
                   nodes={nodes}
@@ -606,7 +606,7 @@ export default function ReferralsPage() {
                         <button
                           type="button"
                           onClick={() => navigator.clipboard.writeText(selectedNode.referralCode)}
-                          className="rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
+                          className="rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
                         >
                           Copy
                         </button>
@@ -625,7 +625,7 @@ export default function ReferralsPage() {
           </div>
         ) : (
           /* LIST VIEW */
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm  text-zinc-900">
                 Downline List {list ? <span className="text-zinc-500">({list.total})</span> : null}
@@ -635,7 +635,7 @@ export default function ReferralsPage() {
                 <button
                   type="button"
                   onClick={() => setOffset((o) => Math.max(o - limit, 0))}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs  text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs  text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
                   disabled={!canPrev || listBusy}
                 >
                   Prev
@@ -643,7 +643,7 @@ export default function ReferralsPage() {
                 <button
                   type="button"
                   onClick={() => setOffset((o) => o + limit)}
-                  className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs  text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
+                  className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs  text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
                   disabled={!canNext || listBusy}
                 >
                   Next
@@ -657,7 +657,7 @@ export default function ReferralsPage() {
                   <tr>
                     <th className="py-3 px-4 ">Level</th>
                     <th className="py-3 px-4 ">User</th>
-                    <th className="py-3 px-4 ">Code</th>
+                    <th className="py-3 px-4 ">Referred By</th>
                     {/* <th className="py-3 px-4 ">Position</th> */}
                     <th className="py-3 px-4 ">Status</th>
                     <th className="py-3 px-4 ">Joined</th>
@@ -692,16 +692,16 @@ export default function ReferralsPage() {
                               <button
                                 type="button"
                                 onClick={() => toggleReferredBy(u.id)}
-                                className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px]  text-sky-800 hover:bg-sky-100"
+                                className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px]  text-sky-800 hover:bg-sky-100 hover:cursor-pointer"
                                 title="Show / hide referred by"
                               >
-                                <span className="text-sky-700">Ref by:</span>
+                                {/* <span className="text-sky-700">Ref by:</span> */}
                                 <span className="max-w-[180px] truncate">{rb.name}</span>
                                 <span className="ml-1 text-sky-700 hover:cursor-pointer">{isOpen ? "▲" : "▼"}</span>
                               </button>
 
                               {isOpen ? (
-                                <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
+                                <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
                                   <div className=" text-zinc-900">{rb.name}</div>
                                   <div className="mt-0.5 text-zinc-600">{rb.mobile}, {rb.email || "—"}</div>
 
@@ -724,7 +724,7 @@ export default function ReferralsPage() {
                               ) : null}
                             </div>
                           ) : (
-                            <div className="mt-2 inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px]  text-zinc-600">
+                            <div className="mt-2 inline-flex items-center rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px]  text-zinc-600">
                               Referred by: —
                             </div>
                           )}</td>
@@ -758,7 +758,7 @@ export default function ReferralsPage() {
                           <button
                             type="button"
                             onClick={() => navigator.clipboard.writeText(u.referralCode)}
-                            className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
+                            className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs  text-emerald-800 hover:bg-emerald-50 hover:cursor-pointer"
                             title="Copy code"
                           >
                             <Share2 className="h-3 w-3" />

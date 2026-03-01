@@ -353,10 +353,10 @@ export default function ProfileSection() {
                     closeMenu();
                     handleLogout();
                   }}
-                  className={`${menuItemBase} ${menuItemHover} w-full text-left`}
+                  className={`${menuItemBase} ${menuItemHover} w-full text-left hover:cursor-pointer text-red-600 hover:bg-red-50 hover:text-red-700 active:bg-red-100`}
                   role="menuitem"
                 >
-                  <LogOut className={`w-4 h-4 ${BRAND_TEXT}`} />
+                  <LogOut className={`w-4 h-4 text-red-600 ${BRAND_TEXT}`} />
                   Logout
                 </button>
               </>

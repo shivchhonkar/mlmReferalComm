@@ -124,7 +124,7 @@ export default function CartPage() {
 
         {/* Content */}
         {items.length === 0 ? (
-          <div className="rounded-3xl border border-zinc-200 bg-white p-10 text-center shadow-sm">
+          <div className="rounded-lg border border-zinc-200 bg-white p-10 text-center shadow-sm">
             <div className="mx-auto mb-6 inline-flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow">
               <ShoppingCart className="h-10 w-10" />
             </div>
@@ -165,7 +165,7 @@ export default function CartPage() {
               {items.map((item) => (
                 <div
                   key={item.id}
-                  className="group rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+                  className="group rounded-lg border border-zinc-200 bg-white p-6 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
                 >
                   <div className="flex items-start justify-between gap-6">
                     <div className="flex min-w-0 flex-1 gap-4">
@@ -193,7 +193,7 @@ export default function CartPage() {
                     </div>
 
                     <button
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-600 shadow-sm transition hover:bg-zinc-50 hover:text-zinc-900"
+                      className="inline-flex h-10 w-10 items-center justify-center text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900 hover:cursor-pointer"
                       onClick={() => dispatch(removeItem({ id: item.id }))}
                       type="button"
                       aria-label="Remove item"
@@ -217,9 +217,9 @@ export default function CartPage() {
 
                   <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     {/* Qty control */}
-                    <div className="inline-flex w-fit items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+                    <div className="inline-flex w-fit items-center overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-sm">
                       <button
-                        className="px-4 py-3 text-zinc-700 transition hover:bg-zinc-50"
+                        className="px-4 py-1 text-zinc-700 transition hover:bg-zinc-50 hover:cursor-pointer"
                         type="button"
                         onClick={() =>
                           dispatch(
@@ -234,14 +234,14 @@ export default function CartPage() {
                         −
                       </button>
 
-                      <div className="min-w-16 border-x border-zinc-200 bg-zinc-50 px-5 py-3 text-center">
+                      <div className="min-w-16 border-x border-zinc-200 bg-zinc-50 px-5 py-2 text-center">
                         <span className="text-base  text-zinc-900">
                           {item.quantity}
                         </span>
                       </div>
 
                       <button
-                        className="px-4 py-3 text-zinc-700 transition hover:bg-zinc-50"
+                        className="px-4 py-1 text-zinc-700 transition hover:bg-zinc-50 hover:cursor-pointer"
                         type="button"
                         onClick={() =>
                           dispatch(
@@ -272,7 +272,7 @@ export default function CartPage() {
             </div>
 
             {/* Order Summary */}
-            <div className="h-fit rounded-3xl border border-emerald-200 bg-white p-7 shadow-sm lg:sticky lg:top-8">
+            <div className="h-fit rounded-lg border border-emerald-200 bg-white p-7 shadow-sm lg:sticky lg:top-8">
               <div className="mb-6 flex items-center justify-between">
                 <div className="text-lg  text-zinc-900">
                   Order Summary
@@ -310,7 +310,7 @@ export default function CartPage() {
 
               <div className="mt-6 space-y-3">
                 <button
-                  className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-xl"
+                  className="w-full rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3.5 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-xl hover:cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                   type="button"
                   onClick={handleCheckoutClick}
                 >
@@ -318,7 +318,7 @@ export default function CartPage() {
                 </button>
 
                 <button
-                  className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50"
+                  className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm font-bold text-zinc-800 shadow-sm transition hover:bg-zinc-50 hover:cursor-pointer"
                   type="button"
                   onClick={() => dispatch(clearCart())}
                 >

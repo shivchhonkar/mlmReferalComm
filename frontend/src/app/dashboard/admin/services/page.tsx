@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import AdminServiceUpload from "./AdminServiceUpload";
+import { NoImage } from "@/app/services/components/NoImage";
 
 type Service = {
   _id: string;
@@ -78,7 +79,7 @@ function ServiceImage({ src, name }: { src?: string; name: string }) {
   return (
     <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
       <div className="aspect-[16/10] w-full flex items-center justify-center">
-        {src ? (
+        {src?.includes("http") ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
@@ -614,27 +615,27 @@ export default function AdminServicesPage() {
         {/* Stats */}
         <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider text-slate-500">
+            <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-slate-500">
               <BarChart3 className="h-4 w-4" />
               Total
             </div>
-            <p className="mt-2 text-2xl font-bold text-slate-900">{stats.total}</p>
+            <p className="mt-2 text-2xl text-slate-900">{stats.total}</p>
           </div>
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 shadow-sm">
             <div className="text-xs font-medium uppercase tracking-wider text-emerald-700">Active</div>
-            <p className="mt-2 text-2xl font-bold text-emerald-800">{stats.active}</p>
+            <p className="mt-2 text-2xl text-emerald-800">{stats.active}</p>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-xs font-medium uppercase tracking-wider text-slate-500">Inactive</div>
-            <p className="mt-2 text-2xl font-bold text-slate-700">{stats.inactive}</p>
+            <p className="mt-2 text-2xl text-slate-700">{stats.inactive}</p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4 shadow-sm">
             <div className="text-xs font-medium uppercase tracking-wider text-amber-700">Pending</div>
-            <p className="mt-2 text-2xl font-bold text-amber-800">{stats.pending}</p>
+            <p className="mt-2 text-2xl text-amber-800">{stats.pending}</p>
           </div>
           <div className="rounded-xl border border-sky-200 bg-sky-50/50 p-4 shadow-sm">
             <div className="text-xs font-medium uppercase tracking-wider text-sky-700">Featured</div>
-            <p className="mt-2 text-2xl font-bold text-sky-800">{stats.featured}</p>
+            <p className="mt-2 text-2xl text-sky-800">{stats.featured}</p>
           </div>
         </div>
 
@@ -766,7 +767,7 @@ export default function AdminServicesPage() {
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
-                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 hover:cursor-pointer"
                             title="Edit"
                             onClick={() => openEdit(s)}
                             disabled={!canManage || busy}
@@ -775,7 +776,7 @@ export default function AdminServicesPage() {
                           </button>
                           <button
                             type="button"
-                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50"
+                            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 disabled:opacity-50 hover:cursor-pointer"
                             title="Toggle active/inactive"
                             onClick={() => toggleActive(s)}
                             disabled={!canManage || busy}
@@ -784,7 +785,7 @@ export default function AdminServicesPage() {
                           </button>
                           <button
                             type="button"
-                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                            className="rounded-lg p-2 text-red-500 transition hover:bg-red-50 hover:text-red-700 disabled:opacity-50 hover:cursor-pointer"
                             title="Delete"
                             onClick={() => openDelete(s)}
                             disabled={!canManage || busy}
@@ -796,13 +797,13 @@ export default function AdminServicesPage() {
                       <div className="mt-4">
                         <ServiceImage src={s.image} name={s.name} />
                       </div>
-                      <h3 className="mt-4 font-semibold text-slate-900 line-clamp-2">{s.name}</h3>
+                      <div className="mt-4 text-sm font-medium text-slate-900 line-clamp-2">{s.name}</div>
                       <p className="mt-1.5 line-clamp-2 text-sm text-slate-600">
                         {s.shortDescription || "No description."}
                       </p>
                       <div className="mt-4 flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1 text-lg font-bold text-slate-900">
+                          <span className="flex items-center gap-1 text-lg text-slate-900">
                             <IndianRupee className="h-4 w-4" />
                             {formatINR(s.price)}
                           </span>

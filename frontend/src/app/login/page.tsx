@@ -213,7 +213,7 @@ export default function LoginPage() {
                   <Link
                     prefetch={false}
                     href="/forgot-password"
-                    className="text-sm font-bold text-[var(--primary)] hover:underline"
+                    className="text-sm text-[var(--primary)] hover:underline"
                   >
                     Forgot password?
                   </Link>
@@ -223,7 +223,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="mt-2 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
+                  className="mt-2 inline-flex w-full items-center justify-center gap-2 h-12 rounded-xl text-sm  text-white shadow-sm transition hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed hover: cursor-pointer"
                   style={{ background: brandGradient }}
                 >
                   {loading ? (

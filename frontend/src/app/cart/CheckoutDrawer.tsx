@@ -68,7 +68,8 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   });
 
   // Payment: Cash, UPI (with screenshot), or Pay later
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("cash");
+  // const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("upi");
   const [paymentProofUrl, setPaymentProofUrl] = useState<string>("");
   const [proofUploading, setProofUploading] = useState(false);
 
@@ -78,7 +79,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       setPaymentProofUrl("");
       return;
     }
-    setPaymentMethod("cash");
+    setPaymentMethod("upi");
     if (didPrefill) return;
 
     const profileName = safeString(user?.name);
@@ -257,7 +258,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
             <button
               type="button"
               onClick={() => !loading && onClose()}
-              className="inline-flex h-10 w-10 hover:cursor-pointer items-center justify-center rounded-xl text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-60"
+              className="inline-flex h-10 w-10 hover:cursor-pointer items-center justify-center rounded-xl text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-900 disabled:opacity-60 hover:cursor-pointer"
               disabled={loading}
               aria-label="Close"
             >
@@ -269,7 +270,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
         {/* Body */}
         <div className="h-[calc(100%-92px)] overflow-y-auto px-6 py-6">
           {/* Customer Details */}
-          <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="text-sm  text-zinc-900">
                 Customer Details
@@ -327,26 +328,12 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
 
               {/* Payment method: Cash received / Pay later */}
-            <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+            <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
               <div className="text-sm font-semibold text-zinc-900">
                 Select Payment Method
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod("cash")}
-                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
-                    paymentMethod === "cash"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
-                  }`}
-                >
-                  <Banknote className="h-5 w-5 shrink-0" />
-                  <div>
-                    <span className="block font-medium text-zinc-900">Cash</span>
-                    <span className="block text-xs opacity-90">Pay now · Confirmed</span>
-                  </div>
-                </button>
+               
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("upi")}
@@ -362,7 +349,22 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     <span className="block text-xs opacity-90">Upload screenshot · Review</span>
                   </div>
                 </button>
-                <button
+                 <button
+                  type="button"
+                  onClick={() => setPaymentMethod("cash")}
+                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
+                    paymentMethod === "cash"
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
+                  }`}
+                >
+                  <Banknote className="h-5 w-5 shrink-0" />
+                  <div>
+                    <span className="block font-medium text-zinc-900">Cash</span>
+                    <span className="block text-xs opacity-90">Pay now · Confirmed</span>
+                  </div>
+                </button> 
+                {/* <button
                   type="button"
                   onClick={() => setPaymentMethod("pay_later")}
                   className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
@@ -376,7 +378,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     <span className="block font-medium text-zinc-900">Pay later</span>
                     <span className="block text-xs opacity-90">Unpaid · Pay when ready</span>
                   </div>
-                </button>
+                </button> */}
               </div>
 
               {/* UPI: mandatory screenshot upload */}
@@ -486,7 +488,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           </div>
 
           {/* Items Summary */}
-          <div className="mt-5 rounded-3xl border border-zinc-200 bg-zinc-50 p-6">
+          <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-6">
             <div className="flex items-center justify-between">
               <div className="text-sm  text-zinc-900">
                 Order Summary
@@ -544,7 +546,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               type="button"
               disabled={loading}
               onClick={() => !loading && onClose()}
-              className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60"
+              className="w-full rounded-2xl border border-zinc-200 bg-white px-6 py-3 text-sm  text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60 hover:cursor-pointer"
             >
               Cancel
             </button>
@@ -553,7 +555,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               type="button"
               disabled={!canSubmit || loading}
               onClick={placeOrder}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-3 text-sm  text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 disabled:cursor-not-allowed disabled:opacity-60 hover:cursor-pointer"
             >
               {loading ? (
                 <>

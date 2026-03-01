@@ -482,7 +482,7 @@ export default function SettingsPage() {
         {/* Change Password Modal */}
         {showPasswordModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-xl">
               <div className="mb-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow-md">
@@ -582,7 +582,7 @@ export default function SettingsPage() {
         {/* Change Email Modal */}
         {showEmailModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-xl">
+            <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-xl">
               <div className="mb-6 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-600 to-emerald-600 text-white shadow-md">

@@ -157,11 +157,11 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
 
       <div className="overflow-auto rounded-2xl border border-zinc-200">
         <table className="w-full text-sm">
-          <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 text-left text-zinc-700">
+          <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 text-left text-zinc-700 text-xs">
             <tr>
               <th className="px-4 py-3">Level</th>
               <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Code</th>
+              <th className="px-4 py-3">Referred By</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Joined</th>
               <th className="px-4 py-3">Action</th>
@@ -192,17 +192,16 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                   <td className="px-4 py-3 align-top font-mono text-xs text-sky-800">
                     {rb ? (
                       <div className="mt-2">
-                        <button
+                       <button
                           type="button"
                           onClick={() => toggleReferredBy(u.id)}
-                          className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-800 hover:bg-sky-100"
+                          className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-800 hover:bg-sky-100 hover:cursor-pointer"
                         >
-                          <span className="text-sky-700">Ref by:</span>
-                          <span className="max-w-[180px] truncate">{rb.name}</span>
+                          <span className="max-w-[140px] truncate">{rb.name}</span>
                           <span className="ml-1 text-sky-700">{isOpen ? "▲" : "▼"}</span>
                         </button>
                         {isOpen ? (
-                          <div className="mt-2 rounded-2xl border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
+                          <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
                             <div className="text-zinc-900">{rb.name}</div>
                             <div className="mt-0.5 text-zinc-600">
                               {rb.mobile ?? "—"}, {rb.email ?? "—"}
@@ -213,7 +212,7 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                                 <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[11px] text-emerald-800">
                                   {rb.referralCode}
                                 </span>
-                                <button
+                                {/* <button
                                   type="button"
                                   onClick={() =>
                                     navigator.clipboard.writeText(rb.referralCode ?? "")
@@ -221,7 +220,7 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                                   className="rounded-lg border border-emerald-200 bg-white px-2 py-0.5 text-[11px] text-emerald-800 hover:bg-emerald-50"
                                 >
                                   Copy
-                                </button>
+                                </button> */}
                               </div>
                             ) : null}
                           </div>

@@ -5,6 +5,7 @@ import { Package, ShoppingCart, Heart, Plus, Minus, BadgePercent, Sparkles } fro
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem, removeItem, updateQty } from "@/store/slices/cartSlice";
+import { NoImage } from "./NoImage";
 import type { Service } from "@/store/slices/serviceSlice";
 interface ServiceCardProps {
   service: Service;
@@ -56,7 +57,7 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const isActive = status === "active";
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
       {/* Top accent */}
       <div className="h-1 w-full bg-gradient-to-r from-[#22C55E] to-[#0EA5E9]" />
 
@@ -81,15 +82,21 @@ export default function ServiceCard({ service }: ServiceCardProps) {
       {/* Wishlist */}
       <button
         onClick={() => setIsWishlisted((v) => !v)}
-        className="absolute right-4 bottom-[130px] z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--gray-200)] bg-white/95 backdrop-blur shadow-sm transition hover:shadow-md"
+        className="group absolute right-4 bottom-[130px] z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--gray-200)] bg-white/95 backdrop-blur shadow-sm transition hover:shadow-md hover:cursor-pointer"
         aria-label="Toggle wishlist"
       >
-        <Heart className={`h-5 w-5 ${isWishlisted ? "fill-red-500 text-red-500" : "text-[var(--gray-500)] group-hover:text-red-500"}`} />
+        <Heart
+          className={`h-5 w-5 transition-colors duration-200 ${isWishlisted
+              ? "fill-red-500 text-red-500"
+              : "text-[var(--gray-500)] group-hover:text-red-500"
+            }`}
+        />
       </button>
 
       {/* Media */}
+      {console.log('service:', service.image)}
       <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
-        {service.image ? (
+        {(service.image&&!service.image.includes("default-service")&&!service.image.includes("no-image")) ? (
           <img
             src={service.image}
             alt={service.name}

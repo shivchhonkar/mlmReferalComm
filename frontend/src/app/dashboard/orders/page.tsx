@@ -503,7 +503,7 @@ export default function OrdersPage() {
             >
               <Filter className="h-4 w-4 text-slate-500" />
               <span className="truncate">{currentFilterLabel}</span>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${dropdownOpen ? "rotate-180" : ""}`} />
+              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition cursor-pointer ${dropdownOpen ? "rotate-180" : ""}`} />
             </button>
             {dropdownOpen && (
               <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
@@ -531,7 +531,7 @@ export default function OrdersPage() {
                             setDropdownOpen(false);
                             setPage(1);
                           }}
-                          className={`w-full px-3 py-2 text-left text-sm transition ${
+                          className={`w-full px-3 py-2 text-left text-sm transition hover:cursor-pointer ${
                             filterOption === opt.value
                               ? "bg-emerald-50 font-medium text-emerald-800"
                               : "text-slate-700 hover:bg-slate-50"
@@ -552,7 +552,7 @@ export default function OrdersPage() {
                 type="button"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white hover:cursor-pointer"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
@@ -563,7 +563,7 @@ export default function OrdersPage() {
                 type="button"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white hover:cursor-pointer"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
@@ -628,7 +628,7 @@ export default function OrdersPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-slate-900">
+                        <span className="text-slate-900 text-sm font-medium">
                           {order.orderNumber}
                         </span>
                         <OrderStatusBadge status={order.status} />
@@ -659,7 +659,7 @@ export default function OrdersPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-lg text-emerald-700">
+                      <span className="text-sm font-medium text-emerald-700">
                         {formatINR(order.total)}
                       </span>
                       <button
@@ -668,7 +668,7 @@ export default function OrdersPage() {
                           e.stopPropagation();
                           setExpandedId(isExpanded ? null : order.id);
                         }}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 hover:cursor-pointer"
                         aria-label={isExpanded ? "Collapse details" : "View details"}
                       >
                         {isExpanded ? (
@@ -687,11 +687,11 @@ export default function OrdersPage() {
                       <div className="mb-6 grid gap-4 sm:grid-cols-2">
                         {isAdmin ? (
                           <>
-                            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                Customer
-                              </h4>
-                              <dl className="mt-3 space-y-2 text-sm">
+                            <div className="rounded-lg border border-slate-200 bg-white p-4">
+                              <div className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                                Customer Details 
+                              </div>
+                              <dl className="mt-3 space-y-2 text-xs">
                                 {order.customerName && (
                                   <div className="flex items-center gap-2">
                                     <User className="h-4 w-4 text-slate-400" />
@@ -712,10 +712,10 @@ export default function OrdersPage() {
                                 )}
                               </dl>
                             </div>
-                            <div className="rounded-xl border border-slate-200 bg-white p-4">
-                              <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                            <div className="rounded-lg border border-slate-200 bg-white p-4">
+                              <div className="text-sm font-semibold uppercase tracking-wider text-slate-500">
                                 Payment
-                              </h4>
+                              </div>
                               <div className="mt-3 flex flex-wrap items-center gap-2">
                                 <span className="flex items-center gap-2 text-sm text-slate-700">
                                   <PaymentModeIcon mode={order.paymentMode} />
@@ -743,10 +743,10 @@ export default function OrdersPage() {
                             </div>
                           </>
                         ) : (
-                          <div className="rounded-xl border border-slate-200 bg-white p-4 sm:col-span-2">
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                          <div className="rounded-lg border border-slate-200 bg-white p-4 sm:col-span-2">
+                            <div className="text-sm font-semibold uppercase tracking-wider text-slate-500">
                               Payment
-                            </h4>
+                            </div>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <span className="flex items-center gap-2 text-sm text-slate-700">
                                 <PaymentModeIcon mode={order.paymentMode} />
@@ -779,10 +779,10 @@ export default function OrdersPage() {
                       </div>
 
                       {/* Order items - visible to all */}
-                      <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                        <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <div className="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-slate-500">
                           Items
-                        </h4>
+                        </div>
                         <ul className="mt-3 space-y-2">
                           {rawItems.map((it, idx) => (
                             <li
@@ -790,7 +790,7 @@ export default function OrdersPage() {
                               className="flex items-center justify-between gap-4 border-b border-slate-100 pb-2 last:border-0 last:pb-0"
                             >
                               <div>
-                                <span className="text-sm font-medium text-slate-900">
+                                <span className="text-sm text-slate-900">
                                   {it.name ?? "Item"}
                                 </span>
                                 <span className="ml-2 text-xs text-slate-500">
@@ -798,7 +798,7 @@ export default function OrdersPage() {
                                   {typeof it.bv === "number" ? ` · ${it.bv} BV` : ""}
                                 </span>
                               </div>
-                              <span className="text-sm font-semibold text-slate-900">
+                              <span className="text-xs font-semibold text-slate-900">
                                 {formatINR(safeNum(it.price, 0) * safeNum(it.quantity, 1))}
                               </span>
                             </li>
