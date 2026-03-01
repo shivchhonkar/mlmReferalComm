@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, Suspense, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense, useCallback, Fragment } from "react";
 import { useAuth } from "@/lib/useAuth";
 import {
   Users,
@@ -29,6 +29,16 @@ import {
   Calendar,
   Package,
   KeyRound,
+  ChevronDown,
+  ChevronUp,
+  LogIn,
+  LogOut,
+  ShoppingCart,
+  DollarSign,
+  Briefcase,
+  Users2,
+  Activity,
+  Loader2,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -85,6 +95,22 @@ interface UsersResponse {
   };
 }
 
+interface UserActivityData {
+  user: { _id: string; fullName?: string; referralCode?: string; parent?: { name?: string } };
+  referralInfo: {
+    referredBy: { name?: string; email?: string; mobile?: string } | null;
+    referralChain: { name: string; referralCode?: string }[];
+    downline?: { _id: string; fullName?: string; name?: string; email?: string; mobile?: string; referralCode?: string; createdAt: string }[];
+  };
+  loginActivity: { success: boolean; ip?: string; userAgent?: string; failureReason?: string; createdAt: string }[];
+  logoutActivity: { ip?: string; userAgent?: string; reason?: string; createdAt: string }[];
+  accountChanges: { changedFields: string[]; changeType: string; changedBy?: { name?: string }; createdAt: string }[];
+  serviceActions: { serviceId: string; action: string; previousStatus?: string; newStatus?: string; createdAt: string }[];
+  purchases: { _id: string; serviceId?: string; serviceName?: string | null; service?: string; bv: number; createdAt: string }[];
+  orders: { _id: string; status: string; paymentStatus?: string; totals?: { totalAmount?: number }; createdAt: string }[];
+  earnings: { fromUser?: { name?: string }; toUser?: { name?: string }; level: number; bv: number; incomeAmount: number; createdAt: string }[];
+}
+
 /**
  * Γ£à Admin can manage users (activate/suspend, edit user basic fields).
  * Γ£à Super admin can additionally: promote/demote roles, delete users.
@@ -119,6 +145,9 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
   const [loading, setLoading] = useState(true);
   const [mutating, setMutating] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [activityCache, setActivityCache] = useState<Record<string, UserActivityData>>({});
+  const [loadingActivityFor, setLoadingActivityFor] = useState<string | null>(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("");
@@ -341,8 +370,10 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
   useEffect(() => {
     const role = searchParams.get("role");
     const status = searchParams.get("status");
+    const search = searchParams.get("search");
     if (role) setRoleFilter(role);
     if (status) setStatusFilter(status);
+    if (search) setSearchTerm(search);
   }, [searchParams]);
 
   // Close menu when clicking outside
@@ -671,6 +702,29 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
     setSelectedUserForReferral(user);
     setReferralForm({ referralCode: "" });
     setShowReferralModal(true);
+  };
+
+  const toggleActivity = async (user: User) => {
+    if (expandedUserId === user._id) {
+      setExpandedUserId(null);
+      return;
+    }
+    setExpandedUserId(user._id);
+    if (activityCache[user._id]) return;
+    setLoadingActivityFor(user._id);
+    try {
+      const res = await apiFetch(`/api/admin/users/${user._id}/activity`, { credentials: "include" });
+      const data = await res.json();
+      if (res.ok && data) {
+        setActivityCache((prev) => ({ ...prev, [user._id]: data }));
+      } else {
+        showErrorToast(data?.error || "Failed to load activity");
+      }
+    } catch (e) {
+      showErrorToast("Failed to load user activity");
+    } finally {
+      setLoadingActivityFor(null);
+    }
   };
 
   const assignReferral = async () => {
@@ -1171,6 +1225,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
             <table className="w-full">
               <thead className="border-b border-slate-200 bg-slate-50">
                 <tr>
+                  <th className="w-10 px-2 py-3" />
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">User</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Contact</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Referral code</th>
@@ -1187,13 +1242,27 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                   const rowBusy = mutating === u._id;
 
                   return (
+                    <Fragment key={u._id}>
                     <tr
-                      key={u._id}
                       className={[
                         "transition-colors",
                         !u.parent && u.role === "user" ? "bg-amber-50/50 hover:bg-amber-100/50" : "hover:bg-slate-50/80",
                       ].join(" ")}
                     >
+                      <td className="w-10 px-2 py-4 align-top">
+                        <button
+                          type="button"
+                          onClick={() => toggleActivity(u)}
+                          className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition"
+                          title="More information / Activity"
+                        >
+                          {expandedUserId === u._id ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                      </td>
                       <td className="px-6 py-4 align-top">
                         <div className="flex items-start gap-2">
                           {!u.parent && u.role === "user" && (
@@ -1436,6 +1505,18 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                         </div>
                       </td>
                     </tr>
+                    {expandedUserId === u._id && (
+                      <tr className="bg-slate-50/80">
+                        <td colSpan={9} className="px-6 py-4">
+                          <UserActivityPanel
+                            user={u}
+                            data={activityCache[u._id]}
+                            loading={loadingActivityFor === u._id}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -2044,6 +2125,215 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function UserActivityPanel({
+  user,
+  data,
+  loading,
+}: {
+  user: User;
+  data?: UserActivityData | null;
+  loading: boolean;
+}) {
+  const fmt = (d: string) => (d ? new Date(d).toLocaleString() : "—");
+  const fmtShort = (d: string) => (d ? new Date(d).toLocaleDateString() : "—");
+
+  return (
+    <div className="border-l-4 border-emerald-500 bg-white rounded-r-xl p-4 shadow-sm">
+      <h3 className="text-sm font-bold text-zinc-800 mb-4 flex items-center gap-2">
+        <Activity className="h-4 w-4" />
+        More information
+      </h3>
+      {loading ? (
+        <div className="flex items-center gap-2 text-zinc-500 py-6">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Loading activity...</span>
+        </div>
+      ) : data ? (
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* Login Activity */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <LogIn className="h-3.5 w-3.5" /> Login Activity
+            </h4>
+            {data.loginActivity?.length ? (
+              <div className="space-y-1.5 max-h-32 overflow-y-auto text-xs">
+                {data.loginActivity.slice(0, 5).map((l, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className={l.success ? "text-emerald-600" : "text-red-600"}>
+                      {l.success ? "✓" : "✗"}
+                    </span>
+                    <span>{fmt(l.createdAt)}</span>
+                    {l.ip && <span className="text-zinc-400">{l.ip}</span>}
+                    {l.failureReason && <span className="text-red-600">({l.failureReason})</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No login records yet</p>
+            )}
+          </div>
+
+          {/* Logout */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <LogOut className="h-3.5 w-3.5" /> Logout
+            </h4>
+            {data.logoutActivity?.length ? (
+              <div className="space-y-1.5 max-h-32 overflow-y-auto text-xs">
+                {data.logoutActivity.slice(0, 5).map((l, i) => (
+                  <div key={i}>{fmt(l.createdAt)} {l.reason && `• ${l.reason}`}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No logout records yet</p>
+            )}
+          </div>
+
+          {/* Referral Info */}
+          <div className="space-y-2 md:col-span-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <Users2 className="h-3.5 w-3.5" /> Referral Info
+            </h4>
+            <div className="text-xs space-y-2">
+              {data.referralInfo?.referredBy ? (
+                <div>
+                  <p>Referred by: {data.referralInfo.referredBy.name || "—"}</p>
+                  {data.referralInfo.referralChain?.length > 1 && (
+                    <p className="mt-1 text-zinc-500">Upline chain: {data.referralInfo.referralChain.map((c) => c.name).join(" → ")}</p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-zinc-400">No referral parent</p>
+              )}
+              {data.referralInfo?.downline && data.referralInfo.downline.length > 0 ? (
+                <div className="mt-2">
+                  <p className="font-medium text-zinc-700 mb-1">Downline ({data.referralInfo.downline.length}):</p>
+                  <div className="space-y-1 max-h-28 overflow-y-auto">
+                    {data.referralInfo.downline.map((d) => {
+                      const searchVal = d.email || d.mobile || d.fullName || d.name || "";
+                      const href = searchVal
+                        ? `/dashboard/admin/users/users?search=${encodeURIComponent(searchVal)}`
+                        : "/dashboard/admin/users/users";
+                      return (
+                      <Link
+                        key={d._id}
+                        href={href}
+                        className="block py-0.5 px-2 rounded hover:bg-slate-100 text-sky-600 hover:text-sky-800 hover:underline"
+                      >
+                        {d.fullName || d.name || "—"} {d.referralCode && <span className="text-zinc-400">({d.referralCode})</span>}
+                        <span className="text-zinc-500 block text-[10px]">{(d.email || d.mobile || "").replace(/\s/g, "")} • Joined {fmtShort(d.createdAt)}</span>
+                      </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <p className="mt-1 text-zinc-400">No downline referrals</p>
+              )}
+            </div>
+          </div>
+
+          {/* Purchases */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <ShoppingCart className="h-3.5 w-3.5" /> Purchases
+            </h4>
+            {data.purchases?.length ? (
+              <div className="space-y-1 max-h-24 overflow-y-auto text-xs">
+                {data.purchases.slice(0, 5).map((p) => {
+                  const serviceId = p.serviceId || p.service;
+                  const serviceName = p.serviceName || (serviceId ? `ID: ${serviceId}` : "Unknown");
+                  return (
+                    <div key={p._id} className="flex items-center gap-1 flex-wrap">
+                      {serviceId ? (
+                        <Link
+                          href={`/dashboard/admin/services?highlight=${serviceId}`}
+                          className="font-medium text-sky-600 hover:text-sky-800 hover:underline"
+                        >
+                          {serviceName}
+                        </Link>
+                      ) : (
+                        <span>{serviceName}</span>
+                      )}
+                      <span className="text-zinc-500">• BV: {p.bv} • {fmtShort(p.createdAt)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No purchases</p>
+            )}
+          </div>
+
+          {/* Orders */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <Package className="h-3.5 w-3.5" /> Orders
+            </h4>
+            {data.orders?.length ? (
+              <div className="space-y-1 max-h-24 overflow-y-auto text-xs">
+                {data.orders.slice(0, 5).map((o) => (
+                  <div key={o._id}>₹{o.totals?.totalAmount ?? 0} • {o.paymentStatus || o.status} • {fmtShort(o.createdAt)}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No orders</p>
+            )}
+          </div>
+
+          {/* Earnings */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <DollarSign className="h-3.5 w-3.5" /> Earnings / Commission
+            </h4>
+            {data.earnings?.length ? (
+              <div className="space-y-1 max-h-24 overflow-y-auto text-xs">
+                {data.earnings.slice(0, 5).map((e, i) => (
+                  <div key={i}>Level {e.level} • ₹{e.incomeAmount} • BV {e.bv} • {fmtShort(e.createdAt)}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No earnings</p>
+            )}
+          </div>
+
+          {/* Account Changes */}
+          <div className="space-y-2 md:col-span-2 lg:col-span-3">
+            <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+              <Briefcase className="h-3.5 w-3.5" /> Account Changes
+            </h4>
+            {data.accountChanges?.length ? (
+              <div className="space-y-1 max-h-20 overflow-y-auto text-xs">
+                {data.accountChanges.slice(0, 5).map((a, i) => (
+                  <div key={i}>{a.changedFields.join(", ")} ({a.changeType}) • {fmt(a.createdAt)}</div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">No account changes logged</p>
+            )}
+          </div>
+
+          {/* Service Actions */}
+          {data.serviceActions?.length ? (
+            <div className="space-y-2 md:col-span-2 lg:col-span-3">
+              <h4 className="text-xs font-semibold uppercase text-zinc-500 flex items-center gap-1.5">
+                <Store className="h-3.5 w-3.5" /> Service Actions
+              </h4>
+              <div className="space-y-1 max-h-20 overflow-y-auto text-xs">
+                {data.serviceActions.slice(0, 5).map((s, i) => (
+                  <div key={i}>{s.action} {s.previousStatus && `→ ${s.newStatus}`} • {fmt(s.createdAt)}</div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="text-sm text-zinc-500">Failed to load activity</p>
+      )}
     </div>
   );
 }

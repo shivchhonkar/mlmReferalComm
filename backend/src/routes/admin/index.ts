@@ -11,6 +11,7 @@ import { requireAuth, requireRole, requireAdminRole, requireSuperAdminOrAdmin } 
 
 import { UserModel } from "@/models/User";
 import { ServiceModel } from "@/models/Service";
+import { logAccountChange, logServiceAction } from "@/lib/activityLogger";
 import { CategoryModel } from "@/models/Category";
 import { SubcategoryModel } from "@/models/Subcategory";
 import { PurchaseModel } from "@/models/Purchase";
@@ -18,6 +19,11 @@ import { IncomeLogModel } from "@/models/IncomeLog";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { ContactModel } from "@/models/Contact";
 import { Slider } from "@/models/Slider";
+import { LoginActivityLogModel } from "@/models/LoginActivityLog";
+import { LogoutActivityLogModel } from "@/models/LogoutActivityLog";
+import { AccountChangeLogModel } from "@/models/AccountChangeLog";
+import { ServiceActionLogModel } from "@/models/ServiceActionLog";
+import { OrderModel } from "@/models/Order";
 import mongoose from "mongoose";
 
 /**
@@ -271,6 +277,170 @@ export function registerAdminRoutes(app: Express) {
     }
   });
 
+  app.get("/api/admin/users/:id/activity", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+
+      const userId = req.params.id;
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ error: "Invalid user id" });
+      }
+
+      const user = await UserModel.findById(userId)
+        .select("_id fullName name email mobile parent referralCode createdAt")
+        .populate("parent", "name fullName email mobile referralCode");
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const userObjectId = user._id;
+
+      const [loginLogs, logoutLogs, accountLogs, serviceActions, purchases, orders, earnings, downlineByParent, downlineByReferralCode] = await Promise.all([
+        LoginActivityLogModel.find({ userId: userObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
+        LogoutActivityLogModel.find({ userId: userObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
+        AccountChangeLogModel.find({ userId: userObjectId }).sort({ createdAt: -1 }).limit(20).populate("changedBy", "name fullName").lean(),
+        ServiceActionLogModel.find({ sellerId: userObjectId }).sort({ createdAt: -1 }).limit(20).lean(),
+        PurchaseModel.find({ user: userObjectId }).sort({ createdAt: -1 }).limit(30).populate("service", "name _id").lean(),
+        OrderModel.find({ user: userObjectId }).sort({ createdAt: -1 }).limit(30).lean(),
+        IncomeLogModel.find({ $or: [{ fromUserId: userObjectId }, { toUserId: userObjectId }] })
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .populate("fromUserId", "name fullName")
+          .populate("toUserId", "name fullName")
+          .lean(),
+        UserModel.find({ parent: userObjectId })
+          .select("_id fullName name email mobile referralCode createdAt")
+          .sort({ createdAt: -1 })
+          .limit(30)
+          .lean(),
+        user.referralCode
+          ? UserModel.aggregate([
+              { $match: { parent: { $exists: true, $ne: null } } },
+              { $lookup: { from: "users", localField: "parent", foreignField: "_id", as: "p", pipeline: [{ $project: { referralCode: 1 } }] } },
+              { $unwind: "$p" },
+              { $match: { "p.referralCode": user.referralCode } },
+              { $project: { _id: 1, fullName: 1, name: 1, email: 1, mobile: 1, referralCode: 1, createdAt: 1 } },
+              { $sort: { createdAt: -1 } },
+              { $limit: 30 },
+            ])
+          : [],
+      ]);
+
+      const referralChain: { name: string; referralCode?: string }[] = [];
+      let current: any = user.parent;
+      let depth = 0;
+      while (current && depth < 10) {
+        referralChain.push({
+          name: current.fullName || current.name || "N/A",
+          referralCode: current.referralCode,
+        });
+        const nextUser = await UserModel.findById(current._id).select("parent").populate("parent", "name fullName referralCode").lean();
+        current = nextUser?.parent;
+        depth++;
+      }
+
+      return res.json({
+        user: {
+          _id: user._id,
+          fullName: user.fullName,
+          name: user.name,
+          email: user.email,
+          mobile: user.mobile,
+          referralCode: user.referralCode,
+          parent: user.parent,
+          createdAt: user.createdAt,
+        },
+        referralInfo: {
+          referredBy: user.parent
+            ? { name: (user.parent as any).fullName || (user.parent as any).name, email: (user.parent as any).email, mobile: (user.parent as any).mobile }
+            : null,
+          referralChain,
+          downline: (() => {
+            const byParent = downlineByParent || [];
+            const byCode = Array.isArray(downlineByReferralCode) ? downlineByReferralCode : [];
+            const seen = new Set<string>();
+            const merged: any[] = [];
+            for (const d of byParent) {
+              const id = d._id?.toString();
+              if (id && !seen.has(id)) {
+                seen.add(id);
+                merged.push(d);
+              }
+            }
+            for (const d of byCode) {
+              const id = d._id?.toString();
+              if (id && !seen.has(id)) {
+                seen.add(id);
+                merged.push(d);
+              }
+            }
+            return merged;
+          })().map((d: any) => ({
+            _id: d._id,
+            fullName: d.fullName,
+            name: d.name,
+            email: d.email,
+            mobile: d.mobile,
+            referralCode: d.referralCode,
+            createdAt: d.createdAt,
+          })),
+        },
+        loginActivity: loginLogs.map((l: any) => ({
+          success: l.success,
+          ip: l.ip,
+          userAgent: l.userAgent,
+          failureReason: l.failureReason,
+          createdAt: l.createdAt,
+        })),
+        logoutActivity: logoutLogs.map((l: any) => ({
+          ip: l.ip,
+          userAgent: l.userAgent,
+          reason: l.reason,
+          createdAt: l.createdAt,
+        })),
+        accountChanges: accountLogs.map((a: any) => ({
+          changedFields: a.changedFields,
+          changeType: a.changeType,
+          changedBy: a.changedBy,
+          createdAt: a.createdAt,
+        })),
+        serviceActions: serviceActions.map((s: any) => ({
+          serviceId: s.serviceId,
+          action: s.action,
+          previousStatus: s.previousStatus,
+          newStatus: s.newStatus,
+          performedBy: s.performedBy,
+          createdAt: s.createdAt,
+        })),
+        purchases: purchases.map((p: any) => ({
+          _id: p._id,
+          serviceId: typeof p.service === "object" ? p.service?._id : p.service,
+          serviceName: typeof p.service === "object" ? p.service?.name : null,
+          bv: p.bv,
+          createdAt: p.createdAt,
+        })),
+        orders: orders.map((o: any) => ({
+          _id: o._id,
+          status: o.status,
+          paymentStatus: o.payment?.status,
+          totals: o.totals,
+          createdAt: o.createdAt,
+        })),
+        earnings: earnings.map((e: any) => ({
+          fromUser: e.fromUserId,
+          toUser: e.toUserId,
+          level: e.level,
+          bv: e.bv,
+          incomeAmount: e.incomeAmount,
+          createdAt: e.createdAt,
+        })),
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
   app.get("/api/admin/users/:id", async (req: Request, res: Response) => {
     try {
       await requireAdminRole(req);
@@ -408,6 +578,15 @@ export function registerAdminRoutes(app: Express) {
       )
         .select("-passwordHash")
         .populate("parent", "name email mobile");
+
+      if (updated) {
+        logAccountChange(req as any, {
+          userId: id as any,
+          changedBy: ctx.userId as any,
+          changedFields: ["status"],
+          changeType: "status",
+        }).catch(() => {});
+      }
 
       return res.json({ message: "User status updated successfully", user: updated });
     } catch (err: unknown) {
@@ -740,6 +919,16 @@ export function registerAdminRoutes(app: Express) {
       .select("-passwordHash")
       .populate("parent", "name email mobile");
 
+    if (updated) {
+      const changeType = body.role ? "role" : body.status ? "status" : body.kycStatus ? "kyc" : "other";
+      logAccountChange(req as any, {
+        userId: req.params.id as any,
+        changedBy: ctx.userId as any,
+        changedFields: Object.keys(body),
+        changeType,
+      }).catch(() => {});
+    }
+
     return res.json({ message: "User updated successfully", user: updated });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Bad request";
@@ -1069,6 +1258,7 @@ export function registerAdminRoutes(app: Express) {
 
       const ctx = await requireAuth(req);
 
+      const existingService = await ServiceModel.findById(req.params.id).lean();
       const service = await ServiceModel.findByIdAndUpdate(
         req.params.id,
         {
@@ -1082,6 +1272,15 @@ export function registerAdminRoutes(app: Express) {
       ).populate("categoryId", "name code");
 
       if (!service) return res.status(404).json({ error: "Service not found" });
+
+      logServiceAction({
+        serviceId: service._id,
+        sellerId: service.sellerId,
+        action: "approved",
+        performedBy: ctx.userId as any,
+        previousStatus: existingService?.status,
+        newStatus: "active",
+      }).catch(() => {});
 
       return res.json({ message: "Service approved successfully", service });
     } catch (err: unknown) {
@@ -1102,6 +1301,7 @@ export function registerAdminRoutes(app: Express) {
 
       const ctx = await requireAuth(req);
 
+      const existingService = await ServiceModel.findById(req.params.id).lean();
       const service = await ServiceModel.findByIdAndUpdate(
         req.params.id,
         {
@@ -1116,6 +1316,16 @@ export function registerAdminRoutes(app: Express) {
       ).populate("categoryId", "name code");
 
       if (!service) return res.status(404).json({ error: "Service not found" });
+
+      logServiceAction({
+        serviceId: service._id,
+        sellerId: service.sellerId,
+        action: "rejected",
+        performedBy: ctx.userId as any,
+        previousStatus: existingService?.status,
+        newStatus: "rejected",
+        metadata: { reason: body.reason },
+      }).catch(() => {});
 
       return res.json({ message: "Service rejected successfully", service });
     } catch (err: unknown) {

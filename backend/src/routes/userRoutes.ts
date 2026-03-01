@@ -6,6 +6,7 @@ import { authValidation, sendValidationError, sendSuccessResponse, VALIDATION_ME
 import { UserModel } from "@/models/User";
 import { requireAuth } from "@/middleware/auth";
 import { verifyPassword, hashPassword } from "@/lib/password";
+import { logAccountChange } from "@/lib/activityLogger";
 
 const router = Router();
 
@@ -121,6 +122,13 @@ router.put("/profile/basic", async (req, res) => {
 
     if (!user) return sendValidationError(res, "User not found", 404);
 
+    logAccountChange(req as any, {
+      userId: ctx.userId as any,
+      changedBy: ctx.userId as any,
+      changedFields: Object.keys(body),
+      changeType: "profile",
+    }).catch(() => {});
+
     return sendSuccessResponse(res, {
       user: {
         id: user._id.toString(),
@@ -179,6 +187,13 @@ router.put("/profile/business", async (req, res) => {
     );
 
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    logAccountChange(req as any, {
+      userId: ctx.userId as any,
+      changedBy: ctx.userId as any,
+      changedFields: Object.keys(body),
+      changeType: "business",
+    }).catch(() => {});
 
     return res.json({ 
       message: "Business settings updated successfully",
@@ -392,6 +407,13 @@ router.put("/profile/change-password", async (req, res) => {
     // Update password
     await UserModel.findByIdAndUpdate(ctx.userId, { passwordHash });
 
+    logAccountChange(req as any, {
+      userId: ctx.userId as any,
+      changedBy: ctx.userId as any,
+      changedFields: ["password"],
+      changeType: "profile",
+    }).catch(() => {});
+
     return res.json({ message: "Password changed successfully" });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
@@ -438,6 +460,13 @@ router.put("/profile/change-email", async (req, res) => {
     await UserModel.findByIdAndUpdate(ctx.userId, { 
       email: body.newEmail.toLowerCase() 
     });
+
+    logAccountChange(req as any, {
+      userId: ctx.userId as any,
+      changedBy: ctx.userId as any,
+      changedFields: ["email"],
+      changeType: "email",
+    }).catch(() => {});
 
     return res.json({ 
       message: "Email changed successfully",

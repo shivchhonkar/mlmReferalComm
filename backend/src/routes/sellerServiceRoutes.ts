@@ -3,6 +3,7 @@ import { z } from "zod";
 import { connectToDatabase } from "@/lib/db";
 import { requireSeller } from "@/middleware/auth";
 import { ServiceModel } from "@/models/Service";
+import { logServiceAction } from "@/lib/activityLogger";
 
 /**
  * Seller service routes
@@ -85,6 +86,14 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         tags: body.tags,
       });
 
+      logServiceAction({
+        serviceId: service._id,
+        sellerId: ctx.userId as any,
+        action: "created",
+        performedBy: ctx.userId as any,
+        newStatus: body.status,
+      }).catch(() => {});
+
       return res.status(201).json({ service });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
@@ -131,6 +140,7 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         delete (updatePayload as Record<string, unknown>).status;
       }
 
+      const previousStatus = service.status;
       const updated = await ServiceModel.findByIdAndUpdate(
         req.params.id,
         { $set: updatePayload },
@@ -138,6 +148,17 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
       )
         .populate("categoryId", "name code")
         .lean();
+
+      if (updated) {
+        logServiceAction({
+          serviceId: req.params.id,
+          sellerId: ctx.userId as any,
+          action: "modified",
+          performedBy: ctx.userId as any,
+          previousStatus,
+          newStatus: updatePayload.status ?? previousStatus,
+        }).catch(() => {});
+      }
 
       return res.json({ service: updated });
     } catch (err: unknown) {

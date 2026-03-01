@@ -12,6 +12,7 @@ import { authValidation, sendValidationError, sendSuccessResponse, VALIDATION_ME
 import { UserModel } from "@/models/User";
 import { PasswordResetModel } from "@/models/PasswordReset";
 import { authLimiter, requireAuth, setAuthCookie, clearAuthCookie, DUMMY_PASSWORD_HASH } from "@/middleware/auth";
+import { logLoginActivity, logLogoutActivity } from "@/lib/activityLogger";
 
 const router = Router();
 
@@ -138,14 +139,24 @@ router.post("/login", async (req, res) => {
     
     if (!user) {
       await verifyPassword(body.password, DUMMY_PASSWORD_HASH);
+      logLoginActivity(req, { success: false, failureReason: "user_not_found" }).catch(() => {});
       return sendValidationError(res, "Invalid email/phone or password", 401);
     }
 
     const isValidPassword = await verifyPassword(body.password, user.passwordHash);
-    if (!isValidPassword) return sendValidationError(res, "Invalid email/phone or password", 401);
+    if (!isValidPassword) {
+      logLoginActivity(req, { userId: user._id, success: false, failureReason: "invalid_password" }).catch(() => {});
+      return sendValidationError(res, "Invalid email/phone or password", 401);
+    }
 
-    if (user.status === "deleted") return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_DELETED, 403);
-    if (user.status === "suspended") return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_SUSPENDED, 403);
+    if (user.status === "deleted") {
+      logLoginActivity(req, { userId: user._id, success: false, failureReason: "account_deleted" }).catch(() => {});
+      return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_DELETED, 403);
+    }
+    if (user.status === "suspended") {
+      logLoginActivity(req, { userId: user._id, success: false, failureReason: "account_suspended" }).catch(() => {});
+      return sendValidationError(res, VALIDATION_MESSAGES.ACCOUNT_SUSPENDED, 403);
+    }
 
     const token = await signAuthToken({ sub: user._id.toString(), role: user.role, email: user.email || undefined });
     setAuthCookie(res, token);
@@ -154,6 +165,8 @@ router.post("/login", async (req, res) => {
       lastLoginAt: new Date(),
       activityStatus: "active"
     });
+
+    logLoginActivity(req, { userId: user._id, success: true }).catch(() => {});
 
     return sendSuccessResponse(res, {
       user: {
@@ -180,6 +193,8 @@ router.post("/logout", async (req, res) => {
   try {
     const ctx = await requireAuth(req);
     await connectToDatabase();
+
+    logLogoutActivity(req, { userId: ctx.userId }).catch(() => {});
 
     // Update user activity status to inactive on logout
     await UserModel.findByIdAndUpdate(ctx.userId, { 
