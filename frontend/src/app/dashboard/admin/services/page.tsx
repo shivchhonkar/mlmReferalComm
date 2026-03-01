@@ -87,13 +87,13 @@ function ServiceImage({ src, name }: { src?: string; name: string }) {
   const hasImage = src && (src.startsWith("http") || src.startsWith("/uploads") || src.startsWith("data:"));
   return (
     <div className="relative w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-      <div className="aspect-[16/10] w-full flex items-center justify-center">
+      <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
         {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={src}
             alt={name}
-            className="max-w-sm max-h-sm object-cover"
+            className="h-full w-full object-cover transition group-hover:scale-105"
             onError={(e) => {
               (e.currentTarget as HTMLImageElement).src = "";
             }}
@@ -1001,12 +1001,12 @@ export default function AdminServicesPage() {
             {hasDisplayableImage(image) ? (
               <div className="flex flex-col gap-3">
                 <div className="w-full max-w-sm overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                  <div className="aspect-[8/5] max-w-sm">
+                  <div className="relative aspect-[4/3] overflow-hidden bg-slate-100">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={image}
                       alt="Service preview"
-                      className="max-w-sm max-h-sm object-cover"
+                      className="h-full w-full object-cover transition group-hover:scale-105"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display = "none";
                       }}
