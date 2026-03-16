@@ -77,6 +77,7 @@ type ListItem = {
   joinedAt: string
   level: number
   parentId: string | null
+  businessVolume: number
   referredBy?: ReferredBy
 }
 
@@ -651,7 +652,7 @@ export default function ReferralsPage() {
               </div>
             </div>
 
-            <div className="overflow-auto rounded-2xl border border-zinc-200">
+            <div className="overflow-auto rounded-xl border border-zinc-200">
               <table className="w-full text-sm">
                 <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 text-left text-zinc-700">
                   <tr>
@@ -660,6 +661,7 @@ export default function ReferralsPage() {
                     <th className="py-3 px-4 ">Referred By</th>
                     {/* <th className="py-3 px-4 ">Position</th> */}
                     <th className="py-3 px-4 ">Status / Activity</th>
+                    <th className="py-3 px-4 ">Business Volume</th>
                     <th className="py-3 px-4 ">Joined</th>
                     <th className="py-3 px-4 ">Action</th>
                   </tr>
@@ -750,15 +752,27 @@ export default function ReferralsPage() {
                           >
                             {u.status}
                           </span>
-                          <span className={["rounded-full border px-2 py-1 text-xs ", u.activityStatus === "active"
+                          <span
+                            className={[
+                              "ml-2 rounded-full border px-2 py-1 text-xs ",
+                              u.activityStatus === "active"
                                 ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                                 : "border-zinc-200 bg-zinc-50 text-zinc-700",
-                            ].join(" ")}>
+                            ].join(" ")}
+                          >
                             {u.activityStatus}
                           </span>
                         </td>
 
-                        <td className="py-3 px-4 text-xs text-zinc-700 align-top">{new Date(u.joinedAt).toLocaleString()}</td>
+                        <td className="py-3 px-4 align-top text-xs text-zinc-700">
+                          {(u.businessVolume ?? 0).toLocaleString("en-IN", {
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+
+                        <td className="py-3 px-4 text-xs text-zinc-700 align-top">
+                          {new Date(u.joinedAt).toLocaleString()}
+                        </td>
 
                         <td className="py-3 px-4 align-top">
                           <button
