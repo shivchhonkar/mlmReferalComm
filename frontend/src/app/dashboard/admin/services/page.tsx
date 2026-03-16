@@ -223,6 +223,7 @@ export default function AdminServicesPage() {
   const [image, setImage] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
+  const [subcategoryId, setSubcategoryId] = useState<string | undefined>(undefined);
   const [isFeatured, setIsFeatured] = useState(false);
 
   // Edit modal
@@ -375,7 +376,7 @@ export default function AdminServicesPage() {
     setImage("");
     setShortDescription("");
     setCategoryId("");
-    setEditSubcategoryId("");
+    setSubcategoryId(undefined);
     setIsFeatured(false);
   }
 
@@ -1154,7 +1155,10 @@ export default function AdminServicesPage() {
             <select
               className={formInputClass}
               value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
+              onChange={(e) => {
+                setCategoryId(e.target.value);
+                setSubcategoryId(undefined);
+              }}
               disabled={!canManage}
             >
               <option value="">— None —</option>
@@ -1169,12 +1173,12 @@ export default function AdminServicesPage() {
             <label className={formLabelClass}>Subcategory</label>
             <select
               className={formInputClass}
-              value={editSubcategoryId}
-              onChange={(e) => setEditSubcategoryId(e.target.value)}
-              disabled={!canManage || !editCategoryId}
+              value={subcategoryId ?? ""}
+              onChange={(e) => setSubcategoryId(e.target.value || undefined)}
+              disabled={!canManage || !categoryId}
             >
               <option value="">— None —</option>
-              {filteredEditSubcategories.map((s) => (
+              {filteredSubcategories.map((s) => (
                 <option key={s._id} value={s._id}>
                   {s.name} {s.code ? `(${s.code})` : ""}
                 </option>
