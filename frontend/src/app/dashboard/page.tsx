@@ -146,6 +146,31 @@ export default function DashboardPage() {
       .sort((a, b) => parseInt(a.level.slice(1)) - parseInt(b.level.slice(1)));
   }, [incomes]);
 
+  const levelUserIncome = useMemo(() => {
+    const byLevel = new Map<number, Map<string, { id: string; name: string; amount: number }>>();
+
+    incomes.forEach((inc) => {
+      const lvl = inc.level ?? 0;
+      if (lvl < 1 || lvl > 5) return;
+
+      const fu = inc.fromUser ?? {};
+      const id = fu.referralCode || fu.email || fu.name || "unknown";
+      const name = fu.name || fu.email || fu.referralCode || "Unknown";
+
+      if (!byLevel.has(lvl)) byLevel.set(lvl, new Map());
+      const levelMap = byLevel.get(lvl)!;
+      const existing = levelMap.get(id) ?? { id, name, amount: 0 };
+      existing.amount += inc.amount ?? 0;
+      levelMap.set(id, existing);
+    });
+
+    return [1, 2, 3, 4, 5].map((lvl) => {
+      const users = Array.from(byLevel.get(lvl)?.values() ?? []);
+      users.sort((a, b) => b.amount - a.amount);
+      return { level: lvl, users };
+    });
+  }, [incomes]);
+
   const loadAll = useCallback(async () => {
     setError(null);
     setDataLoading(true);
@@ -665,6 +690,70 @@ export default function DashboardPage() {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* Income by level (top 5 levels with users) */}
+        <section className="mb-10 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow-sm">
+                <BarChart3 className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900">Income by level</h2>
+                <p className="text-xs text-zinc-600">
+                  Commission earned from your first 5 levels in the downline.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {dataLoading ? (
+            <div className="flex gap-3">
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <div key={idx} className="h-24 flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="mb-2 h-3 w-12 rounded bg-zinc-200 animate-pulse" />
+                  <div className="mb-1 h-3 w-24 rounded bg-zinc-200 animate-pulse" />
+                  <div className="h-3 w-full rounded bg-zinc-200 animate-pulse" />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-5">
+              {levelUserIncome.map(({ level, users }) => (
+                <div
+                  key={level}
+                  className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
+                >
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="font-medium text-zinc-500">Level {level}</span>
+                    <span className="font-semibold text-emerald-700">
+                      {formatINR(users.reduce((sum, u) => sum + u.amount, 0))}
+                    </span>
+                  </div>
+                  {users.length === 0 ? (
+                    <p className="mt-2 text-[11px] text-zinc-400">No income yet.</p>
+                  ) : (
+                    <ul className="mt-1 space-y-1.5 max-h-28 overflow-y-auto">
+                      {users.map((u) => (
+                        <li
+                          key={u.id}
+                          className="flex items-center justify-between text-[11px]"
+                        >
+                          <span className="mr-2 truncate text-zinc-700" title={u.name}>
+                            {u.name}
+                          </span>
+                          <span className="font-semibold text-emerald-700">
+                            {formatINR(u.amount)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Referrals list */}
