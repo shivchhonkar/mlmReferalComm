@@ -11,12 +11,14 @@ import {
   IndianRupee,
   Calendar,
   X,
+  ShoppingCart,
 } from "lucide-react";
 
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setServices, type Service } from "@/store/slices/serviceSlice";
 import { setCategories, type Category } from "@/store/slices/categorySlice";
 import ServicesGrid from "@/app/services/components/ServicesGrid";
+import { addItem } from "@/store/slices/cartSlice";
 
 type Subcategory = {
   _id: string;
@@ -48,6 +50,7 @@ export default function ServicesCategoryClient({
     "featured" | "price-low" | "price-high" | "rating" | "date-new" | "date-old"
   >("featured");
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
 
   useEffect(() => {
     dispatch(setServices(services));
@@ -438,7 +441,10 @@ export default function ServicesCategoryClient({
               )}
 
               {categoryServices.length > 0 ? (
-                <ServicesGrid services={categoryServices} />
+                <ServicesGrid
+                  services={categoryServices}
+                  onSelectService={setSelectedService}
+                />
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center shadow-sm">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
@@ -483,6 +489,141 @@ export default function ServicesCategoryClient({
         )}
         </div>
       </div>
+      
+      {/* Service details modal */}
+      {selectedService && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="flex w-full max-w-2xl max-h-[90vh] flex-col overflow-hidden rounded-2xl bg-white shadow-xl">
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">{selectedService.name}</h2>
+                {(selectedService as any).shortDescription && (
+                  <p className="mt-1 text-sm text-slate-600">
+                    {(selectedService as any).shortDescription}
+                  </p>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    dispatch(
+                      addItem({
+                        id: selectedService._id,
+                        name: selectedService.name,
+                        price: selectedService.price,
+                        businessVolume: selectedService.businessVolume,
+                        quantity: 1,
+                      })
+                    );
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 hover:cursor-pointer"
+                >
+                  <ShoppingCart className="h-3.5 w-3.5" />
+                  Add to cart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedService(null)}
+                  className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 hover:cursor-pointer"
+                  aria-label="Close details"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid flex-1 gap-6 border-b border-slate-100 px-6 py-5 md:grid-cols-[minmax(0,1.4fr),minmax(0,1fr)] overflow-y-auto">
+              <div className="space-y-4">
+                <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="relative aspect-[4/3]">
+                    {selectedService.image &&
+                    !selectedService.image.includes("default-service") &&
+                    !selectedService.image.includes("no-image") ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={selectedService.image}
+                        alt={selectedService.name}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-slate-400">
+                        <Package className="h-10 w-10" />
+                        <span className="text-xs font-medium">No image</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {(selectedService as any).description && (
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold text-slate-900">Description</h3>
+                    <p className="text-sm leading-relaxed text-slate-700">
+                      {(selectedService as any).description}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Pricing
+                  </div>
+                  <div className="mt-2 flex items-end gap-2">
+                    <div className="flex items-center gap-1 text-2xl font-bold text-slate-900">
+                      <IndianRupee className="h-4 w-4" />
+                      <span>{(selectedService.price ?? 0).toLocaleString("en-IN")}</span>
+                    </div>
+                    {(selectedService as any).originalPrice && (
+                      <div className="text-sm text-slate-400 line-through">
+                        <IndianRupee className="mr-1 inline h-3 w-3" />
+                        {(selectedService as any).originalPrice.toLocaleString("en-IN")}
+                      </div>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-slate-600">
+                    Business Volume (BV):{" "}
+                    <span className="font-semibold text-emerald-700">
+                      {selectedService.businessVolume}
+                    </span>
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-sm text-slate-700">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Status</span>
+                    <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                      {selectedService.status ?? "active"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500">Category</span>
+                    <span className="text-xs font-medium text-slate-800">
+                      {
+                        (categories.find(
+                          (c) => c._id === ((selectedService as any).categoryId as string)
+                        )?.name ?? "—")
+                      }
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setSelectedService(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 hover:cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

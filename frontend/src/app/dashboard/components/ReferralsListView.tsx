@@ -162,7 +162,7 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
               <th className="px-4 py-3">Level</th>
               <th className="px-4 py-3">User</th>
               <th className="px-4 py-3">Referred By</th>
-              <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Status / Activity</th>
               <th className="px-4 py-3">Joined</th>
               <th className="px-4 py-3">Action</th>
             </tr>
@@ -241,6 +241,10 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                       }
                     >
                       {u.status}
+                    </span>
+                    <span className={`ml-2 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 
+                      ${u.activityStatus === "active" ? "bg-sky-50 text-sky-700" : "bg-zinc-50 text-zinc-700"}`}>
+                       {u.activityStatus}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs text-zinc-700 align-top">

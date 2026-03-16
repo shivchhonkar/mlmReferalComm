@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, MouseEvent } from "react";
 import { Package, ShoppingCart, Heart, Plus, Minus, BadgePercent, Sparkles } from "lucide-react";
 import { formatINR } from "@/lib/format";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
@@ -9,9 +9,10 @@ import { NoImage } from "./NoImage";
 import type { Service } from "@/store/slices/serviceSlice";
 interface ServiceCardProps {
   service: Service;
+  onSelect?: (service: Service) => void;
 }
 
-export default function ServiceCard({ service }: ServiceCardProps) {
+export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
   const dispatch = useAppDispatch();
   const cart = useAppSelector((s) => s.cart);
   const [isWishlisted, setIsWishlisted] = useState(false);
@@ -32,7 +33,8 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
   const isFeatured = Boolean((service as any).isFeatured);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     dispatch(
       addItem({
         id: service._id,
@@ -44,11 +46,13 @@ export default function ServiceCard({ service }: ServiceCardProps) {
     );
   };
 
-  const handleIncreaseQty = () => {
+  const handleIncreaseQty = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     dispatch(updateQty({ id: service._id, quantity: quantity + 1 }));
   };
 
-  const handleDecreaseQty = () => {
+  const handleDecreaseQty = (e: MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
     if (quantity <= 1) dispatch(removeItem({ id: service._id }));
     else dispatch(updateQty({ id: service._id, quantity: quantity - 1 }));
   };
@@ -57,7 +61,10 @@ export default function ServiceCard({ service }: ServiceCardProps) {
   const isActive = status === "active";
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div
+      className="relative overflow-hidden rounded-2xl border border-[var(--gray-200)] bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+      onClick={() => onSelect?.(service)}
+    >
       {/* Top accent */}
       <div className="h-1 w-full bg-gradient-to-r from-[#22C55E] to-[#0EA5E9]" />
 
@@ -81,7 +88,10 @@ export default function ServiceCard({ service }: ServiceCardProps) {
 
       {/* Wishlist */}
       <button
-        onClick={() => setIsWishlisted((v) => !v)}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsWishlisted((v) => !v);
+        }}
         className="group absolute right-4 bottom-[130px] z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-[var(--gray-200)] bg-white/95 backdrop-blur shadow-sm transition hover:shadow-md hover:cursor-pointer"
         aria-label="Toggle wishlist"
       >

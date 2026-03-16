@@ -3,13 +3,18 @@ import type { Service } from "@/store/slices/serviceSlice";
 
 interface ServicesGridProps {
   services: Service[];
+  onSelectService?: (service: Service) => void;
 }
 
-export default function ServicesGrid({ services }: ServicesGridProps) {
+export default function ServicesGrid({ services, onSelectService }: ServicesGridProps) {
   return (
     <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {services.map((service) => (
-        <ServiceCard key={service._id} service={service} />
+        <ServiceCard
+          key={service._id}
+          service={service}
+          onSelect={onSelectService}
+        />
       ))}
 
       {services.length === 0 && (
