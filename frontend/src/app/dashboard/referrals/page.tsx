@@ -659,7 +659,7 @@ export default function ReferralsPage() {
                     <th className="py-3 px-4 ">User</th>
                     <th className="py-3 px-4 ">Referred By</th>
                     {/* <th className="py-3 px-4 ">Position</th> */}
-                    <th className="py-3 px-4 ">Status</th>
+                    <th className="py-3 px-4 ">Status / Activity</th>
                     <th className="py-3 px-4 ">Joined</th>
                     <th className="py-3 px-4 ">Action</th>
                   </tr>
@@ -749,6 +749,12 @@ export default function ReferralsPage() {
                             ].join(" ")}
                           >
                             {u.status}
+                          </span>
+                          <span className={["rounded-full border px-2 py-1 text-xs ", u.activityStatus === "active"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                                : "border-zinc-200 bg-zinc-50 text-zinc-700",
+                            ].join(" ")}>
+                            {u.activityStatus}
                           </span>
                         </td>
 
