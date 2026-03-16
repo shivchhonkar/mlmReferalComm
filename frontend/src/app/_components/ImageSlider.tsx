@@ -241,20 +241,20 @@ export default function ImageSlider({
           <div className="relative z-10 flex flex-col items-center justify-center w-full min-h-full px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-10 md:py-12">
             <div className="text-center max-w-4xl space-y-2 sm:space-y-3 md:space-y-4">
               {/* Heading */}
-              <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl xl:text-6xl  text-white leading-tight tracking-tight">
+              {/* <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl xl:text-6xl  text-white leading-tight tracking-tight">
                 <span className="bg-gradient-to-r from-white via-blue-100 to-white bg-clip-text text-transparent">
                   Build Smarter Networks. Scale Without Limits.
                 </span>
-              </h1>
+              </h1> */}
 
               {/* Subtitle */}
-              <p className="text-blue-100 text-xs sm:text-sm md:text-base lg:text-lg max-w-3xl mx-auto leading-relaxed font-normal">
+              {/* <p className="text-blue-100 text-xs sm:text-sm md:text-base lg:text-lg max-w-3xl mx-auto leading-relaxed font-normal">
                 A modern infrastructure platform designed for scalable growth,
                 real-time performance tracking, and automated distribution.
-              </p>
+              </p> */}
 
               {/* Trust indicators */}
-              <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8">
+              {/* <div className="flex flex-wrap justify-center gap-4 sm:gap-6 md:gap-8">
                 <div className="flex items-center gap-2 sm:gap-3">
                   <div className="p-1.5 sm:p-2 bg-blue-500/30 rounded-lg border border-white/30 backdrop-blur-sm">
                     <Users className="w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-blue-100" />
@@ -274,10 +274,10 @@ export default function ImageSlider({
                     <div className="text-xs text-blue-200">Dedicated Support</div>
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* CTA */}
-              <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 md:gap-5">
+              {/* <div className="flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 md:gap-5">
                 <a
                   href="/register"
                   className="px-6 sm:px-7 md:px-8 py-2.5 sm:py-3 rounded-lg bg-blue-600 text-white font-semibold text-sm sm:text-base
@@ -293,7 +293,7 @@ export default function ImageSlider({
                 >
                   Sign In
                 </a>
-              </div>
+              </div> */}
             </div>
           </div>
         </div>
