@@ -140,24 +140,20 @@ export default function AdminCategoryUpload({ onUploaded }: { onUploaded?: () =>
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 border border-blue-200">
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Bulk Category Import</h2>
-        <p className="text-gray-600">Upload Excel or CSV files to import multiple categories at once</p>
-      </div>
-
-      {/* Template Download */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center justify-between">
+      <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50/80 via-teal-50/80 to-sky-50/80 p-6 shadow-sm">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 className="font-semibold text-gray-900 mb-1">Download Template</h3>
-            <p className="text-sm text-gray-600">Start with our pre-formatted template to ensure correct data structure</p>
+            <h2 className="text-lg sm:text-xl font-semibold text-zinc-900">Bulk Category Import</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Upload an Excel or CSV file to create multiple categories in one go. Start with the template to avoid mistakes.
+            </p>
           </div>
           <button
             onClick={handleDownloadTemplate}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="mt-3 inline-flex items-center gap-2 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer sm:mt-0"
           >
-            <Download className="w-4 h-4" />
-            Download Template
+            <Download className="h-4 w-4" />
+            Download template
           </button>
         </div>
       </div>
@@ -167,7 +163,7 @@ export default function AdminCategoryUpload({ onUploaded }: { onUploaded?: () =>
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className="border-2 border-dashed border-gray-300 rounded-lg p-8 bg-white hover:border-blue-400 transition-colors cursor-pointer"
+        className="cursor-pointer rounded-3xl border-2 border-dashed border-zinc-200 bg-white p-8 transition-colors hover:border-emerald-400"
         onClick={() => fileInputRef.current?.click()}
       >
         <input
@@ -179,22 +175,22 @@ export default function AdminCategoryUpload({ onUploaded }: { onUploaded?: () =>
           disabled={loading}
         />
 
-        <div className="flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center justify-center text-center">
           {loading ? (
             <>
-              <Loader className="w-12 h-12 text-blue-600 animate-spin mb-4" />
-              <p className="text-gray-600 font-medium">Processing upload...</p>
+              <Loader className="mb-4 h-10 w-10 animate-spin text-emerald-600" />
+              <p className="text-sm font-medium text-zinc-700">Processing upload…</p>
             </>
           ) : (
             <>
-              <Upload className="w-12 h-12 text-gray-400 mb-4" />
-              <p className="text-lg font-medium text-gray-900 mb-1">
-                Drag and drop your file here
+              <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                <Upload className="h-6 w-6" />
+              </div>
+              <p className="mb-1 text-sm font-semibold text-zinc-900">Drag & drop your file here</p>
+              <p className="mb-3 text-xs text-zinc-600">
+                or click to select an Excel (.xlsx) or CSV (.csv) file
               </p>
-              <p className="text-sm text-gray-600 mb-4">
-                or click to select Excel (.xlsx) or CSV (.csv) file
-              </p>
-              <p className="text-xs text-gray-500">Max file size: 10MB</p>
+              <p className="text-[11px] text-zinc-500">Max file size: 10MB</p>
             </>
           )}
         </div>

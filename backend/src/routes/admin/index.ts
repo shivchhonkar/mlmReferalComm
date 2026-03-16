@@ -735,6 +735,7 @@ export function registerAdminRoutes(app: Express) {
         .sort({ createdAt: -1 })
         .populate("sellerId", "name email fullName mobile")
         .populate("categoryId", "name code")
+        .populate("subcategoryId", "name code")
         .lean();
       return res.json({ services });
     } catch (err: unknown) {
@@ -760,6 +761,7 @@ export function registerAdminRoutes(app: Express) {
       status: z.enum(["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
       isFeatured: z.boolean().default(false),
       categoryId: z.string().optional(),
+      subcategoryId: z.string().optional(),
       tags: z.array(z.string()).optional(),
     });
 
@@ -796,6 +798,7 @@ export function registerAdminRoutes(app: Express) {
         status: body.status || "pending_approval", // Default to pending_approval if not specified
         isFeatured: body.isFeatured,
         categoryId: body.categoryId,
+        subcategoryId: body.subcategoryId,
         tags: body.tags,
       });
 
@@ -824,6 +827,7 @@ export function registerAdminRoutes(app: Express) {
         status: z.enum(["draft", "pending", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
         isFeatured: z.boolean().optional(),
         categoryId: z.string().optional(),
+        subcategoryId: z.string().optional(),
         tags: z.array(z.string()).optional(),
       })
       .refine((v) => Object.keys(v).length > 0, "No fields to update");

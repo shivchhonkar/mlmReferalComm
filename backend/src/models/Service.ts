@@ -61,8 +61,9 @@ const serviceSchema = new Schema(
     // Featured flag for highlighting
     isFeatured: { type: Boolean, default: false },
     
-    // Category reference
+    // Category and subcategory references
     categoryId: { type: String, ref: "Category" },
+    subcategoryId: { type: String, ref: "Subcategory" },
     
     // Tags for filtering and search
     tags: [{ type: String, trim: true }],
@@ -78,6 +79,7 @@ const serviceSchema = new Schema(
 // Note: slug index is created automatically via unique: true constraint above
 serviceSchema.index({ status: 1, isFeatured: 1 });
 serviceSchema.index({ categoryId: 1 });
+serviceSchema.index({ subcategoryId: 1 });
 serviceSchema.index({ tags: 1 });
 serviceSchema.index({ rating: -1 });
 

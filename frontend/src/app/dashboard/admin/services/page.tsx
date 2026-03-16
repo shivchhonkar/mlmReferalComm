@@ -48,11 +48,15 @@ type Service = {
   shortDescription?: string;
   description?: string;
   categoryId?: string | { _id: string; name: string; code: string };
+  subcategoryId?: string | { _id: string; name: string; code: string };
   sellerId?: { _id: string; name?: string; fullName?: string; email?: string; mobile?: string } | null;
   isFeatured?: boolean;
   tags?: string[];
   rejectionReason?: string;
 };
+
+type Subcategory = { _id: string; name: string; code?: string; categoryId: string };
+
 
 type MeResponse = {
   user?: {
@@ -281,6 +285,8 @@ export default function AdminServicesPage() {
 
   // Categories for dropdown (active only)
   const [categories, setCategories] = useState<{ _id: string; name: string; code?: string }[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const [editSubcategoryId, setEditSubcategoryId] = useState<string | undefined>(undefined);
 
   async function loadCategories() {
     try {
@@ -316,10 +322,35 @@ export default function AdminServicesPage() {
     }
   }
 
+  async function loadSubcategories() {
+    try {
+      const res = await apiFetch("/api/admin/subcategories");
+      const data = await res.json();
+      if (res.ok && data?.subcategories) {
+        setSubcategories(
+          (data.subcategories as any[]).map((s) => ({
+            _id: s._id,
+            name: s.name,
+            code: s.code,
+            categoryId:
+              typeof s.categoryId === "object" && s.categoryId?._id
+                ? String(s.categoryId._id)
+                : String(s.categoryId ?? ""),
+          }))
+        );
+      } else {
+        setSubcategories([]);
+      }
+    } catch {
+      setSubcategories([]);
+    }
+  }
+
   useEffect(() => {
     setMeRole(user?.role);
     load();
     loadCategories();
+    loadSubcategories();
   }, [user, statusFilter]);
 
   // ---- Create modal handlers
@@ -344,6 +375,7 @@ export default function AdminServicesPage() {
     setImage("");
     setShortDescription("");
     setCategoryId("");
+    setEditSubcategoryId("");
     setIsFeatured(false);
   }
 
@@ -372,6 +404,7 @@ export default function AdminServicesPage() {
           image: image || undefined,
           shortDescription: shortDescription || undefined,
           categoryId: categoryId || undefined,
+          subcategoryId: subcategoryId || undefined,          
           isFeatured,
           status: canManage ? "active" : "pending_approval", // Non-admins need approval
         }),
@@ -410,6 +443,10 @@ export default function AdminServicesPage() {
     setEditIsFeatured(Boolean(service.isFeatured));
     const validStatuses = ["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"] as const;
     const s = service.status ?? "active";
+    const rawSub = service.subcategoryId;
+    setEditSubcategoryId(
+      typeof rawSub === "object" ? rawSub?._id ?? "" : rawSub ?? ""
+    );
     setEditStatus(validStatuses.includes(s) ? s : "active");
     setEditOpen(true);
   }
@@ -442,6 +479,7 @@ export default function AdminServicesPage() {
         image: editImage || undefined,
         shortDescription: editShortDescription || undefined,
         categoryId: editCategoryId || undefined,
+        subcategoryId: editSubcategoryId || undefined,
         isFeatured: editIsFeatured,
         status: editStatus,
       };
@@ -589,6 +627,16 @@ export default function AdminServicesPage() {
 
     return arr;
   }, [services, query, featuredFilter, sortBy]);
+
+  const filteredSubcategories = useMemo(() => {
+    if (!categoryId) return [];
+    return subcategories.filter((s) => s.categoryId === categoryId);
+  }, [subcategories, categoryId]);
+  
+  const filteredEditSubcategories = useMemo(() => {
+    if (!editCategoryId) return [];
+    return subcategories.filter((s) => s.categoryId === editCategoryId);
+  }, [subcategories, editCategoryId]);
 
   return (
     <div className="min-h-screen">
@@ -1117,6 +1165,22 @@ export default function AdminServicesPage() {
               ))}
             </select>
           </div>
+          <div>
+            <label className={formLabelClass}>Subcategory</label>
+            <select
+              className={formInputClass}
+              value={editSubcategoryId}
+              onChange={(e) => setEditSubcategoryId(e.target.value)}
+              disabled={!canManage || !editCategoryId}
+            >
+              <option value="">— None —</option>
+              {filteredEditSubcategories.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} {s.code ? `(${s.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <div className="md:col-span-2 flex items-center gap-3">
             <input
@@ -1338,6 +1402,22 @@ export default function AdminServicesPage() {
               {categories.map((c) => (
                 <option key={c._id} value={c._id}>
                   {c.name} {c.code ? `(${c.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={formLabelClass}>Subcategory</label>
+            <select
+              className={formInputClass}
+              value={editSubcategoryId}
+              onChange={(e) => setEditSubcategoryId(e.target.value)}
+              disabled={!canManage || !editCategoryId}
+            >
+              <option value="">— None —</option>
+              {filteredEditSubcategories.map((s) => (
+                <option key={s._id} value={s._id}>
+                  {s.name} {s.code ? `(${s.code})` : ""}
                 </option>
               ))}
             </select>
