@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import AdminCategoryUpload from "./AdminCategoryUpload";
+import ConfirmDialog from "@/app/_components/ConfirmDialog";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
 interface Category {
@@ -38,7 +39,7 @@ interface Subcategory {
   name: string;
   slug: string;
   code: string;
-  categoryId: string;
+  categoryId: string | { _id: string; name?: string; code?: string };
   icon?: string;
   image?: string;
   isActive: boolean;
@@ -73,6 +74,14 @@ export default function CategoriesPage() {
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [activeTab, setActiveTab] = useState<"manage" | "bulk">("manage");
   const [busy, setBusy] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean;
+    title: string;
+    description?: string;
+    variant?: "default" | "danger";
+    confirmLabel?: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -126,6 +135,18 @@ export default function CategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const isCategoryCodeDuplicate = (code: string, ignoreId?: string) => {
+    const c = code.trim().toUpperCase();
+    if (!c) return false;
+    return categories.some((cat) => cat.code?.toUpperCase() === c && cat._id !== ignoreId);
+  };
+
+  const isSubcategoryCodeDuplicate = (code: string, ignoreId?: string) => {
+    const c = code.trim().toUpperCase();
+    if (!c) return false;
+    return subcategories.some((sub) => sub.code?.toUpperCase() === c && sub._id !== ignoreId);
+  };
+
   // Listen for updates from bulk upload (cross-tab + same-origin channel)
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -159,6 +180,15 @@ export default function CategoriesPage() {
   }, []);
 
   const createCategory = async () => {
+    const code = formData.code.trim();
+    if (code.length > 10) {
+      showErrorToast("Category code must be at most 10 characters.");
+      return;
+    }
+    if (isCategoryCodeDuplicate(code)) {
+      showErrorToast("Category code must be unique.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -182,6 +212,15 @@ export default function CategoriesPage() {
   };
 
   const createSubcategory = async () => {
+    const code = formData.code.trim();
+    if (code.length > 10) {
+      showErrorToast("Subcategory code must be at most 10 characters.");
+      return;
+    }
+    if (isSubcategoryCodeDuplicate(code)) {
+      showErrorToast("Subcategory code must be unique.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -206,6 +245,15 @@ export default function CategoriesPage() {
 
   const updateCategory = async () => {
     if (!editingCategory) return;
+    const code = formData.code.trim();
+    if (code.length > 10) {
+      showErrorToast("Category code must be at most 10 characters.");
+      return;
+    }
+    if (isCategoryCodeDuplicate(code, editingCategory._id)) {
+      showErrorToast("Category code must be unique.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -231,6 +279,15 @@ export default function CategoriesPage() {
 
   const updateSubcategory = async () => {
     if (!editingSubcategory) return;
+    const code = formData.code.trim();
+    if (code.length > 10) {
+      showErrorToast("Subcategory code must be at most 10 characters.");
+      return;
+    }
+    if (isSubcategoryCodeDuplicate(code, editingSubcategory._id)) {
+      showErrorToast("Subcategory code must be unique.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -332,8 +389,6 @@ export default function CategoriesPage() {
   };
 
   const deleteCategory = async (categoryId: string) => {
-    if (!confirm("Are you sure you want to delete this category? This will also delete all associated subcategories."))
-      return;
     setBusy(true);
     setError(null);
     try {
@@ -352,7 +407,6 @@ export default function CategoriesPage() {
   };
 
   const deleteSubcategory = async (subcategoryId: string) => {
-    if (!confirm("Are you sure you want to delete this subcategory?")) return;
     setBusy(true);
     setError(null);
     try {
@@ -393,15 +447,30 @@ export default function CategoriesPage() {
 
   const openSubcategoryModal = (category: Category) => {
     setSelectedCategory(category);
-    setFormData((prev) => ({ ...prev, categoryId: category._id }));
+    setFormData((prev) => ({
+      ...prev,
+      categoryId: category._id,
+    }));
     setShowSubcategoryModal(true);
+  };
+
+  const handleSubcategoryCategoryChange = (categoryId: string) => {
+    const cat = categories.find((c) => c._id === categoryId) ?? null;
+    setSelectedCategory(cat);
+    setFormData((prev) => ({
+      ...prev,
+      categoryId,
+    }));
   };
 
   const generateSlug = (name: string) =>
     name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
 
   const generateCode = (name: string) =>
-    name.toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/(^_|_$)/g, "");
+    name
+      .toUpperCase()
+      .replace(/[^A-Z0-9]+/g, "") // keep only letters/numbers
+      .slice(0, 10); // enforce max length 10
 
   const handleNameChange = (name: string) => {
     setFormData((prev) => ({
@@ -425,7 +494,12 @@ export default function CategoriesPage() {
 
   const getSubcategoriesForCategory = (categoryId: string) => {
     const list = Array.isArray(subcategories) ? subcategories : [];
-    return list.filter((sub) => sub.categoryId === categoryId);
+    return list.filter((sub) => {
+      const cat = sub.categoryId as any;
+      const subCategoryId =
+        cat && typeof cat === "object" && "_id" in cat ? String(cat._id ?? "") : String(cat ?? "");
+      return subCategoryId === categoryId;
+    });
   };
 
   if (loading) {
@@ -454,14 +528,19 @@ export default function CategoriesPage() {
       <div className="mb-8">
         <div className="flex items-center justify-between mb-4 gap-4">
           <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Categories & Subcategories</h1>
-            <p className="text-lg text-gray-600">Manage service categories and subcategories</p>
+            <h1 className="text-3xl sm:text-4xl font-bold text-zinc-900 mb-2 flex items-center gap-2">
+              <FolderOpen className="h-7 w-7 text-emerald-600" />
+              Categories &amp; Subcategories
+            </h1>
+            <p className="text-sm sm:text-base text-zinc-600">
+              Organize services into clear categories and subcategories for a better marketplace experience.
+            </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={refreshAll}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-60 hover:cursor-pointer"
+              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60 hover:cursor-pointer"
               title="Refresh"
             >
               <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`} />
@@ -481,23 +560,23 @@ export default function CategoriesPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-4 border-b border-gray-200 mb-6">
+        <div className="inline-flex items-center gap-2 rounded-2xl bg-zinc-100 p-1 mb-6">
           <button
             onClick={() => setActiveTab("manage")}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors hover:cursor-pointer ${
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition hover:cursor-pointer ${
               activeTab === "manage"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900"
+                ? "bg-white text-emerald-700 shadow-sm"
+                : "text-zinc-600 hover:text-zinc-900"
             }`}
           >
             Manage Categories
           </button>
           <button
             onClick={() => setActiveTab("bulk")}
-            className={`px-4 py-3 font-medium border-b-2 transition-colors hover:cursor-pointer ${
+            className={`px-4 py-2 text-sm font-medium rounded-xl transition hover:cursor-pointer ${
               activeTab === "bulk"
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-600 hover:text-gray-900"
+                ? "bg-white text-emerald-700 shadow-sm"
+                : "text-zinc-600 hover:text-zinc-900"
             }`}
           >
             Bulk Import
@@ -506,14 +585,14 @@ export default function CategoriesPage() {
 
         {/* Search (only manage tab) */}
         {activeTab === "manage" && (
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <div className="relative max-w-md mt-2">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-zinc-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Search categories..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full !pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full !pl-10 pr-4 py-2 rounded-2xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
             />
           </div>
         )}
@@ -531,10 +610,17 @@ export default function CategoriesPage() {
       {activeTab === "manage" ? (
         <div className="space-y-4">
           {filteredCategories.length === 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-              <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No Categories Found</h3>
-              <p className="text-gray-500">Create your first category to get started.</p>
+            <div className="bg-white rounded-3xl border border-zinc-200 p-12 text-center shadow-sm">
+              <FolderOpen className="w-16 h-16 text-emerald-300 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-zinc-900 mb-2">No categories yet</h3>
+              <p className="text-zinc-500 mb-4">Create your first category to start organizing services.</p>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 hover:cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                Create category
+              </button>
             </div>
           ) : (
             filteredCategories.map((category) => {
@@ -542,20 +628,20 @@ export default function CategoriesPage() {
               const isExpanded = expandedCategories.has(category._id);
 
               return (
-                <div key={category._id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div key={category._id} className="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm">
                   {/* Category Header */}
                   <div className="p-6">
                     <div className="flex items-center justify-between gap-4">
                       <div className="flex items-center space-x-4">
                         <button
                           onClick={() => toggleCategoryExpansion(category._id)}
-                          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                          className="p-2 hover:bg-zinc-100 rounded-lg transition-colors"
                           title={isExpanded ? "Collapse" : "Expand"}
                         >
                           {isExpanded ? (
-                            <ChevronUp className="w-5 h-5 text-gray-500" />
+                            <ChevronUp className="w-5 h-5 text-zinc-500" />
                           ) : (
-                            <ChevronDown className="w-5 h-5 text-gray-500" />
+                            <ChevronDown className="w-5 h-5 text-zinc-500" />
                           )}
                         </button>
 
@@ -571,14 +657,14 @@ export default function CategoriesPage() {
                               }}
                             />
                           ) : (
-                            <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                              <FolderOpen className="w-5 h-5 text-gray-400" />
+                            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center border border-emerald-100">
+                              <FolderOpen className="w-5 h-5 text-emerald-500" />
                             </div>
                           )}
 
                           <div>
-                            <h3 className="text-lg font-semibold text-gray-900">{category.name}</h3>
-                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
+                            <h3 className="text-lg font-semibold text-zinc-900">{category.name}</h3>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
                               <span>Code: {category.code}</span>
                               <span>Slug: {category.slug}</span>
                               <span
@@ -616,13 +702,23 @@ export default function CategoriesPage() {
                         </button>
                         <button
                           onClick={() => openSubcategoryModal(category)}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-medium text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100 hover:cursor-pointer"
                         >
-                          <Plus className="w-4 h-4 mr-1 inline" />
-                          Add Subcategory
+                          <Plus className="w-4 h-4" />
+                          Add subcategory
                         </button>
                         <button
-                          onClick={() => deleteCategory(category._id)}
+                          onClick={() =>
+                            setConfirmState({
+                              open: true,
+                              title: "Delete category?",
+                              description:
+                                "This will delete the category and all of its subcategories. This action cannot be undone.",
+                              variant: "danger",
+                              confirmLabel: "Delete category",
+                              onConfirm: () => deleteCategory(category._id),
+                            })
+                          }
                           disabled={busy}
                           className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete Category"
@@ -641,12 +737,12 @@ export default function CategoriesPage() {
 
                   {/* Subcategories */}
                   {isExpanded && categorySubcategories.length > 0 && (
-                    <div className="border-t border-gray-200 bg-gray-50">
+                    <div className="border-t border-zinc-200 bg-zinc-50">
                       <div className="p-4">
-                        <h4 className="text-sm font-medium text-gray-700 mb-3">Subcategories</h4>
+                        <h4 className="text-sm font-medium text-zinc-800 mb-3">Subcategories</h4>
                         <div className="space-y-2">
                           {categorySubcategories.map((subcategory) => (
-                            <div key={subcategory._id} className="bg-white p-3 rounded-lg border border-gray-200">
+                            <div key={subcategory._id} className="bg-white p-3 rounded-2xl border border-zinc-200">
                               <div className="flex items-center justify-between gap-3">
                                 <div className="flex items-center space-x-3">
                                   {subcategory.image ? (
@@ -660,14 +756,14 @@ export default function CategoriesPage() {
                                       }}
                                     />
                                   ) : (
-                                    <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center">
-                                      <FolderOpen className="w-4 h-4 text-gray-400" />
+                                    <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center border border-emerald-100">
+                                      <FolderOpen className="w-4 h-4 text-emerald-500" />
                                     </div>
                                   )}
 
                                   <div>
-                                    <p className="font-medium text-gray-900">{subcategory.name}</p>
-                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
+                                    <p className="font-medium text-zinc-900">{subcategory.name}</p>
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
                                       <span>Code: {subcategory.code}</span>
                                       <span
                                         className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
@@ -704,7 +800,17 @@ export default function CategoriesPage() {
                                     {subcategory.isActive ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
                                   </button>
                                   <button
-                                    onClick={() => deleteSubcategory(subcategory._id)}
+                                    onClick={() =>
+                                      setConfirmState({
+                                        open: true,
+                                        title: "Delete subcategory?",
+                                        description:
+                                          "This will permanently delete the subcategory. Existing services will need to be reassigned.",
+                                        variant: "danger",
+                                        confirmLabel: "Delete subcategory",
+                                        onConfirm: () => deleteSubcategory(subcategory._id),
+                                      })
+                                    }
                                     disabled={busy}
                                     className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                                     title="Delete Subcategory"
@@ -730,68 +836,89 @@ export default function CategoriesPage() {
 
       {/* Create Category Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">Create Category</h2>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900">Create category</h2>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Define a top-level bucket for grouping related services in the marketplace.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
+                disabled={busy}
+                className="p-1.5 rounded-full hover:bg-zinc-100"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter category name"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  placeholder="e.g. Accounting, Marketing, Legal"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
-                <input
-                  type="text"
-                  value={formData.slug}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="URL-friendly slug"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Slug</label>
+                  <input
+                    type="text"
+                    value={formData.slug}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    placeholder="URL-friendly slug"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Code</label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    placeholder="Short code (auto-filled)"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Unique category code"
-                />
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Sort order</label>
+                  <input
+                    type="number"
+                    value={formData.sortOrder}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    placeholder="0"
+                  />
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort Order</label>
-                <input
-                  type="number"
-                  value={formData.sortOrder}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Display order"
-                />
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="isActiveCat"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-                  className="mr-2"
-                />
-                <label htmlFor="isActiveCat" className="text-sm text-gray-700">
-                  Active
-                </label>
+                <div className="flex items-center mt-1 sm:mt-7">
+                  <input
+                    type="checkbox"
+                    id="isActiveCat"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    className="mr-2 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500/40"
+                  />
+                  <label htmlFor="isActiveCat" className="text-sm text-zinc-700">
+                    Active
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -799,14 +926,17 @@ export default function CategoriesPage() {
               <button
                 onClick={createCategory}
                 disabled={busy || !formData.name.trim()}
-                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition bg-emerald-600 hover:bg-emerald-700"
+                className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                {busy ? "Creating…" : "Create Category"}
+                {busy ? "Creating…" : "Create category"}
               </button>
               <button
-                onClick={() => { setShowCreateModal(false); resetForm(); }}
+                onClick={() => {
+                  setShowCreateModal(false);
+                  resetForm();
+                }}
                 disabled={busy}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                className="flex-1 px-4 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-800 hover:bg-zinc-100"
               >
                 Cancel
               </button>
@@ -817,75 +947,104 @@ export default function CategoriesPage() {
 
       {/* Edit Category Modal */}
       {showEditCategoryModal && editingCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold">Edit Category</h2>
-              <button onClick={() => { setShowEditCategoryModal(false); setEditingCategory(null); resetForm(); }} disabled={busy} className="p-1 hover:bg-gray-100 rounded">
-                <X className="w-5 h-5" />
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900">Edit category</h2>
+                <p className="mt-1 text-xs text-zinc-600">
+                  Update label, code, and visibility without affecting existing services.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowEditCategoryModal(false);
+                  setEditingCategory(null);
+                  resetForm();
+                }}
+                disabled={busy}
+                className="p-1.5 rounded-full hover:bg-zinc-100"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
               </button>
             </div>
+
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   placeholder="Category name"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
-                <input
-                  type="text"
-                  value={formData.slug}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Slug</label>
+                  <input
+                    type="text"
+                    value={formData.slug}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Code</label>
+                  <input
+                    type="text"
+                    value={formData.code}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
-                <input
-                  type="text"
-                  value={formData.code}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort Order</label>
-                <input
-                  type="number"
-                  value={formData.sortOrder}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="editIsActiveCat"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-                  className="rounded"
-                />
-                <label htmlFor="editIsActiveCat" className="text-sm text-gray-700">Active</label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 mb-2">Sort order</label>
+                  <input
+                    type="number"
+                    value={formData.sortOrder}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))
+                    }
+                    className="w-full px-3 py-2 border border-zinc-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                </div>
+                <div className="flex items-center mt-1 sm:mt-7 gap-2">
+                  <input
+                    type="checkbox"
+                    id="editIsActiveCat"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                    className="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500/40"
+                  />
+                  <label htmlFor="editIsActiveCat" className="text-sm text-zinc-700">
+                    Active
+                  </label>
+                </div>
               </div>
             </div>
+
             <div className="flex items-center space-x-3 mt-6">
               <button
                 onClick={updateCategory}
                 disabled={busy || !formData.name.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
               >
-                {busy ? "Saving…" : "Save Changes"}
+                {busy ? "Saving…" : "Save changes"}
               </button>
               <button
-                onClick={() => { setShowEditCategoryModal(false); setEditingCategory(null); resetForm(); }}
+                onClick={() => {
+                  setShowEditCategoryModal(false);
+                  setEditingCategory(null);
+                  resetForm();
+                }}
                 disabled={busy}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                className="flex-1 px-4 py-2 rounded-xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-800 hover:bg-zinc-100"
               >
                 Cancel
               </button>
@@ -896,54 +1055,86 @@ export default function CategoriesPage() {
 
       {/* Create Subcategory Modal */}
       {showSubcategoryModal && selectedCategory && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-            <h2 className="text-xl font-bold mb-4">Create Subcategory for {selectedCategory.name}</h2>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900">Create subcategory</h2>
+                <p className="text-xs text-zinc-600 mt-1">
+                  Link a subcategory to a category and we&apos;ll auto-generate the code and slug.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setShowSubcategoryModal(false);
+                  resetForm();
+                }}
+                disabled={busy}
+                className="p-1.5 rounded-full hover:bg-zinc-100"
+              >
+                <X className="w-4 h-4 text-zinc-500" />
+              </button>
+            </div>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                <label className="block text-xs font-medium text-zinc-700 mb-1">Category</label>
+                <select
+                  value={formData.categoryId}
+                  onChange={(e) => handleSubcategoryCategoryChange(e.target.value)}
+                  className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                >
+                  {categories.map((cat) => (
+                    <option key={cat._id} value={cat._id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Subcategory name *</label>
                 <input
                   type="text"
                   value={formData.name}
                   onChange={(e) => handleNameChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter subcategory name"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
+                  placeholder="e.g. Digital Marketing, Accounting"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Slug</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Slug</label>
                 <input
                   type="text"
                   value={formData.slug}
                   onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
                   placeholder="URL-friendly slug"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Code</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Code</label>
                 <input
                   type="text"
                   value={formData.code}
                   onChange={(e) => setFormData((prev) => ({ ...prev, code: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
                   placeholder="Unique subcategory code"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Sort Order</label>
+                <label className="block text-sm font-medium text-zinc-700 mb-2">Sort order</label>
                 <input
                   type="number"
                   value={formData.sortOrder}
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, sortOrder: parseInt(e.target.value) || 0 }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Display order"
+                  className="w-full px-3 py-2 border border-zinc-300 rounded-lg focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-sm"
+                  placeholder="Display order (optional)"
                 />
               </div>
 
@@ -955,7 +1146,7 @@ export default function CategoriesPage() {
                   onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
                   className="mr-2"
                 />
-                <label htmlFor="isActiveSub" className="text-sm text-gray-700">
+                <label htmlFor="isActiveSub" className="text-sm text-zinc-700">
                   Active
                 </label>
               </div>
@@ -965,14 +1156,17 @@ export default function CategoriesPage() {
               <button
                 onClick={createSubcategory}
                 disabled={busy || !formData.name.trim()}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {busy ? "Creating…" : "Create Subcategory"}
               </button>
               <button
-                onClick={() => { setShowSubcategoryModal(false); resetForm(); }}
+                onClick={() => {
+                  setShowSubcategoryModal(false);
+                  resetForm();
+                }}
                 disabled={busy}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                className="flex-1 px-4 py-2 bg-zinc-100 text-zinc-800 rounded-lg hover:bg-zinc-200"
               >
                 Cancel
               </button>
@@ -1059,6 +1253,20 @@ export default function CategoriesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmState?.open}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description}
+        confirmLabel={confirmState?.confirmLabel}
+        variant={confirmState?.variant}
+        onConfirm={() => {
+          const fn = confirmState?.onConfirm;
+          setConfirmState(null);
+          fn?.();
+        }}
+        onCancel={() => setConfirmState(null)}
+      />
     </div>
   );
 }

@@ -1669,7 +1669,7 @@ export function registerAdminRoutes(app: Express) {
       const body = z.object({
         name: z.string().min(1).max(100),
         slug: z.string().min(1).max(100),
-        code: z.string().min(1).max(10),
+        code: z.string().min(1).max(20),
         categoryId: z.string(),
         icon: z.string().optional(),
         image: z.string().optional(),

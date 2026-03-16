@@ -26,14 +26,15 @@ const subcategorySchema = new Schema(
       unique: true, 
       trim: true,
       uppercase: true,
-      maxlength: 10 
+      maxlength: 150 
     },
     
-    // Parent category reference
+    // Parent category reference (Category uses string CUID _id)
     categoryId: { 
-      type: Schema.Types.ObjectId, 
+      type: String,
       ref: "Category", 
-      required: true 
+      required: true,
+      index: true,
     },
     
     // Icon for UI (SVG URL or icon name)
@@ -64,13 +65,6 @@ const subcategorySchema = new Schema(
   },
   { 
     timestamps: true,
-    // Indexes for better query performance
-    index: [
-      { name: 1, unique: true },
-      { code: 1, unique: true },
-      { categoryId: 1, sortOrder: 1 },
-      { isActive: 1, sortOrder: 1 }
-    ]
   }
 );
 

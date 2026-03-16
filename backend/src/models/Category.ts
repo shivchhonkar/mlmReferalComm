@@ -28,7 +28,7 @@ const categorySchema = new Schema(
       unique: true, 
       trim: true,
       uppercase: true,
-      maxlength: 10 
+      maxlength: 150 
     },
     
     // Icon for UI (SVG URL or icon name)
