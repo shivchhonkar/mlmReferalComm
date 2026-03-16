@@ -108,7 +108,7 @@ export default function ImageSlider({
 
   if (slides.length === 0) {
     return (
-      <div className={`relative w-full h-full overflow-hidden bg-gradient-to-br from-blue-600 via-blue-700 to-blue-800 ${className}`}>
+      <div className={`relative w-full h-full overflow-hidden bg-gradient-to-br from-emerald-600 via-teal-600 to-sky-600 ${className}`}>
 
         {/* PURE BLUE OVERLAY (NO DARK) */}
         <div className="absolute inset-0 bg-gradient-to-t from-blue-700/40 via-blue-600/20 to-transparent" />
@@ -138,7 +138,7 @@ export default function ImageSlider({
             <div className="mt-6 sm:mt-10 flex flex-wrap justify-center gap-6 sm:gap-12">
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="p-2 sm:p-3 bg-blue-500/20 rounded-xl border border-white/20">
-                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-blue-100" />
+                  <Users className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-100" />
                 </div>
                 <div>
                   <div className="text-lg sm:text-2xl font-bold text-white">10,000+</div>
@@ -148,7 +148,7 @@ export default function ImageSlider({
 
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="p-2 sm:p-3 bg-blue-500/20 rounded-xl border border-white/20">
-                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-blue-100" />
+                  <Clock className="w-5 h-5 sm:w-6 sm:h-6 text-emerald-100" />
                 </div>
                 <div>
                   <div className="text-lg sm:text-2xl font-bold text-white">24/7</div>

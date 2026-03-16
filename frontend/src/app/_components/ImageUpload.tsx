@@ -123,7 +123,7 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
   };
 
   return (
-    <div className={`space-y-4 ${className}`}>
+    <div className={`space-y-4 flex flex-col items-center ${className}`}>
       {previewUrl ? (
         <div className="relative group">
           <div className="w-full h-48 rounded-lg overflow-hidden border border-gray-200">
@@ -186,12 +186,12 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
       {!previewUrl && (
         <label
           htmlFor="image-upload"
-          className="block w-full text-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-        >
-          <Upload className="w-4 h-4 inline mr-2" />
-          Choose Image
-        </label>
-      )}
-    </div>
-  );
-}
+          className="block text-center px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:text-gray-900 transition-colors cursor-pointer max-w-xs bg-emerald-600 text-white"
+          >
+            <Upload className="w-4 h-4 inline mr-2" />
+            Choose Image
+          </label>
+        )}
+      </div>
+    );
+  }
