@@ -759,6 +759,98 @@ export default function DashboardPage() {
             </table>
           </div>
         </section>
+
+        {/* Services snapshot (below Income history) */}
+        <section className="mt-8 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow-sm">
+                <Store className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-zinc-900">Services</h2>
+                <p className="text-xs text-zinc-600">
+                  A quick view of services available in the marketplace.
+                </p>
+              </div>
+            </div>
+            <Link
+              prefetch={false}
+              href="/services"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+            >
+              View all services
+              <ExternalLink className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-4 max-h-72 overflow-y-auto rounded-2xl border border-zinc-200">
+            <table className="w-full min-w-[600px] text-sm">
+              <thead className="bg-zinc-50 text-left text-zinc-700">
+                <tr>
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Price</th>
+                  <th className="px-4 py-3 font-medium">Business Volume</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dataLoading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <tr key={i} className="border-t border-zinc-200">
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-40 rounded bg-zinc-100 animate-pulse" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-24 rounded bg-zinc-100 animate-pulse" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-24 rounded bg-zinc-100 animate-pulse" />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="h-4 w-20 rounded bg-zinc-100 animate-pulse" />
+                      </td>
+                    </tr>
+                  ))
+                ) : services.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
+                      <Store className="mx-auto mb-2 h-8 w-8 text-zinc-300" />
+                      <p>No services available yet.</p>
+                    </td>
+                  </tr>
+                ) : (
+                  services.map((svc) => (
+                    <tr
+                      key={svc._id}
+                      className="border-t border-zinc-200 transition hover:bg-zinc-50/80"
+                    >
+                      <td className="px-4 py-3 text-zinc-900">{svc.name}</td>
+                      <td className="px-4 py-3 text-zinc-900">
+                        {formatINR(svc.price ?? 0)}
+                      </td>
+                      <td className="px-4 py-3 text-zinc-900">
+                        {formatNumber(svc.businessVolume ?? 0)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={[
+                            "inline-flex rounded-full border px-2 py-1 text-xs ",
+                            svc.status === "active" || svc.status === "approved"
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-700",
+                          ].join(" ")}
+                        >
+                          {svc.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   );
