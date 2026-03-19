@@ -98,6 +98,16 @@ export default function DashboardPage() {
   const [busy, setBusy] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [pendingSellers, setPendingSellers] = useState<unknown[]>([]);
+  const [showAllIncomeModal, setShowAllIncomeModal] = useState(false);
+
+  const formatINRPrecise = useCallback((value: number) => {
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(value) ? value : 0);
+  }, []);
 
   const totalIncome = useMemo(
     () => incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0),
@@ -146,12 +156,14 @@ export default function DashboardPage() {
       .sort((a, b) => parseInt(a.level.slice(1)) - parseInt(b.level.slice(1)));
   }, [incomes]);
 
-  const levelUserIncome = useMemo(() => {
+  const allLevelUserIncome = useMemo(() => {
     const byLevel = new Map<number, Map<string, { id: string; name: string; amount: number }>>();
+    const allLevels = new Set<number>();
 
     incomes.forEach((inc) => {
       const lvl = inc.level ?? 0;
-      if (lvl < 1 || lvl > 5) return;
+      if (lvl < 1) return;
+      allLevels.add(lvl);
 
       const fu = inc.fromUser ?? {};
       const id = fu.referralCode || fu.email || fu.name || "unknown";
@@ -164,12 +176,20 @@ export default function DashboardPage() {
       levelMap.set(id, existing);
     });
 
-    return [1, 2, 3, 4, 5].map((lvl) => {
+    const sortedLevels = Array.from(allLevels).sort((a, b) => a - b);
+    const levelsToRender = sortedLevels.length > 0 ? sortedLevels : [1, 2, 3, 4, 5];
+
+    return levelsToRender.map((lvl) => {
       const users = Array.from(byLevel.get(lvl)?.values() ?? []);
       users.sort((a, b) => b.amount - a.amount);
       return { level: lvl, users };
     });
   }, [incomes]);
+
+  const topFiveLevelIncome = useMemo(() => {
+    const byLevel = new Map(allLevelUserIncome.map((entry) => [entry.level, entry]));
+    return [1, 2, 3, 4, 5].map((level) => byLevel.get(level) ?? { level, users: [] });
+  }, [allLevelUserIncome]);
 
   const loadAll = useCallback(async () => {
     setError(null);
@@ -279,7 +299,7 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Dashboard</h1>
           <div className="mt-5 rounded-2xl border border-red-200 bg-white p-6 text-sm text-red-700 shadow-sm">
             {error} —{" "}
-            <Link prefetch={false} className="font-medium underline hover:text-red-800" href="/login">
+            <Link prefetch={false} className="font-medium underline hover:text-red-800 hover:cursor-pointer" href="/login">
               Login
             </Link>
           </div>
@@ -352,7 +372,7 @@ export default function DashboardPage() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {isAdmin ? (
               <Link
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
                 prefetch={false}
                 href="/dashboard/admin"
               >
@@ -363,7 +383,7 @@ export default function DashboardPage() {
               <Link
                 prefetch={false}
                 href="dashboard/seller/services"
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
               >
                 <Package className="h-4 w-4" />
                 Manage services
@@ -377,9 +397,19 @@ export default function DashboardPage() {
                 Request sent for approval
               </span>
             ) : isSellerRejected ? (
-              <span className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-600">
-                Seller request was rejected. Contact admin to reapply.
-              </span>
+              <div className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+                <span className="text-sm font-medium text-zinc-600">
+                  Seller request was rejected. Contact admin to reapply
+                </span>
+                <button
+                  type="button"
+                  onClick={handleBecomeSeller}
+                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 hover:cursor-pointer disabled:opacity-60"
+                  disabled={busy}
+                >
+                  Re-request
+                </button>
+              </div>
             ) : hasNotRequestedSeller ? (
               <button
                 type="button"
@@ -472,7 +502,7 @@ export default function DashboardPage() {
             {isSellerApproved && <Link
               prefetch={false}
               href="/dashboard/seller/services"
-              className="shrink-0 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+              className="shrink-0 rounded-xl border border-emerald-300 bg-white px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
             >
               Browse services
             </Link>}
@@ -562,7 +592,7 @@ export default function DashboardPage() {
               ) : (
                 <>
                   <p className="text-2xl tracking-tight text-emerald-700 mb-4">
-                    {formatINR(totalIncome)}
+                    {formatINRPrecise(totalIncome)}
                   </p>
                   {incomeChartData.length > 0 ? (
                     <div className="h-32 mt-2">
@@ -658,7 +688,7 @@ export default function DashboardPage() {
                 {isSellerApproved && <Link
                   prefetch={false}
                   href="/dashboard/seller/services"
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100 hover:cursor-pointer"
                 >
                   <Package className="h-4 w-4" />
                   Browse services
@@ -666,7 +696,7 @@ export default function DashboardPage() {
                 <Link
                   prefetch={false}
                   href="/dashboard/orders"
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100 hover:cursor-pointer"
                 >
                   <ShoppingBag className="h-4 w-4" />
                   My orders
@@ -674,7 +704,7 @@ export default function DashboardPage() {
                 <Link
                   prefetch={false}
                   href="/dashboard/referrals"
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100 hover:cursor-pointer"
                 >
                   <Users className="h-4 w-4" />
                   Referrals
@@ -682,7 +712,7 @@ export default function DashboardPage() {
                 <Link
                   prefetch={false}
                   href="/dashboard/profile"
-                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100"
+                  className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-800 transition hover:bg-zinc-100 hover:cursor-pointer"
                 >
                   <UserCircle className="h-4 w-4" />
                   Account
@@ -692,7 +722,7 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Income by level (top 5 levels with users) */}
+        {/* Income by level (default: first 5 levels) */}
         <section className="mb-10 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
@@ -706,6 +736,13 @@ export default function DashboardPage() {
                 </p>
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => setShowAllIncomeModal(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 hover:cursor-pointer"
+            >
+              View all income
+            </button>
           </div>
 
           {dataLoading ? (
@@ -719,8 +756,8 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-5">
-              {levelUserIncome.map(({ level, users }) => (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {topFiveLevelIncome.map(({ level, users }) => (
                 <div
                   key={level}
                   className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
@@ -728,7 +765,7 @@ export default function DashboardPage() {
                   <div className="mb-1 flex items-center justify-between text-xs">
                     <span className="font-medium text-zinc-500">Level {level}</span>
                     <span className="font-semibold text-emerald-700">
-                      {formatINR(users.reduce((sum, u) => sum + u.amount, 0))}
+                      {formatINRPrecise(users.reduce((sum, u) => sum + u.amount, 0))}
                     </span>
                   </div>
                   {users.length === 0 ? (
@@ -744,7 +781,7 @@ export default function DashboardPage() {
                             {u.name}
                           </span>
                           <span className="font-semibold text-emerald-700">
-                            {formatINR(u.amount)}
+                            {formatINRPrecise(u.amount)}
                           </span>
                         </li>
                       ))}
@@ -776,7 +813,7 @@ export default function DashboardPage() {
             <Link
               prefetch={false}
               href="/dashboard/referrals"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline hover:cursor-pointer"
             >
               View referrals
               <ExternalLink className="h-4 w-4" />
@@ -810,7 +847,7 @@ export default function DashboardPage() {
                     <td colSpan={5} className="px-4 py-12 text-center text-zinc-500">
                       <TrendingUp className="mx-auto mb-2 h-10 w-10 text-zinc-300" />
                       <p>No income yet. When your referrals make purchases, earnings appear here.</p>
-                      <Link prefetch={false} href="/dashboard/seller/services" className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline">
+                      <Link prefetch={false} href="/dashboard/seller/services" className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline hover:cursor-pointer">
                         Browse services →
                       </Link>
                     </td>
@@ -866,7 +903,7 @@ export default function DashboardPage() {
             <Link
               prefetch={false}
               href="/services"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 hover:underline hover:cursor-pointer"
             >
               View all services
               <ExternalLink className="h-4 w-4" />
@@ -941,6 +978,57 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
+
+      {showAllIncomeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-semibold text-zinc-900">All levels income</h3>
+                <p className="text-xs text-zinc-600">Commission breakdown across all downline levels</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllIncomeModal(false)}
+                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto p-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {allLevelUserIncome.map(({ level, users }) => (
+                  <div key={level} className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
+                    <div className="mb-1 flex items-center justify-between text-xs">
+                      <span className="font-medium text-zinc-500">Level {level}</span>
+                      <span className="font-semibold text-emerald-700">
+                        {formatINRPrecise(users.reduce((sum, u) => sum + u.amount, 0))}
+                      </span>
+                    </div>
+                    {users.length === 0 ? (
+                      <p className="mt-2 text-[11px] text-zinc-400">No income yet.</p>
+                    ) : (
+                      <ul className="mt-1 space-y-1.5 max-h-40 overflow-y-auto">
+                        {users.map((u) => (
+                          <li key={u.id} className="flex items-center justify-between text-[11px]">
+                            <span className="mr-2 truncate text-zinc-700" title={u.name}>
+                              {u.name}
+                            </span>
+                            <span className="font-semibold text-emerald-700">
+                              {formatINRPrecise(u.amount)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

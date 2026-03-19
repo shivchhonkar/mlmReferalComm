@@ -1036,7 +1036,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                                 type="button"
                                 onClick={() => handleApproveSeller(req.id)}
                                 disabled={sellerActionId === req.id}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 disabled:opacity-60 hover:cursor-pointer"
                               >
                                 {sellerActionId === req.id ? (
                                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
@@ -1049,7 +1049,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                                 type="button"
                                 onClick={() => handleRejectSeller(req.id)}
                                 disabled={sellerActionId === req.id}
-                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-100 disabled:opacity-60 hover:cursor-pointer"
                               >
                                 <XCircle className="h-4 w-4" />
                                 Reject
@@ -1133,7 +1133,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                             <button
                               type="button"
                               onClick={() => openSellerServices(seller)}
-                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:cursor-pointer"
                             >
                               <Package className="h-4 w-4" />
                               View services

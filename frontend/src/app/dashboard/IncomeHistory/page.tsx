@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
-import { formatINR } from "@/lib/format";
 import { BarChart3, RefreshCw, User, TrendingUp } from "lucide-react";
 
 type FromUser = {
@@ -33,6 +32,15 @@ function fromUserName(u: FromUser | string | undefined): string {
   if (!u || typeof u === "string") return "-";
   const n = u.fullName ?? u.fullname ?? u.name ?? u.email;
   return n || "-";
+}
+
+function formatINRPrecise(value: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
 }
 
 export default function IncomeHistoryPage() {
@@ -90,15 +98,17 @@ export default function IncomeHistoryPage() {
             Earnings from your referral network
           </p>
         </div>
-        <button
-          type="button"
-          onClick={fetchIncomes}
-          disabled={loading}
-          className="inline-flex items-center hover:cursor-pointer gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchIncomes}
+            disabled={loading}
+            className="inline-flex items-center hover:cursor-pointer gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm transition hover:bg-zinc-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -113,7 +123,7 @@ export default function IncomeHistoryPage() {
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
               <span className="font-medium text-zinc-800">
-                Total: {formatINR(totalAmount)}
+                Total: {formatINRPrecise(totalAmount)}
               </span>
             </div>
             <span className="text-sm text-zinc-500">
@@ -190,7 +200,7 @@ export default function IncomeHistoryPage() {
                       {inc.bv ?? 0}
                     </td>
                     <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatINR(inc.amount ?? 0)}
+                      {formatINRPrecise(inc.amount ?? 0)}
                     </td>
                   </tr>
                 ))}
@@ -199,6 +209,7 @@ export default function IncomeHistoryPage() {
           </div>
         )}
       </div>
+
     </div>
   );
 }

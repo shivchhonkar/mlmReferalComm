@@ -19,6 +19,13 @@ const router = Router();
 // Apply rate limiting to all auth routes
 router.use(authLimiter);
 
+// Temporary in-memory OTP store for mobile verification during signup.
+// NOTE: This is intentionally lightweight for testing and resets on server restart.
+const mobileOtpStore = new Map<
+  string,
+  { otp: string; expiresAt: number; verified: boolean; countryCode?: string }
+>();
+
 // Check if email or phone exists
 router.post("/check-exists", async (req, res) => {
   try {
@@ -216,6 +223,75 @@ router.post("/logout", async (req, res) => {
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
+
+// Signup mobile OTP (optional flow for testing)
+router.post("/send-otp", async (req, res) => {
+  try {
+    const schema = z.object({
+      mobile: z.string().min(6, "Mobile number is required"),
+      countryCode: z.string().optional(),
+    });
+    const body = schema.parse(req.body);
+    await connectToDatabase();
+
+    const mobile = body.mobile.replace(/\D/g, "");
+    if (!mobile) return sendValidationError(res, "Mobile number is required", 400);
+
+    const existingUser = await UserModel.findOne({ mobile }).select("_id");
+    const otp = generateOTP();
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes
+
+    mobileOtpStore.set(mobile, {
+      otp,
+      expiresAt,
+      verified: false,
+      countryCode: body.countryCode,
+    });
+
+    // In testing, return OTP so QA can proceed without SMS provider.
+    // In production, hide OTP and integrate SMS.
+    const includeOtp = process.env.NODE_ENV !== "production";
+    return res.json({
+      success: true,
+      message: "OTP sent successfully",
+      isNewUser: !existingUser,
+      ...(includeOtp ? { otp } : {}),
+    });
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) return sendValidationError(res, formatZodError(err));
+    const msg = err instanceof Error ? err.message : "Failed to send OTP";
+    return sendValidationError(res, msg, 400);
+  }
+});
+
+router.post("/verify-otp", async (req, res) => {
+  try {
+    const schema = z.object({
+      mobile: z.string().min(6, "Mobile number is required"),
+      otp: z.string().min(6, "OTP must be 6 digits").max(6, "OTP must be 6 digits"),
+    });
+    const body = schema.parse(req.body);
+    const mobile = body.mobile.replace(/\D/g, "");
+    const entry = mobileOtpStore.get(mobile);
+
+    if (!entry) return res.status(400).json({ success: false, error: "OTP not found. Please request again." });
+    if (Date.now() > entry.expiresAt) {
+      mobileOtpStore.delete(mobile);
+      return res.status(400).json({ success: false, error: "OTP has expired" });
+    }
+    if (entry.otp !== body.otp) {
+      return res.status(400).json({ success: false, error: "Invalid OTP" });
+    }
+
+    entry.verified = true;
+    mobileOtpStore.set(mobile, entry);
+    return res.json({ success: true, message: "OTP verified successfully" });
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) return sendValidationError(res, formatZodError(err));
+    const msg = err instanceof Error ? err.message : "Failed to verify OTP";
+    return sendValidationError(res, msg, 400);
+  }
+});
 
 // Forgot Password - Request OTP
 router.post("/forgot-password", async (req, res) => {

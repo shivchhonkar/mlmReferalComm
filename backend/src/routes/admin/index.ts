@@ -24,6 +24,8 @@ import { LogoutActivityLogModel } from "@/models/LogoutActivityLog";
 import { AccountChangeLogModel } from "@/models/AccountChangeLog";
 import { ServiceActionLogModel } from "@/models/ServiceActionLog";
 import { OrderModel } from "@/models/Order";
+import { IncomeModel } from "@/models/Income";
+import { sendEmail } from "@/lib/email";
 import mongoose from "mongoose";
 
 /**
@@ -31,6 +33,14 @@ import mongoose from "mongoose";
  * These routes are protected and require admin, super_admin, or moderator roles
  */
 export function registerAdminRoutes(app: Express) {
+  const sanitizeCustomMessage = (input?: string) =>
+    String(input || "")
+      .replace(/selected services:[\s\S]*$/i, "")
+      .replace(/please check these services:[\s\S]*$/i, "")
+      .replace(/regards,\s*admin team/gi, "")
+      .trim();
+  const addRegardsFooter = (input: string) => `${input.trim()}\n\nRegards,\nAdmin Team`;
+
   // ============================================================================
   // ADMIN DASHBOARD
   // ============================================================================
@@ -1892,6 +1902,181 @@ export function registerAdminRoutes(app: Express) {
       );
 
       return res.json({ message: "Payment settings updated successfully", updated });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  // ============================================================================
+  // ADMIN REPORTS
+  // ============================================================================
+  app.get("/api/admin/reports/user-ledger", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+
+      const userId = String(req.query.userId || "").trim();
+      if (!mongoose.Types.ObjectId.isValid(userId)) {
+        return res.status(400).json({ error: "Invalid user id" });
+      }
+
+      const user = await UserModel.findById(userId)
+        .select(
+          "_id fullName name email mobile referralCode bankAccountName bankAccountNumber bankName bankAddress bankIfsc upiLink"
+        )
+        .lean();
+
+      if (!user) return res.status(404).json({ error: "User not found" });
+
+      const entries = await IncomeModel.find({ toUser: userId })
+        .populate("fromUser", "fullName name email mobile referralCode")
+        .populate({
+          path: "purchase",
+          populate: { path: "service", select: "_id name" },
+        })
+        .sort({ createdAt: -1 })
+        .limit(1000)
+        .lean();
+
+      const totalIncome = entries.reduce((sum: number, e: any) => sum + (Number(e?.amount) || 0), 0);
+      const totalBusiness = entries.reduce((sum: number, e: any) => sum + (Number(e?.bv) || 0), 0);
+
+      return res.json({
+        user: {
+          _id: user._id,
+          name: (user as any).fullName || (user as any).name || "",
+          email: (user as any).email || "",
+          mobile: (user as any).mobile || "",
+          referralCode: (user as any).referralCode || "",
+          bank: {
+            accountName: (user as any).bankAccountName || "",
+            accountNumber: (user as any).bankAccountNumber || "",
+            bankName: (user as any).bankName || "",
+            bankAddress: (user as any).bankAddress || "",
+            ifsc: (user as any).bankIfsc || "",
+            upiLink: (user as any).upiLink || "",
+          },
+        },
+        summary: {
+          totalIncome,
+          totalBusiness,
+          entries: entries.length,
+        },
+        ledger: entries,
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.post("/api/admin/communication/send", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+
+      const body = z
+        .object({
+          channel: z.enum(["email", "sms", "whatsapp"]),
+          userIds: z.array(z.string()).min(1, "Select at least one user"),
+          serviceIds: z.array(z.string()).min(1, "Select at least one service"),
+          message: z.string().optional(),
+        })
+        .parse(req.body);
+
+      const validUserIds = body.userIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+      if (validUserIds.length === 0) {
+        return res.status(400).json({ error: "No valid users selected" });
+      }
+
+      const [users, services] = await Promise.all([
+        UserModel.find({ _id: { $in: validUserIds } })
+          .select("_id fullName name email mobile")
+          .lean(),
+        ServiceModel.find({ _id: { $in: body.serviceIds } })
+          .select("_id name")
+          .lean(),
+      ]);
+
+      if (services.length === 0) {
+        return res.status(400).json({ error: "No valid services selected" });
+      }
+
+      const host = req.get("host");
+      const protocol = req.protocol || "http";
+      const baseUrl = host ? `${protocol}://${host}` : "";
+
+      const serviceLines = services.map(
+        (s: any) => `- ${s.name || s._id}: ${baseUrl}/services?serviceId=${encodeURIComponent(String(s._id))}`
+      );
+      const servicesSection = `Selected services:\n${serviceLines.join("\n")}`;
+      const customMessage = sanitizeCustomMessage(body.message);
+      const bodyText = customMessage
+        ? `${customMessage}\n\n${servicesSection}`
+        : `Hello,\nPlease check these services:\n${serviceLines.join("\n")}`;
+      const template = addRegardsFooter(bodyText);
+
+      if (body.channel === "email") {
+        const results: Array<{ userId: string; email?: string; sent: boolean; error?: string }> = [];
+        for (const user of users as any[]) {
+          const to = user.email;
+          if (!to) {
+            results.push({ userId: String(user._id), email: undefined, sent: false, error: "Missing email" });
+            continue;
+          }
+          const messageText = template.replace(/\{name\}/g, user.fullName || user.name || "User");
+          const sent = await sendEmail({
+            to,
+            subject: "Selected Service Links",
+            text: messageText,
+          });
+          results.push({
+            userId: String(user._id),
+            email: to,
+            sent: sent.sent,
+            error: sent.error,
+          });
+        }
+
+        return res.json({
+          success: true,
+          channel: "email",
+          total: users.length,
+          sent: results.filter((r) => r.sent).length,
+          failed: results.filter((r) => !r.sent).length,
+          results,
+        });
+      }
+
+      const shareLinks = (users as any[]).map((user) => {
+        const mobile = String(user.mobile || "").replace(/\D/g, "");
+        const personalized = template.replace(/\{name\}/g, user.fullName || user.name || "User");
+        const encoded = encodeURIComponent(personalized);
+        const url =
+          body.channel === "whatsapp"
+            ? mobile
+              ? `https://wa.me/${mobile}?text=${encoded}`
+              : ""
+            : mobile
+              ? `sms:${mobile}?body=${encoded}`
+              : "";
+        return {
+          userId: String(user._id),
+          name: user.fullName || user.name || "User",
+          mobile: user.mobile || "",
+          url,
+        };
+      });
+
+      return res.json({
+        success: true,
+        channel: body.channel,
+        total: users.length,
+        shareLinks,
+      });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;

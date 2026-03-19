@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { Gift, ArrowLeft, UserPlus, User, Mail, LockKeyhole, Ticket, Phone } from "lucide-react";
 import { useAppDispatch } from "@/store/hooks";
@@ -23,9 +23,84 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [referralCode, setReferralCode] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [otp, setOtp] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+  const [otpTimer, setOtpTimer] = useState(0);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  async function sendSignupOtp() {
+    if (!mobile.trim()) {
+      showErrorToast("Please enter mobile number first");
+      return;
+    }
+    setSendingOtp(true);
+    try {
+      const res = await apiFetch("/api/auth/send-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: mobile.trim(), countryCode }),
+      });
+      const body = await readApiBody(res);
+      const data = body.json as { success?: boolean; error?: string; otp?: string };
+      if (!res.ok || !data?.success) {
+        showErrorToast(data?.error || "Failed to send OTP");
+        return;
+      }
+      setOtpSent(true);
+      setOtpVerified(false);
+      setOtp("");
+      setOtpTimer(60);
+      if (data?.otp) {
+        showSuccessToast(`OTP sent (testing): ${data.otp}`);
+      } else {
+        showSuccessToast("OTP sent successfully");
+      }
+    } catch (e) {
+      showErrorToast(e instanceof Error ? e.message : "Failed to send OTP");
+    } finally {
+      setSendingOtp(false);
+    }
+  }
+
+  async function verifySignupOtp() {
+    if (otp.length !== 6) {
+      showErrorToast("Please enter 6-digit OTP");
+      return;
+    }
+    setVerifyingOtp(true);
+    try {
+      const res = await apiFetch("/api/auth/verify-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mobile: mobile.trim(), otp }),
+      });
+      const body = await readApiBody(res);
+      const data = body.json as { success?: boolean; error?: string };
+      if (!res.ok || !data?.success) {
+        showErrorToast(data?.error || "Invalid OTP");
+        setOtpVerified(false);
+        return;
+      }
+      setOtpVerified(true);
+      showSuccessToast("OTP verified");
+    } catch (e) {
+      showErrorToast(e instanceof Error ? e.message : "Failed to verify OTP");
+      setOtpVerified(false);
+    } finally {
+      setVerifyingOtp(false);
+    }
+  }
+
+  useEffect(() => {
+    if (otpTimer <= 0) return;
+    const id = setTimeout(() => setOtpTimer((p) => Math.max(0, p - 1)), 1000);
+    return () => clearTimeout(id);
+  }, [otpTimer]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -196,6 +271,54 @@ export default function RegisterPage() {
                   Start earning together with your network.
                 </p>
               </div>
+
+                {/* Optional OTP verification (for testing can be skipped) */}
+                <div className="space-y-2 rounded-2xl border border-[var(--gray-200)] bg-[var(--gray-50)] p-3">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-sm font-bold text-[var(--gray-800)]">
+                      Mobile OTP Verification <span className="text-[var(--gray-500)] font-normal">(Optional)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={sendSignupOtp}
+                      disabled={sendingOtp || !mobile.trim()}
+                      className="rounded-lg border border-[var(--gray-300)] bg-white px-3 py-1.5 text-xs font-semibold text-[var(--gray-700)] hover:bg-[var(--gray-100)] hover:cursor-pointer disabled:opacity-60"
+                    >
+                      {sendingOtp ? "Sending..." : otpSent ? "Resend OTP" : "Send OTP"}
+                    </button>
+                  </div>
+
+                  {otpSent && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={otp}
+                        onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                        placeholder="Enter 6-digit OTP"
+                        className="w-48 rounded-lg border border-[var(--gray-200)] bg-white px-3 py-2 text-sm text-[var(--gray-900)]"
+                      />
+                      <button
+                        type="button"
+                        onClick={verifySignupOtp}
+                        disabled={verifyingOtp || otp.length !== 6}
+                        className="rounded-lg border border-emerald-300 bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 hover:cursor-pointer disabled:opacity-60"
+                      >
+                        {verifyingOtp ? "Verifying..." : "Verify OTP"}
+                      </button>
+                      {otpTimer > 0 && (
+                        <span className="text-xs text-[var(--gray-500)]">Resend in {otpTimer}s</span>
+                      )}
+                      {otpVerified && (
+                        <span className="text-xs font-semibold text-emerald-700">Verified</span>
+                      )}
+                    </div>
+                  )}
+
+                  {!otpVerified && (
+                    <p className="text-xs text-[var(--gray-600)]">
+                      OTP is optional for now. You can continue signup without verifying.
+                    </p>
+                  )}
+                </div>
 
               {/* Error */}
               {error && (

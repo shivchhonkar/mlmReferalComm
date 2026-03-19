@@ -65,20 +65,24 @@ const nextConfig: NextConfig = {
     // Uploads are served at backend root /uploads, not under /api
     const uploadsBase = normalized.replace(/\/api\/?$/, "") || normalized;
 
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${normalized}/api/:path*`,
-      },
-      {
-        source: "/health",
-        destination: `${normalized}/health`,
-      },
-      {
-        source: "/uploads/:path*",
-        destination: `${uploadsBase}/uploads/:path*`,
-      },
-    ];
+    // Use fallback rewrites so local Next route handlers (e.g. src/app/api/*)
+    // get priority; proxy is used only when no local route exists.
+    return {
+      fallback: [
+        {
+          source: "/api/:path*",
+          destination: `${normalized}/api/:path*`,
+        },
+        {
+          source: "/health",
+          destination: `${normalized}/health`,
+        },
+        {
+          source: "/uploads/:path*",
+          destination: `${uploadsBase}/uploads/:path*`,
+        },
+      ],
+    };
   },
 };
 

@@ -19,6 +19,7 @@ import categoryRoutes from "@/routes/categoryRoutes";
 import subcategoryRoutes from "@/routes/subcategoryRoutes";
 import adminSetupRoutes from "@/routes/admin/setupRoutes";
 import { registerAdminRoutes } from "@/routes/admin/index";
+import adminCommunicationRoutes from "./routes/adminCommunicationRoutes";
 import { registerSellerServiceRoutes } from "@/routes/sellerServiceRoutes";
 import requestRoutes from "@/routes/requestRoutes";
 import kycRoutes from "@/routes/kycRoutes";
@@ -97,6 +98,7 @@ export function registerRoutes(app: Express) {
   
   // All admin functionality (must be before adminSetupRoutes so specific routes match first)
   registerAdminRoutes(app);
+  app.use("/api/admin/communication", adminCommunicationRoutes);
 
   // Admin KYC routes - mounted explicitly before adminSetupRoutes to ensure /list and /counts work
   app.use("/api/admin/kyc", adminKycRoutes);

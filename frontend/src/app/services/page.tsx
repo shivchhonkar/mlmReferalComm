@@ -70,19 +70,38 @@ async function getSubcategories() {
   }
 }
 
-export default async function ServicesPage() {
+export default async function ServicesPage({
+  searchParams,
+}: {
+  searchParams?: { serviceId?: string | string[] } | Promise<{ serviceId?: string | string[] }>;
+}) {
   const [services, categories, subcategories] = await Promise.all([
     getServices(),
     getCategories(),
     getSubcategories(),
   ]);
 
+  const resolvedSearchParams = await Promise.resolve(searchParams);
+  const serviceIdParam = resolvedSearchParams?.serviceId;
+  const selectedServiceId = Array.isArray(serviceIdParam) ? serviceIdParam[0] : serviceIdParam;
+
+  const filteredServices = selectedServiceId
+    ? services.filter((service) => {
+        const sid = String(selectedServiceId).trim();
+        return (
+          String(service?._id ?? "") === sid ||
+          String((service as Service & { id?: string }).id ?? "") === sid ||
+          String(service?.slug ?? "") === sid
+        );
+      })
+    : services;
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="h-1 bg-gradient-to-r from-emerald-600 via-teal-600 to-sky-600" />
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
         <ServicesCategoryClient
-          services={services}
+          services={filteredServices}
           categories={categories}
           subcategories={subcategories}
         />
