@@ -112,6 +112,7 @@ export default function IncomeReportsPage() {
         totalBusiness: number;
         totalIncome: number;
         levelMap: Map<number, number>;
+        entries: Income[];
       }
     >();
 
