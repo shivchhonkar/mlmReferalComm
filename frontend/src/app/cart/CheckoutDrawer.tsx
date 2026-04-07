@@ -8,13 +8,13 @@ import {
   User,
   Phone,
   Mail,
-  MapPin,
   NotebookText,
-  ShieldCheck,
+  ImagePlus,
   Banknote,
   Clock,
-  ImagePlus,
   Wallet,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import { formatINR } from "@/lib/format";
@@ -67,11 +67,41 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     notes: "",
   });
 
-  // Payment: Cash, UPI (with screenshot), or Pay later
-  // const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("cash");
+  // Keep all payment methods available in code for future enablement.
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "upi" | "pay_later">("upi");
   const [paymentProofUrl, setPaymentProofUrl] = useState<string>("");
   const [proofUploading, setProofUploading] = useState(false);
+  const [copiedField, setCopiedField] = useState<"upi" | "link" | null>(null);
+
+  const upiId = process.env.NEXT_PUBLIC_UPI_ID;
+  const upiPayLink = useMemo(() => {
+    const amount = Number(cart.totalAmount || 0).toFixed(2);
+    const params = new URLSearchParams({
+      pa: upiId || "",
+      pn: "Sambhariya Marketing",
+      am: amount,
+      cu: "INR",
+      tn: `Order payment of ${formatINR(cart.totalAmount)}`,
+    });
+    return `upi://pay?${params.toString()}`;
+  }, [cart.totalAmount]);
+
+  const qrImageUrl = useMemo(
+    () =>
+      `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(upiPayLink)}`,
+    [upiPayLink],
+  );
+
+  async function copyText(value: string, field: "upi" | "link") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+      showSuccessToast(field === "upi" ? "UPI ID copied" : "Payment link copied");
+    } catch {
+      showErrorToast("Unable to copy. Please copy manually.");
+    }
+  }
 
   useEffect(() => {
     if (!open) {
@@ -79,7 +109,6 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       setPaymentProofUrl("");
       return;
     }
-    setPaymentMethod("upi");
     if (didPrefill) return;
 
     const profileName = safeString(user?.name);
@@ -242,7 +271,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
 
               <p className="mt-1 text-sm text-zinc-600">
-                Services only · Pay by Cash, UPI (upload screenshot), or Pay later.
+                Services only · UPI payment with screenshot verification.
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -327,13 +356,16 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </div>
               </div>
 
-              {/* Payment method: Cash received / Pay later */}
+              {/* Payment method */}
             <div className="rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
               <div className="text-sm font-semibold text-zinc-900">
-                Select Payment Method
+               Payment Method
               </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-               
+              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                {/* UPI transfer is currently enabled. Other payment methods will be available soon. */}
+                Make payment via UPI and upload screenshot for verification.
+              </div>
+              {/* <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
                   onClick={() => setPaymentMethod("upi")}
@@ -349,43 +381,74 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                     <span className="block text-xs opacity-90">Upload screenshot · Review</span>
                   </div>
                 </button>
-                 <button
+                <button
                   type="button"
-                  onClick={() => setPaymentMethod("cash")}
-                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
-                    paymentMethod === "cash"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
-                  }`}
+                  disabled
+                  className="flex flex-1 min-w-[100px] cursor-not-allowed items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-3 text-left text-zinc-500 opacity-70 invisible"
+                  title="Cash payment will be enabled soon"
                 >
                   <Banknote className="h-5 w-5 shrink-0" />
                   <div>
-                    <span className="block font-medium text-zinc-900">Cash</span>
-                    <span className="block text-xs opacity-90">Pay now · Confirmed</span>
+                    <span className="block font-medium">Cash</span>
+                    <span className="block text-xs opacity-90">Coming soon</span>
                   </div>
-                </button> 
-                {/* <button
+                </button>
+                <button
                   type="button"
-                  onClick={() => setPaymentMethod("pay_later")}
-                  className={`flex flex-1 min-w-[100px] items-center gap-3 rounded-lg border px-4 py-3 text-left transition hover:cursor-pointer ${
-                    paymentMethod === "pay_later"
-                      ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                      : "border-zinc-200 bg-zinc-50 text-zinc-700 hover:border-zinc-300"
-                  }`}
+                  disabled
+                  className="flex flex-1 min-w-[100px] cursor-not-allowed items-center gap-3 rounded-lg border border-zinc-200 bg-zinc-100 px-4 py-3 text-left text-zinc-500 opacity-70 invisible"
+                  title="Pay later will be enabled soon"
                 >
                   <Clock className="h-5 w-5 shrink-0" />
                   <div>
-                    <span className="block font-medium text-zinc-900">Pay later</span>
-                    <span className="block text-xs opacity-90">Unpaid · Pay when ready</span>
+                    <span className="block font-medium">Pay later</span>
+                    <span className="block text-xs opacity-90">Coming soon</span>
                   </div>
-                </button> */}
-              </div>
+                </button>
+              </div> */}
 
               {/* UPI: mandatory screenshot upload */}
               {paymentMethod === "upi" && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+                  <label className="text-sm font-semibold text-amber-900">Scan & Pay via UPI</label>
+                  <p className="mt-1 text-xs text-amber-800">
+                    Scan this QR to pay exactly <span className="font-semibold">{formatINR(cart.totalAmount)}</span>.
+                  </p>
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-white p-3">
+                    <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+                      <img
+                        src={qrImageUrl}
+                        alt="UPI payment QR"
+                        className="h-32 w-32 rounded-lg border border-zinc-200 bg-white object-contain"
+                      />
+                      <div className="w-full min-w-0 space-y-2">
+                        <div className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+                          UPI ID: <span className="font-semibold text-zinc-900">{upiId}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => copyText(upiId, "upi")}
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            {copiedField === "upi" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            {copiedField === "upi" ? "Copied" : "Copy UPI ID"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => copyText(upiPayLink, "link")}
+                            className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                          >
+                            {copiedField === "link" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                            {copiedField === "link" ? "Copied" : "Copy payment link"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   <label className="text-sm font-semibold text-amber-900">UPI Payment Screenshot *</label>
-                  <p className="mt-1 text-xs text-amber-800">Upload proof of payment. Order will be confirmed after admin review.</p>
+                  <p className="mt-1 text-xs text-amber-800">Upload payment proof. Your order will be confirmed after admin verification.</p>
                   <div className="mt-3 flex items-center gap-3">
                     <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-300 bg-white px-4 py-2 text-sm font-medium text-amber-900 transition hover:bg-amber-50 disabled:opacity-60">
                       {proofUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
@@ -411,7 +474,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                       </div>
                     )}
                   </div>
-                  {paymentMethod === "upi" && !paymentProofUrl && (
+                  {!paymentProofUrl && (
                     <p className="mt-2 text-xs text-amber-700">Screenshot is required to place order with UPI.</p>
                   )}
                 </div>
@@ -570,7 +633,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
           {!canSubmit ? (
             <div className="mt-2 text-[11px] font-semibold text-zinc-500">
-              {paymentMethod === "upi" && !paymentProofUrl
+              {!paymentProofUrl
                 ? "Required: Upload UPI payment screenshot to proceed."
                 : "Required: Full Name (min 2 chars) and 10-digit Mobile."}
             </div>
