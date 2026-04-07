@@ -73,7 +73,7 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [proofUploading, setProofUploading] = useState(false);
   const [copiedField, setCopiedField] = useState<"upi" | "link" | null>(null);
 
-  const upiId = process.env.NEXT_PUBLIC_UPI_ID;
+  const upiId = (process.env.NEXT_PUBLIC_UPI_ID ?? "").trim();
   const upiPayLink = useMemo(() => {
     const amount = Number(cart.totalAmount || 0).toFixed(2);
     const params = new URLSearchParams({
