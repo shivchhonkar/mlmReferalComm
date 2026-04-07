@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/db";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { IncomeLogModel } from "@/models/IncomeLog";
 import { IncomeModel } from "@/models/Income";
+import { OrderModel } from "@/models/Order";
 import { ServiceModel } from "@/models/Service";
 import { UserModel } from "@/models/User";
 
@@ -82,6 +83,7 @@ async function distributeBusinessVolumeInSession(options: {
   let incomeAmount = bv * rule.basePercentage;
 
   const visited = new Set<string>([userObjectId.toString()]);
+  const recipientCapCache = new Map<string, { capAmount: number; earnedSoFar: number }>();
   const logs: Array<{
     fromUserId: mongoose.Types.ObjectId;
     toUserId: mongoose.Types.ObjectId;
@@ -102,6 +104,39 @@ async function distributeBusinessVolumeInSession(options: {
   // Guardrail for corrupt graphs (should be impossible with correct parent assignment).
   const MAX_LEVELS = 50_000;
 
+  async function getRecipientCapState(
+    recipientId: mongoose.Types.ObjectId
+  ): Promise<{ capAmount: number; earnedSoFar: number }> {
+    const key = recipientId.toString();
+    const cached = recipientCapCache.get(key);
+    if (cached) return cached;
+
+    // Cap basis: user's first non-cancelled order totalAmount.
+    const firstOrderQuery = OrderModel.findOne({
+      user: recipientId,
+      status: { $ne: "CANCELLED" },
+    })
+      .sort({ createdAt: 1 })
+      .select("totals.totalAmount");
+    if (session) firstOrderQuery.session(session);
+    const firstOrder = await firstOrderQuery.lean();
+
+    const capAmountRaw = Number((firstOrder as any)?.totals?.totalAmount ?? 0);
+    const capAmount = Number.isFinite(capAmountRaw) && capAmountRaw > 0 ? capAmountRaw : 0;
+
+    const incomeAgg = await IncomeLogModel.aggregate<{ _id: null; total: number }>([
+      { $match: { toUserId: recipientId } },
+      { $group: { _id: null, total: { $sum: { $ifNull: ["$incomeAmount", 0] } } } },
+    ], session ? { session } : undefined);
+
+    const earnedRaw = Number(incomeAgg[0]?.total ?? 0);
+    const earnedSoFar = Number.isFinite(earnedRaw) && earnedRaw > 0 ? earnedRaw : 0;
+
+    const result = { capAmount, earnedSoFar };
+    recipientCapCache.set(key, result);
+    return result;
+  }
+
   while (parentId) {
     const parentKey = parentId.toString();
     if (visited.has(parentKey)) {
@@ -109,23 +144,32 @@ async function distributeBusinessVolumeInSession(options: {
     }
     visited.add(parentKey);
 
-    logs.push({
-      fromUserId: userObjectId,
-      toUserId: parentId,
-      level,
-      bv,
-      incomeAmount,
-    });
+    const capState = await getRecipientCapState(parentId);
+    const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
+    const payableAmount = Math.min(incomeAmount, remainingCap);
 
-    if (purchaseObjectId) {
-      incomes.push({
-        fromUser: userObjectId,
-        toUser: parentId,
-        purchase: purchaseObjectId,
+    if (payableAmount > 0) {
+      logs.push({
+        fromUserId: userObjectId,
+        toUserId: parentId,
         level,
         bv,
-        amount: incomeAmount,
+        incomeAmount: payableAmount,
       });
+
+      if (purchaseObjectId) {
+        incomes.push({
+          fromUser: userObjectId,
+          toUser: parentId,
+          purchase: purchaseObjectId,
+          level,
+          bv,
+          amount: payableAmount,
+        });
+      }
+
+      // Track in-memory progression so cap remains accurate within this same distribution run.
+      capState.earnedSoFar += payableAmount;
     }
 
     if (level >= MAX_LEVELS) {

@@ -272,6 +272,54 @@ export function registerAdminRoutes(app: Express) {
         }
       }
 
+      // Commission cap metrics (based on first non-cancelled order amount)
+      const userIds = users
+        .map((u: any) => String(u?._id || ""))
+        .filter((id: string) => mongoose.Types.ObjectId.isValid(id))
+        .map((id: string) => new mongoose.Types.ObjectId(id));
+
+      const capMap = new Map<string, number>();
+      const earnedMap = new Map<string, number>();
+
+      if (userIds.length > 0) {
+        const [firstOrderCaps, earnedAgg] = await Promise.all([
+          OrderModel.aggregate<{ _id: mongoose.Types.ObjectId; firstOrderAmount: number }>([
+            { $match: { user: { $in: userIds }, status: { $ne: "CANCELLED" } } },
+            { $sort: { user: 1, createdAt: 1 } },
+            {
+              $group: {
+                _id: "$user",
+                firstOrderAmount: { $first: { $ifNull: ["$totals.totalAmount", 0] } },
+              },
+            },
+          ]),
+          IncomeLogModel.aggregate<{ _id: mongoose.Types.ObjectId; totalIncome: number }>([
+            { $match: { toUserId: { $in: userIds } } },
+            { $group: { _id: "$toUserId", totalIncome: { $sum: { $ifNull: ["$incomeAmount", 0] } } } },
+          ]),
+        ]);
+
+        firstOrderCaps.forEach((row) => {
+          capMap.set(String(row._id), Number(row.firstOrderAmount || 0));
+        });
+        earnedAgg.forEach((row) => {
+          earnedMap.set(String(row._id), Number(row.totalIncome || 0));
+        });
+      }
+
+      users = users.map((u: any) => {
+        const id = String(u?._id || "");
+        const capAmount = capMap.get(id) ?? 0;
+        const earnedSoFar = earnedMap.get(id) ?? 0;
+        const remainingCap = Math.max(capAmount - earnedSoFar, 0);
+        return {
+          ...u,
+          commissionCapAmount: capAmount,
+          commissionEarnedSoFar: earnedSoFar,
+          commissionRemainingCap: remainingCap,
+        };
+      });
+
       return res.json({
         users,
         pagination: {

@@ -73,6 +73,9 @@ interface User {
     mobile: string;
   };
   serviceCount?: number;
+  commissionCapAmount?: number;
+  commissionEarnedSoFar?: number;
+  commissionRemainingCap?: number;
 }
 
 type AdminUsersTab = "admins" | "users" | "seller_requests" | "sellers";
@@ -178,6 +181,15 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
   const [creating, setCreating] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const fmtCurrency = useCallback((value?: number) => {
+    const safe = Number(value ?? 0);
+    return new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 2,
+    }).format(Number.isFinite(safe) ? safe : 0);
+  }, []);
 
   // Referral assignment modal
   const [showReferralModal, setShowReferralModal] = useState(false);
@@ -1232,6 +1244,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Role</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Activity / Account</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">KYC</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Commission Cap</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Joined</th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
                 </tr>
@@ -1392,6 +1405,20 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                         </div>
                       </td>
 
+                      <td className="px-6 py-4 align-top">
+                        <div className="space-y-1 text-xs">
+                          <div className="text-zinc-700">
+                            Cap: <span className="font-semibold text-zinc-900">{fmtCurrency(u.commissionCapAmount)}</span>
+                          </div>
+                          <div className="text-zinc-600">
+                            Earned: <span className="font-semibold text-zinc-800">{fmtCurrency(u.commissionEarnedSoFar)}</span>
+                          </div>
+                          <div className="text-emerald-700">
+                            Remaining: <span className="font-semibold">{fmtCurrency(u.commissionRemainingCap)}</span>
+                          </div>
+                        </div>
+                      </td>
+
                       <td className="px-6 py-4 align-top text-sm text-zinc-500">
                         {new Date(u.createdAt).toLocaleDateString()}
                       </td>
@@ -1507,7 +1534,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                     </tr>
                     {expandedUserId === u._id && (
                       <tr className="bg-slate-50/80">
-                        <td colSpan={9} className="px-6 py-4">
+                        <td colSpan={10} className="px-6 py-4">
                           <UserActivityPanel
                             user={u}
                             data={activityCache[u._id]}
