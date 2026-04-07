@@ -33,6 +33,12 @@ type Slider = {
   updatedAt: string;
 };
 
+type NotificationSettings = {
+  message: string;
+  isActive: boolean;
+  updatedAt?: string | null;
+};
+
 export default function AdminSliderPage() {
   useAuth({ requireAdmin: true });
 
@@ -45,6 +51,11 @@ export default function AdminSliderPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const [imageUploadKey, setImageUploadKey] = useState(0);
+  const [notification, setNotification] = useState<NotificationSettings>({
+    message: "",
+    isActive: false,
+  });
+  const [notificationSaving, setNotificationSaving] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -57,14 +68,50 @@ export default function AdminSliderPage() {
   async function loadSliders() {
     try {
       setError(null);
-      const res = await apiFetch("/api/admin/sliders");
-      const body = await readApiBody(res);
-      if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to load sliders");
-      setSliders((body.json as any)?.sliders || []);
+      const [slidersRes, notificationRes] = await Promise.all([
+        apiFetch("/api/admin/sliders"),
+        apiFetch("/api/admin/notification"),
+      ]);
+      const slidersBody = await readApiBody(slidersRes);
+      const notificationBody = await readApiBody(notificationRes);
+      if (!slidersRes.ok) throw new Error((slidersBody.json as any)?.error ?? "Failed to load sliders");
+      if (!notificationRes.ok) throw new Error((notificationBody.json as any)?.error ?? "Failed to load notification");
+      setSliders((slidersBody.json as any)?.sliders || []);
+      setNotification(
+        (notificationBody.json as any)?.notification || { message: "", isActive: false }
+      );
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to load sliders");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveNotification(e: React.FormEvent) {
+    e.preventDefault();
+    setNotificationSaving(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await apiFetch("/api/admin/notification", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: notification.message,
+          isActive: notification.isActive,
+        }),
+      });
+      const body = await readApiBody(res);
+      if (!res.ok) throw new Error((body.json as any)?.error ?? "Failed to save notification");
+      setNotification((body.json as any)?.notification || notification);
+      showSuccessToast("Notification settings updated.");
+      setSuccess("Notification settings updated.");
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : "Failed to save notification";
+      setError(errorMsg);
+      showErrorToast(errorMsg);
+    } finally {
+      setNotificationSaving(false);
     }
   }
 
@@ -288,6 +335,57 @@ export default function AdminSliderPage() {
         )}
 
         {/* Create New Slider */}
+        <div className="mb-6 bg-white p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <h2 className="text-xl text-zinc-900">Top Notification</h2>
+          </div>
+
+          <form onSubmit={saveNotification} className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold text-zinc-800">Notification message</label>
+              <textarea
+                rows={3}
+                maxLength={300}
+                value={notification.message}
+                onChange={(e) =>
+                  setNotification((prev) => ({ ...prev, message: e.target.value }))
+                }
+                className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-500 focus:outline-none focus:bg-white focus:border-[#0EA5E9] focus:ring-2 focus:ring-[#0EA5E9]/20 transition"
+                placeholder="Example: 🎉 Festive offer live now - grab services at best prices!"
+              />
+              <div className="mt-1 text-xs text-zinc-500">{notification.message.length}/300</div>
+            </div>
+
+            <label className="inline-flex items-center gap-2 text-sm text-zinc-800">
+              <input
+                type="checkbox"
+                checked={notification.isActive}
+                onChange={(e) =>
+                  setNotification((prev) => ({ ...prev, isActive: e.target.checked }))
+                }
+                className="h-4 w-4 rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              Enable notification for all users
+            </label>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={notificationSaving}
+                className="rounded-2xl bg-gradient-to-r from-emerald-600 to-sky-600 px-6 py-3 text-sm text-white shadow-lg transition hover:from-emerald-700 hover:to-sky-700 hover:shadow-xl disabled:opacity-60"
+              >
+                {notificationSaving ? "Saving..." : "Save Notification"}
+              </button>
+              <p className="text-xs text-zinc-500">
+                Visible in top strip only when message is not empty and enabled.
+              </p>
+            </div>
+          </form>
+        </div>
+
         <div className="mb-6 bg-white p-6 ">
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow">

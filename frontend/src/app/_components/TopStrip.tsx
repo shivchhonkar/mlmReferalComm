@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Phone, MessagesSquare } from "lucide-react";
+import { apiFetch, readApiBody } from "@/lib/apiClient";
 
 type TopStripProps = {
   readonly phone?: string;
@@ -27,11 +28,39 @@ export default function TopStrip({
 }: TopStripProps) {
   const [now, setNow] = useState<Date>(() => new Date());
   const [mounted, setMounted] = useState(false);
+  const [notification, setNotification] = useState<{ message: string; isActive: boolean }>({
+    message: "",
+    isActive: false,
+  });
 
   useEffect(() => {
     setMounted(true);
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadNotification() {
+      try {
+        const res = await apiFetch("/api/notification");
+        const body = await readApiBody(res);
+        if (!res.ok || cancelled) return;
+        const data = (body.json as any)?.notification;
+        if (!cancelled && data) {
+          setNotification({
+            message: typeof data.message === "string" ? data.message : "",
+            isActive: !!data.isActive,
+          });
+        }
+      } catch {
+        // Silent fail to avoid breaking top strip.
+      }
+    }
+    loadNotification();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const formatted = useMemo(() => {
@@ -86,6 +115,11 @@ export default function TopStrip({
 
             {/* Right: Social + Date Time */}
             <div className="flex items-center gap-3">
+              {notification.isActive && notification.message.trim() ? (
+                <div className="hidden max-w-[420px] truncate rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white md:block">
+                  {notification.message.trim()}
+                </div>
+              ) : null}
               {/* Social icons */}
               <div className="hidden md:flex items-center gap-1">
                 {facebookUrl !== "#" && (

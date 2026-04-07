@@ -19,6 +19,7 @@ import { IncomeLogModel } from "@/models/IncomeLog";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { ContactModel } from "@/models/Contact";
 import { Slider } from "@/models/Slider";
+import { NotificationSetting } from "../../models/NotificationSetting";
 import { LoginActivityLogModel } from "@/models/LoginActivityLog";
 import { LogoutActivityLogModel } from "@/models/LogoutActivityLog";
 import { AccountChangeLogModel } from "@/models/AccountChangeLog";
@@ -1419,6 +1420,53 @@ export function registerAdminRoutes(app: Express) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 500;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  const notificationSchema = z.object({
+    message: z.string().max(300).optional().default(""),
+    isActive: z.boolean().optional().default(false),
+  });
+
+  app.get("/api/admin/notification", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+      const setting = await NotificationSetting.findOne({ key: "global" })
+        .select("message isActive updatedAt")
+        .lean();
+      return res.json({
+        notification: {
+          message: setting?.message ?? "",
+          isActive: !!setting?.isActive,
+          updatedAt: setting?.updatedAt ?? null,
+        },
+      });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 500;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.put("/api/admin/notification", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      const body = notificationSchema.parse(req.body);
+      await connectToDatabase();
+      const message = (body.message ?? "").trim();
+
+      const updated = await NotificationSetting.findOneAndUpdate(
+        { key: "global" },
+        { $set: { message, isActive: !!body.isActive } },
+        { upsert: true, new: true, setDefaultsOnInsert: true }
+      ).select("message isActive updatedAt");
+
+      return res.json({ notification: updated });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
       return res.status(status).json({ error: msg });
     }
   });

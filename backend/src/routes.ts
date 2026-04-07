@@ -15,6 +15,7 @@ import referralSearchRoutes from "@/routes/referralSearchRoutes";
 import businessOpportunityRoutes from "@/routes/businessOpportunityRoutes";
 import contactRoutes from "@/routes/contactRoutes";
 import sliderRoutes from "@/routes/sliderRoutes";
+import notificationRoutes from "./routes/notificationRoutes";
 import categoryRoutes from "@/routes/categoryRoutes";
 import subcategoryRoutes from "@/routes/subcategoryRoutes";
 import adminSetupRoutes from "@/routes/admin/setupRoutes";
@@ -62,6 +63,7 @@ export function registerRoutes(app: Express) {
 
   // Homepage sliders (public content)
   app.use("/api/sliders", sliderRoutes);
+  app.use("/api/notification", notificationRoutes);
 
   // Contact form
   app.use("/api/contact", contactRoutes);
