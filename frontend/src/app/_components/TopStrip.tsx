@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Phone, MessagesSquare } from "lucide-react";
+import { Phone, MessagesSquare, Megaphone } from "lucide-react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 
 type TopStripProps = {
@@ -77,6 +77,12 @@ export default function TopStrip({
     }).format(now);
   }, [now, timeZone]);
 
+  const activeNotification = useMemo(() => {
+    if (!notification.isActive) return "";
+    const msg = notification.message.trim();
+    return msg.length > 0 ? msg : "";
+  }, [notification.isActive, notification.message]);
+
   const socialItemClass =
     "inline-flex items-center justify-center w-8 h-8 rounded-full transition-colors " +
     "hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60";
@@ -111,15 +117,20 @@ export default function TopStrip({
                   WhatsApp
                 </a>
               ) : null}
+
+              {activeNotification ? (
+                <div className="hidden min-w-0 max-w-[520px] items-center gap-2 rounded-full border border-white/25 bg-black/15 px-3 py-1 text-xs text-white/95 md:inline-flex">
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/20">
+                    <Megaphone className="h-3 w-3" />
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-white/80">Announcement</span>
+                  <span className="truncate font-medium">{activeNotification}</span>
+                </div>
+              ) : null}
             </div>
 
             {/* Right: Social + Date Time */}
             <div className="flex items-center gap-3">
-              {notification.isActive && notification.message.trim() ? (
-                <div className="hidden max-w-[420px] truncate rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white md:block">
-                  {notification.message.trim()}
-                </div>
-              ) : null}
               {/* Social icons */}
               <div className="hidden md:flex items-center gap-1">
                 {facebookUrl !== "#" && (
@@ -150,6 +161,7 @@ export default function TopStrip({
               </div>
             </div>
           </div>
+
         </div>
       </div>
       {/* subtle separator */}
