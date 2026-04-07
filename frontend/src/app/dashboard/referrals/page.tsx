@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useEffect, useMemo, useState, useCallback } from "react"
 import { apiFetch } from "@/lib/apiClient"
+import { useAuth } from "@/lib/useAuth"
 import {
   Network,
   Users,
@@ -265,7 +266,9 @@ function layoutWithDagre(nodes: RFNode[], edges: RFEdge[]) {
  * Page
  * --------------------------*/
 export default function ReferralsPage() {
+  const { user } = useAuth()
   const [error, setError] = useState<string | null>(null)
+  const canViewPrivateContacts = ["super_admin", "admin"].includes(String((user as any)?.role || ""))
 
   // View toggle
   const [view, setView] = useState<"tree" | "list">("list")
@@ -682,7 +685,9 @@ export default function ReferralsPage() {
 
                         <td className="py-3 px-4 align-top">
                           <div className="font-semibold text-zinc-900">{u.name}</div>
-                          <div className="text-xs text-zinc-600">Mobile: {u.mobile},  {u.email}</div>
+                          {canViewPrivateContacts ? (
+                            <div className="text-xs text-zinc-600">Mobile: {u.mobile || "—"}, {u.email || "—"}</div>
+                          ) : null}
                           <div className="text-xs text-zinc-600">Code: {u.referralCode}</div>
 
                          
@@ -705,7 +710,9 @@ export default function ReferralsPage() {
                               {isOpen ? (
                                 <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
                                   <div className=" text-zinc-900">{rb.name}</div>
-                                  <div className="mt-0.5 text-zinc-600">{rb.mobile}, {rb.email || "—"}</div>
+                                  {canViewPrivateContacts ? (
+                                    <div className="mt-0.5 text-zinc-600">Mobile: {rb.mobile || "—"}, {rb.email || "—"}</div>
+                                  ) : null}
 
                                   {rb.referralCode ? (
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
