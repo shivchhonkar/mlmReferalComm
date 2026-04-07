@@ -237,7 +237,7 @@ export default function ImageSlider({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/40" />
         
         {/* Hero section overlay with features */}
-        <div className="absolute inset-0 flex items-center justify-center z-20 w-full">
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center z-20 w-full">
           <div className="relative z-10 flex flex-col items-center justify-center w-full min-h-full px-4 sm:px-6 md:px-8 lg:px-12 py-8 sm:py-10 md:py-12">
             <div className="text-center max-w-4xl space-y-2 sm:space-y-3 md:space-y-4">
               {/* Heading */}
@@ -305,7 +305,7 @@ export default function ImageSlider({
           {/* Previous button */}
           <button
             onClick={goToPrevious}
-            className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-sm text-white p-3 rounded-full hover:bg-black/70 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 z-10"
+            className="absolute left-4 top-1/2 -translate-y-1/2 cursor-pointer bg-black/50 p-3 text-white backdrop-blur-sm rounded-full transition-all duration-200 hover:bg-black/70 focus:outline-none focus:ring-2 focus:ring-white/50 z-30"
             aria-label="Previous slide"
           >
             <ChevronLeft className="w-6 h-6" />
@@ -314,7 +314,7 @@ export default function ImageSlider({
           {/* Next button */}
           <button
             onClick={goToNext}
-            className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-sm text-white p-3 rounded-full hover:bg-black/70 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 z-10"
+            className="absolute right-4 top-1/2 -translate-y-1/2 cursor-pointer bg-black/50 p-3 text-white backdrop-blur-sm rounded-full transition-all duration-200 hover:bg-black/70 focus:outline-none focus:ring-2 focus:ring-white/50 z-30"
             aria-label="Next slide"
           >
             <ChevronRight className="w-6 h-6" />
@@ -323,7 +323,7 @@ export default function ImageSlider({
           {/* Play/Pause button */}
           <button
             onClick={togglePlayPause}
-            className="absolute right-4 bottom-4 bg-black/50 backdrop-blur-sm text-white p-3 rounded-full hover:bg-black/70 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 z-10"
+            className="absolute right-4 bottom-4 cursor-pointer bg-black/50 p-3 text-white backdrop-blur-sm rounded-full transition-all duration-200 hover:bg-black/70 focus:outline-none focus:ring-2 focus:ring-white/50 z-30"
             aria-label={isPlaying ? "Pause slideshow" : "Play slideshow"}
           >
             {isPlaying ? (
@@ -337,12 +337,12 @@ export default function ImageSlider({
 
       {/* Slide indicators */}
       {showIndicators && slides.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-10">
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex space-x-2 z-30">
           {slides.map((slide) => (
             <button
               key={slide._id}
               onClick={() => goToSlide(slides.indexOf(slide))}
-              className={`w-3 h-3 rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 ${
+              className={`w-3 h-3 cursor-pointer rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-white/50 ${
                 slides.indexOf(slide) === currentIndex
                   ? "bg-white w-8"
                   : "bg-white/50 hover:bg-white/70"
