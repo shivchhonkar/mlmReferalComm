@@ -37,8 +37,8 @@ async function getActiveDistributionRule(session?: mongoose.ClientSession | null
   const rule = await query;
 
   // Default behavior when no rule is configured:
-  // Commission structure: Level 1 = 5% of BV, Level 2 = 2.5%, Level 3 = 1.25%, Level 4 = 0.625%, Level 5+ = 50% of previous.
-  if (!rule) return { basePercentage: 0.05, decayEnabled: true };
+  // Commission structure: Level 1 = 10% of BV, Level 2 = 5%, Level 3 = 2.5%, Level 4 = 1.25%, Level 5+ = 50% of previous.
+  if (!rule) return { basePercentage: 0.1, decayEnabled: true };
 
   const basePercentage = Number(rule.basePercentage);
   if (!Number.isFinite(basePercentage) || basePercentage < 0 || basePercentage > 1) {
@@ -213,10 +213,10 @@ async function distributeBusinessVolumeInSession(options: {
  * Distribute Business Volume (BV) income up the referral chain.
  *
  * Commission structure (default when no rule configured):
- * - Level 1: 5% of BV
- * - Level 2: 2.5% of BV
- * - Level 3: 1.25% of BV
- * - Level 4: 0.625% of BV
+ * - Level 1: 10% of BV
+ * - Level 2: 5% of BV
+ * - Level 3: 2.5% of BV
+ * - Level 4: 1.25% of BV
  * - Level 5+: 50% of previous level
  *
  * Rules:

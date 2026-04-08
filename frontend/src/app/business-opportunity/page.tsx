@@ -68,10 +68,10 @@ export default function BusinessOpportunityPage() {
                 </div>
                 <div className="space-y-2">
                   {[
-                    { level: "Level 1", value: "5% of BV" },
-                    { level: "Level 2", value: "2.5% of BV" },
-                    { level: "Level 3", value: "1.25% of BV" },
-                    { level: "Level 4", value: "0.625% of BV" },
+                    { level: "Level 1", value: "10% of BV" },
+                    { level: "Level 2", value: "5% of BV" },
+                    { level: "Level 3", value: "2.5% of BV" },
+                    { level: "Level 4", value: "1.25% of BV" },
                     { level: "Level 5+", value: "50% of previous" },
                   ].map((row) => (
                     <div

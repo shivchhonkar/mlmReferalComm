@@ -492,7 +492,7 @@ export default function DashboardPage() {
               <div>
                 <h2 className="text-lg font-semibold text-zinc-900">Earn commission</h2>
                 <p className="mt-1 text-sm text-zinc-600">
-                  You earn when your referrals purchase. Commission is distributed by BV: Level 1 → 5%, Level 2 → 2.5%, Level 3 → 1.25%, Level 4 → 0.625%, Level 5+ → 50% of previous.
+                  You earn when your referrals purchase. Commission is distributed by BV: Level 1 → 10%, Level 2 → 5%, Level 3 → 2.5%, Level 4 → 1.25%, Level 5+ → 50% of previous.
                 </p>
                 <p className="mt-2 text-xs font-medium text-emerald-700">
                   Share your referral code — every order from your network generates commission for you.
