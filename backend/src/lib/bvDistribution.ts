@@ -144,42 +144,47 @@ async function distributeBusinessVolumeInSession(options: {
     }
     visited.add(parentKey);
 
-    const capState = await getRecipientCapState(parentId);
-    const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
-    const payableAmount = Math.min(incomeAmount, remainingCap);
+    const recipientQuery = UserModel.findById(parentId).select("parent status");
+    if (session) recipientQuery.session(session);
+    const recipient = await recipientQuery.lean();
 
-    if (payableAmount > 0) {
-      logs.push({
-        fromUserId: userObjectId,
-        toUserId: parentId,
-        level,
-        bv,
-        incomeAmount: payableAmount,
-      });
+    // Only active users are eligible to receive income.
+    const recipientStatus = String((recipient as any)?.status ?? "inactive");
+    if (recipientStatus === "active") {
+      const capState = await getRecipientCapState(parentId);
+      const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
+      const payableAmount = Math.min(incomeAmount, remainingCap);
 
-      if (purchaseObjectId) {
-        incomes.push({
-          fromUser: userObjectId,
-          toUser: parentId,
-          purchase: purchaseObjectId,
+      if (payableAmount > 0) {
+        logs.push({
+          fromUserId: userObjectId,
+          toUserId: parentId,
           level,
           bv,
-          amount: payableAmount,
+          incomeAmount: payableAmount,
         });
-      }
 
-      // Track in-memory progression so cap remains accurate within this same distribution run.
-      capState.earnedSoFar += payableAmount;
+        if (purchaseObjectId) {
+          incomes.push({
+            fromUser: userObjectId,
+            toUser: parentId,
+            purchase: purchaseObjectId,
+            level,
+            bv,
+            amount: payableAmount,
+          });
+        }
+
+        // Track in-memory progression so cap remains accurate within this same distribution run.
+        capState.earnedSoFar += payableAmount;
+      }
     }
 
     if (level >= MAX_LEVELS) {
       throw new Error("Referral chain too deep or corrupt");
     }
 
-    const parentQuery = UserModel.findById(parentId).select("parent");
-    if (session) parentQuery.session(session);
-    const parent = await parentQuery;
-    parentId = parent?.parent ? new mongoose.Types.ObjectId(parent.parent) : null;
+    parentId = (recipient as any)?.parent ? new mongoose.Types.ObjectId((recipient as any).parent) : null;
 
     level += 1;
     if (!rule.decayEnabled) {
