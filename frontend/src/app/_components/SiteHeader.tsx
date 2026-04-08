@@ -14,6 +14,7 @@ export default function SiteHeader() {
   const navigationItems = [
     { href: "/services", label: "Services" },
     { href: "/about", label: "About" },
+    { href: "/about/success-stories", label: "Success Stories" },
     { href: "/business-opportunity", label: "Opportunity" },
     { href: "/contact", label: "Contact" },
   ];

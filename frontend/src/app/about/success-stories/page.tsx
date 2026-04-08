@@ -14,39 +14,39 @@ type Story = {
 
 const stories: Story[] = [
   {
-    name: "Sarah Johnson",
-    roleLine: "Network Builder • Level 5",
+    name: "Rajiv Kapoor",
+    roleLine: "Top Network Leader • Level 7",
     quote:
-      "Sambhariya Marketing changed my approach. The BV system and automated distribution make it easy to track growth and earnings.",
-    earned: "₹5,240 earned",
-    referrals: "50+ referrals",
+      "With consistent mentoring and transparent BV tracking, I scaled my downline faster than expected and built predictable monthly income.",
+    earned: "₹1,50,000 earned",
+    referrals: "180+ referrals",
     accent: "blue",
   },
   {
-    name: "Michael Chen",
-    roleLine: "Early Adopter • Level 7",
+    name: "Chaitanya",
+    roleLine: "Growth Champion • Level 6",
     quote:
-      "The level-wise income structure ensures fair benefit across the network. I built a sustainable income stream while helping others succeed.",
-    earned: "₹12,580 earned",
-    referrals: "120+ referrals",
+      "The platform made it easy to focus on team growth. Real-time reports helped me make better decisions and improve conversions.",
+    earned: "₹1,20,000 earned",
+    referrals: "140+ referrals",
     accent: "blue",
   },
   {
-    name: "Emma Rodriguez",
-    roleLine: "Top Performer • Level 6",
+    name: "Radhika",
+    roleLine: "Community Builder • Level 5",
     quote:
-      "Transparency is my favorite part—BV calculations and income entries are clear and verifiable. It builds trust with my network.",
-    earned: "₹8,920 earned",
-    referrals: "75+ referrals",
+      "I started part-time and still saw strong results. Clear income logs and downline insights gave me full confidence in the process.",
+    earned: "₹95,000 earned",
+    referrals: "110+ referrals",
     accent: "green",
   },
   {
-    name: "David Kumar",
-    roleLine: "Rising Star • Level 4",
+    name: "Shivam Sharma",
+    roleLine: "Rising Performer • Level 5",
     quote:
-      "As a newcomer, the dashboard made it easy to get started. Automated income distribution means I focus on growth, not manual calculations.",
-    earned: "₹3,450 earned",
-    referrals: "35+ referrals",
+      "The referral structure is simple and scalable. Once my team became active, my monthly earnings started growing steadily.",
+    earned: "₹90,000 earned",
+    referrals: "105+ referrals",
     accent: "orange",
   },
 ];
@@ -73,12 +73,12 @@ export default function SuccessStoriesPage() {
           </Link>
 
           <div className="mt-5 flex items-start gap-4">
-            <div
+            {/* <div
               className="h-14 w-14 rounded-2xl flex items-center justify-center text-white shadow-sm"
               style={{ background: "linear-gradient(135deg, #22C55E 0%, #0EA5E9 100%)" }}
             >
               <Star className="h-7 w-7" />
-            </div>
+            </div> */}
 
             <div className="space-y-1">
               <h1 className="text-3xl sm:text-4xl  text-[var(--gray-900)] tracking-tight">

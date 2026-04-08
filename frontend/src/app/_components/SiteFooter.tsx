@@ -61,6 +61,7 @@ export default function SiteFooter() {
               <ul className="space-y-2 text-sm">
                 <li><Link href="/about" className="text-gray-700 hover:text-sky-700 transition-colors">About</Link></li>
                 <li><Link prefetch={false} href="/about/vision" className="text-gray-700 hover:text-sky-700 transition-colors">Vision</Link></li>
+                <li><Link prefetch={false} href="/about/success-stories" className="text-gray-700 hover:text-sky-700 transition-colors">Success Stories</Link></li>
                 <li><Link prefetch={false} href="/contact" className="text-gray-700 hover:text-sky-700 transition-colors">Contact</Link></li>
               </ul>
             </div>
