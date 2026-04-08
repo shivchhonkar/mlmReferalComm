@@ -36,6 +36,7 @@ import { NoImage } from "@/app/services/components/NoImage";
 
 type Service = {
   _id: string;
+  id?: string;
   name: string;
   price: number;
   originalPrice?: number;
@@ -79,6 +80,16 @@ function generateSlug(text: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+}
+
+function getServiceApiId(service: Service | null | undefined): string {
+  if (!service) return "";
+  const candidates = [service.id, service._id];
+  for (const value of candidates) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return "";
 }
 
 function hasDisplayableImage(url: string | undefined): boolean {
@@ -464,7 +475,7 @@ export default function AdminServicesPage() {
       setError("Only admin/super_admin can update services.");
       return;
     }
-    const serviceId = editing._id;
+    const serviceId = getServiceApiId(editing);
     if (!serviceId || typeof serviceId !== "string") {
       setError("Invalid service: missing ID. Please refresh the page and try again.");
       return;
@@ -518,7 +529,11 @@ export default function AdminServicesPage() {
     setError(null);
 
     try {
-      const res = await apiFetch(`/api/admin/services/${service._id}`, {
+      const serviceId = getServiceApiId(service);
+      if (!serviceId) {
+        throw new Error("Invalid service: missing ID. Please refresh and try again.");
+      }
+      const res = await apiFetch(`/api/admin/services/${serviceId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: service.status === "active" ? "inactive" : "active" }),
@@ -561,7 +576,11 @@ export default function AdminServicesPage() {
     setError(null);
 
     try {
-      const res = await apiFetch(`/api/admin/services/${deleteTarget._id}`, {
+      const serviceId = getServiceApiId(deleteTarget);
+      if (!serviceId) {
+        throw new Error("Invalid service: missing ID. Please refresh and try again.");
+      }
+      const res = await apiFetch(`/api/admin/services/${serviceId}`, {
         method: "DELETE",
       });
       const json = await res.json().catch(() => ({}));
@@ -915,7 +934,17 @@ export default function AdminServicesPage() {
                         </div>
                       </div>
                       <p className="mt-1 text-xs text-slate-500">
-                        {typeof s.categoryId === "object" ? s.categoryId?.name : s.categoryId || "—"}
+                        {(() => {
+                          const categoryName =
+                            typeof s.categoryId === "object"
+                              ? s.categoryId?.name
+                              : categories.find((c) => c._id === s.categoryId)?.name || s.categoryId;
+                          const subcategoryName =
+                            typeof s.subcategoryId === "object"
+                              ? s.subcategoryId?.name
+                              : subcategories.find((sub) => sub._id === s.subcategoryId)?.name || s.subcategoryId;
+                          return [categoryName, subcategoryName].filter(Boolean).join(" · ") || "—";
+                        })()}
                         {s.sellerId && (
                           <span> · {s.sellerId?.name || s.sellerId?.fullName || s.sellerId?.email || "—"}</span>
                         )}

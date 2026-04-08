@@ -19,6 +19,100 @@ function isAdminRole(role?: unknown) {
   return typeof role === "string" && ADMIN_ROLES.has(role);
 }
 
+const QUALIFYING_ORDER_STATUSES = ["CONFIRMED", "COMPLETED"] as const;
+
+async function hasQualifyingOrder(userId: mongoose.Types.ObjectId, session?: mongoose.ClientSession | null) {
+  const query = OrderModel.exists({
+    user: userId,
+    status: { $in: QUALIFYING_ORDER_STATUSES },
+  });
+  if (session) query.session(session);
+  const exists = await query;
+  return !!exists;
+}
+
+async function hasDownlineQualifyingOrder(userId: mongoose.Types.ObjectId, session?: mongoose.ClientSession | null) {
+  const pipeline: any[] = [
+    { $match: { _id: userId } },
+    {
+      $graphLookup: {
+        from: "users",
+        startWith: "$_id",
+        connectFromField: "_id",
+        connectToField: "parent",
+        as: "downline",
+        maxDepth: 25,
+      },
+    },
+    { $project: { downlineIds: "$downline._id" } },
+    {
+      $lookup: {
+        from: "orders",
+        let: { ids: "$downlineIds" },
+        pipeline: [
+          {
+            $match: {
+              $expr: {
+                $and: [
+                  { $in: ["$user", "$$ids"] },
+                  { $in: ["$status", QUALIFYING_ORDER_STATUSES] },
+                ],
+              },
+            },
+          },
+          { $limit: 1 },
+        ],
+        as: "qualifyingDownlineOrders",
+      },
+    },
+    {
+      $project: {
+        hasAny: { $gt: [{ $size: "$qualifyingDownlineOrders" }, 0] },
+      },
+    },
+  ];
+  const agg = UserModel.aggregate(pipeline);
+  if (session) agg.session(session);
+  const rows = await agg;
+  return !!rows?.[0]?.hasAny;
+}
+
+async function syncUserStatusAndAncestorActivity(userId: mongoose.Types.ObjectId, session?: mongoose.ClientSession | null) {
+  const userQuery = UserModel.findById(userId).select("_id parent");
+  if (session) userQuery.session(session);
+  const userDoc = await userQuery.lean();
+  if (!userDoc?._id) return;
+
+  // Rule: user status is active only after own qualifying purchase/order.
+  const ownActive = await hasQualifyingOrder(userDoc._id as mongoose.Types.ObjectId, session);
+  await UserModel.updateOne(
+    { _id: userDoc._id },
+    { $set: { status: ownActive ? "active" : "inactive" } as any },
+    session ? { session } : undefined
+  );
+
+  // Rule: parent activity depends on whether any downline has qualifying purchase/order.
+  let cursor = userDoc.parent ? new mongoose.Types.ObjectId(userDoc.parent) : null;
+  const visited = new Set<string>();
+  while (cursor) {
+    const key = cursor.toString();
+    if (visited.has(key)) break;
+    visited.add(key);
+
+    const hasActiveDownline = await hasDownlineQualifyingOrder(cursor, session);
+    await UserModel.updateOne(
+      { _id: cursor },
+      { $set: { activityStatus: hasActiveDownline ? "active" : "inactive" } },
+      session ? { session } : undefined
+    );
+
+    const parentQuery = UserModel.findById(cursor).select("parent");
+    if (session) parentQuery.session(session);
+    const parent = await parentQuery.lean();
+    cursor = parent?.parent ? new mongoose.Types.ObjectId(parent.parent) : null;
+  }
+}
+
 /**
  * ✅ GET /api/orders
  * - Normal users: get only their own orders
@@ -223,6 +317,8 @@ router.post("/", async (req, res) => {
 
       // UPI orders: defer purchase creation and BV distribution until payment is approved
       if (paymentMode === "UPI") {
+        // Keep user/ancestor status fields in sync even when UPI order is created directly as PAID/CONFIRMED.
+        await syncUserStatusAndAncestorActivity(user._id, session);
         return { order, purchasesCreated: 0 };
       }
 
@@ -248,6 +344,8 @@ router.post("/", async (req, res) => {
           session,
         });
       }
+
+      await syncUserStatusAndAncestorActivity(user._id, session);
 
       return { order, purchasesCreated: createdPurchases.length };
     };
@@ -411,6 +509,8 @@ router.patch("/:id/payment-review", async (req, res) => {
         opts
       );
 
+      await syncUserStatusAndAncestorActivity(orderDoc.user as mongoose.Types.ObjectId, session);
+
       return { purchasesCreated: createdPurchases.length };
     };
 
@@ -431,6 +531,10 @@ router.patch("/:id/payment-review", async (req, res) => {
     }
 
     const updated = await OrderModel.findById(orderId).lean();
+    if (updated?.user) {
+      // Safety re-sync after commit/fallback so buyer status and parent activity are always up-to-date.
+      await syncUserStatusAndAncestorActivity(updated.user as mongoose.Types.ObjectId, null);
+    }
     return res.json({ message: "Payment approved. Order confirmed.", order: updated });
   } catch (err: any) {
     if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
@@ -485,6 +589,7 @@ router.patch("/:id/status", async (req, res) => {
           await IncomeModel.deleteMany({ purchase: { $in: purchaseIds } }, opts);
         }
         await OrderModel.updateOne({ _id: orderId }, { $set: { status: "CANCELLED" } }, opts);
+        await syncUserStatusAndAncestorActivity(order.user as mongoose.Types.ObjectId, session);
       };
       try {
         const session = await mongoose.startSession();
@@ -503,6 +608,7 @@ router.patch("/:id/status", async (req, res) => {
       }
     } else {
       await OrderModel.updateOne({ _id: orderId }, { $set: { status } });
+      await syncUserStatusAndAncestorActivity(order.user as mongoose.Types.ObjectId, null);
     }
 
     const updated = await OrderModel.findById(orderId).lean();

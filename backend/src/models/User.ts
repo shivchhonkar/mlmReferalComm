@@ -4,7 +4,7 @@ export type UserRole = "super_admin" | "admin" | "moderator" | "user";
 
 export type BinaryPosition = "left" | "right";
 
-export type UserStatus = "active" | "suspended" | "deleted";
+export type UserStatus = "active" | "inactive" | "suspended" | "deleted";
 
 export type UserActivityStatus = "active" | "inactive";
 
@@ -58,8 +58,8 @@ const userSchema = new Schema(
     currencyCode: { type: String, default: "INR", trim: true },
     currencySymbol: { type: String, default: "₹", trim: true },
 
-    // Account status: active, suspended (blocked by admin), deleted (soft delete)
-    status: { type: String, enum: ["active", "suspended", "deleted"], default: "active", index: true },
+    // Account status: active/inactive by purchase logic, suspended/deleted by admin controls
+    status: { type: String, enum: ["active", "inactive", "suspended", "deleted"], default: "inactive", index: true },
     
     // Activity status: tracks if user is currently logged in (active) or logged out (inactive)
     activityStatus: { type: String, enum: ["active", "inactive"], default: "inactive", index: true },

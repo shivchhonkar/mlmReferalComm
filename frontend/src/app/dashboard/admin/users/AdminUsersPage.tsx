@@ -208,7 +208,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
     email: "",
     mobile: "",
     role: "user" as User["role"],
-    status: "active" as User["status"],
+    status: "inactive" as User["status"],
     referralCode: "",
   });
 

@@ -86,11 +86,12 @@ router.post("/register", async (req, res) => {
       email: body.email.toLowerCase(),
       passwordHash,
       role: "user",
+      status: "inactive",
+      activityStatus: "inactive",
       referralCode,
       parent: parentId,
       position: null,
     });
-
     // Non-blocking welcome email
     setTimeout(async () => {
       try {

@@ -565,7 +565,8 @@ export function registerAdminRoutes(app: Express) {
         passwordHash,
         referralCode,
         fullName: body.name,
-        isVerified: true
+        isVerified: true,
+        ...(body.role === "user" ? { status: "inactive", activityStatus: "inactive" } : {}),
       });
 
       await user.save();
@@ -606,7 +607,7 @@ export function registerAdminRoutes(app: Express) {
 
       const body = z
         .object({
-          status: z.enum(["active", "suspended", "deleted"]),
+          status: z.enum(["active", "inactive", "suspended", "deleted"]),
         })
         .parse(req.body);
 
@@ -943,7 +944,7 @@ export function registerAdminRoutes(app: Express) {
 
       role: z.enum(["super_admin", "admin", "moderator", "user"]).optional(),
 
-      status: z.enum(["active", "suspended", "deleted"]).optional(),
+      status: z.enum(["active", "inactive", "suspended", "deleted"]).optional(),
       activityStatus: z.enum(["active", "inactive"]).optional(),
       kycStatus: z.enum(["pending", "submitted", "verified", "rejected"]).optional(),
 

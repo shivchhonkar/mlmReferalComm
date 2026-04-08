@@ -4,6 +4,17 @@ import { ServiceModel } from "@/models/Service";
 
 const router = Router();
 
+function normalizeRefId(value: unknown): string {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value === "object") {
+    const withId = value as { _id?: unknown; toString?: () => string };
+    if (withId._id != null) return normalizeRefId(withId._id);
+    if (typeof withId.toString === "function") return withId.toString();
+  }
+  return "";
+}
+
 // Get all public services
 router.get("/", async (_req, res) => {
   try {
@@ -31,7 +42,8 @@ router.get("/", async (_req, res) => {
       ...(service.shortDescription && { shortDescription: service.shortDescription }),
       ...(service.description && { description: service.description }),
       ...(service.isFeatured !== undefined && { isFeatured: service.isFeatured }),
-      ...(service.categoryId && { categoryId: typeof service.categoryId === 'object' ? (service.categoryId as any)?._id : service.categoryId }),
+      ...(service.categoryId && { categoryId: normalizeRefId(service.categoryId) }),
+      ...(service.subcategoryId && { subcategoryId: normalizeRefId(service.subcategoryId) }),
       ...(service.tags && { tags: service.tags }),
       ...(service.rating && { rating: service.rating }),
       ...(service.reviewCount && { reviewCount: service.reviewCount }),

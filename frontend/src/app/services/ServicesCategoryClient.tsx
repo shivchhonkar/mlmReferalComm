@@ -30,6 +30,22 @@ type Subcategory = {
   createdAt?: string;
 };
 
+function getServiceCategoryId(service: Service): string {
+  const raw = (service as any).categoryId;
+  if (typeof raw === "object" && raw?._id) return String(raw._id);
+  return String(raw ?? "");
+}
+
+function getServiceSubcategoryId(service: Service): string {
+  const raw = (service as any).subcategoryId;
+  if (typeof raw === "object" && raw?._id) return String(raw._id);
+  return String(raw ?? "");
+}
+
+function normalizeText(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
 export default function ServicesCategoryClient({
   services,
   categories,
@@ -94,7 +110,40 @@ export default function ServicesCategoryClient({
       ? getCategoryId(subcategories.find((s) => s._id === selectedSubcategory)!) ?? selectedCategory
       : selectedCategory || null;
     if (catId) {
-      result = result.filter((s) => (s as any).categoryId === catId);
+      result = result.filter((s) => getServiceCategoryId(s) === catId);
+    }
+
+    if (selectedSubcategory) {
+      const selectedSub = subcategories.find((s) => s._id === selectedSubcategory);
+      const selectedTokens = new Set(
+        [
+          selectedSubcategory,
+          selectedSub?.name,
+          selectedSub?.slug,
+          selectedSub?.code,
+        ]
+          .map((v) => normalizeText(v))
+          .filter(Boolean)
+      );
+
+      result = result.filter((s) => {
+        const raw = (s as any).subcategoryId;
+        const serviceTokens = new Set<string>();
+        serviceTokens.add(normalizeText(getServiceSubcategoryId(s)));
+
+        if (typeof raw === "string") serviceTokens.add(normalizeText(raw));
+        if (typeof raw === "object" && raw) {
+          serviceTokens.add(normalizeText((raw as any)._id));
+          serviceTokens.add(normalizeText((raw as any).name));
+          serviceTokens.add(normalizeText((raw as any).slug));
+          serviceTokens.add(normalizeText((raw as any).code));
+        }
+
+        for (const token of selectedTokens) {
+          if (token && serviceTokens.has(token)) return true;
+        }
+        return false;
+      });
     }
 
     const min = priceMin !== "" ? parseFloat(priceMin) : null;
@@ -171,13 +220,13 @@ export default function ServicesCategoryClient({
 
     const categoryIds = new Set(categories.map((c) => c._id));
     const uncategorized = filteredServices.filter((s) => {
-      const cid = (s as any).categoryId;
+      const cid = getServiceCategoryId(s);
       if (!cid) return true;
       return !categoryIds.has(cid); // Include orphaned (categoryId not in categories)
     });
     const categorized = categories.map((category) => ({
       category,
-      services: filteredServices.filter((s) => (s as any).categoryId === category._id),
+      services: filteredServices.filter((s) => getServiceCategoryId(s) === category._id),
     }));
 
     return [
@@ -219,6 +268,31 @@ export default function ServicesCategoryClient({
 
   const totalCount = services.length;
   const totalCategories = categories.length;
+  const getCategoryName = (service: Service) => {
+    const raw = (service as any).categoryId;
+    if (typeof raw === "object" && raw?.name) return String(raw.name);
+    const categoryId = getServiceCategoryId(service);
+    return categories.find((c) => c._id === categoryId)?.name || String(raw || "—");
+  };
+  const getSubcategoryName = (service: Service) => {
+    const raw = (service as any).subcategoryId;
+    if (typeof raw === "object" && raw?.name) return String(raw.name);
+    const subId = getServiceSubcategoryId(service);
+    const byId = subcategories.find((s) => s._id === subId)?.name;
+    if (byId) return byId;
+    if (typeof raw === "string") {
+      const rawNorm = normalizeText(raw);
+      const byOther =
+        subcategories.find(
+          (s) =>
+            normalizeText(s.name) === rawNorm ||
+            normalizeText(s.slug) === rawNorm ||
+            normalizeText(s.code) === rawNorm
+        )?.name || raw;
+      return byOther;
+    }
+    return "—";
+  };
 
   return (
     <div className="space-y-8">
@@ -442,7 +516,11 @@ export default function ServicesCategoryClient({
 
               {categoryServices.length > 0 ? (
                 <ServicesGrid
-                  services={categoryServices}
+                  services={categoryServices.map((s) => ({
+                    ...s,
+                    categoryName: getCategoryName(s),
+                    subcategoryName: getSubcategoryName(s),
+                  }))}
                   onSelectService={setSelectedService}
                 />
               ) : (
