@@ -25,6 +25,8 @@ type ActiveDistributionRule = {
   decayEnabled: boolean;
 };
 
+const CAPPING_EXEMPT_ROLES = new Set(["super_admin", "admin", "moderator"]);
+
 function sessionOpt(session: mongoose.ClientSession | null | undefined): { session?: mongoose.ClientSession } {
   return session != null ? { session } : {};
 }
@@ -144,16 +146,25 @@ async function distributeBusinessVolumeInSession(options: {
     }
     visited.add(parentKey);
 
-    const recipientQuery = UserModel.findById(parentId).select("parent status");
+    const recipientQuery = UserModel.findById(parentId).select("parent status role");
     if (session) recipientQuery.session(session);
     const recipient = await recipientQuery.lean();
 
     // Only active users are eligible to receive income.
     const recipientStatus = String((recipient as any)?.status ?? "inactive");
     if (recipientStatus === "active") {
-      const capState = await getRecipientCapState(parentId);
-      const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
-      const payableAmount = Math.min(incomeAmount, remainingCap);
+      const recipientRole = String((recipient as any)?.role ?? "user");
+      const isCapExempt = CAPPING_EXEMPT_ROLES.has(recipientRole);
+      let payableAmount = 0;
+      let capState: { capAmount: number; earnedSoFar: number } | null = null;
+
+      if (isCapExempt) {
+        payableAmount = incomeAmount;
+      } else {
+        capState = await getRecipientCapState(parentId);
+        const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
+        payableAmount = Math.min(incomeAmount, remainingCap);
+      }
 
       if (payableAmount > 0) {
         logs.push({
@@ -176,7 +187,9 @@ async function distributeBusinessVolumeInSession(options: {
         }
 
         // Track in-memory progression so cap remains accurate within this same distribution run.
-        capState.earnedSoFar += payableAmount;
+        if (capState) {
+          capState.earnedSoFar += payableAmount;
+        }
       }
     }
 
