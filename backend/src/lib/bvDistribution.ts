@@ -150,11 +150,13 @@ async function distributeBusinessVolumeInSession(options: {
     if (session) recipientQuery.session(session);
     const recipient = await recipientQuery.lean();
 
-    // Only active users are eligible to receive income.
+    const recipientRole = String((recipient as any)?.role ?? "user");
+    const isCapExempt = CAPPING_EXEMPT_ROLES.has(recipientRole);
+    // Active-status eligibility applies to normal users only.
+    // Admin roles can receive referral income regardless of status.
     const recipientStatus = String((recipient as any)?.status ?? "inactive");
-    if (recipientStatus === "active") {
-      const recipientRole = String((recipient as any)?.role ?? "user");
-      const isCapExempt = CAPPING_EXEMPT_ROLES.has(recipientRole);
+    const isIncomeEligible = isCapExempt || recipientStatus === "active";
+    if (isIncomeEligible) {
       let payableAmount = 0;
       let capState: { capAmount: number; earnedSoFar: number } | null = null;
 
