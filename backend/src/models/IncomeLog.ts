@@ -4,6 +4,8 @@ const incomeLogSchema = new Schema(
   {
     fromUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     toUserId: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
+    /** Present when logged from a purchase; used to reverse logs on order cancel. */
+    purchase: { type: Schema.Types.ObjectId, ref: "Purchase", default: null, index: true },
 
     level: { type: Number, required: true, min: 1 },
     bv: { type: Number, required: true, min: 0 },

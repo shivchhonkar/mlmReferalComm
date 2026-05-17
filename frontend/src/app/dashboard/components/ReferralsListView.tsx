@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { apiFetch } from "@/lib/apiClient";
 import { Network, Share2 } from "lucide-react";
 
@@ -28,58 +29,86 @@ type ListItem = {
   referredBy?: ReferredBy;
 };
 
-type ListResponse = {
-  total: number;
-  offset: number;
-  limit: number;
-  depth: number;
-  items: ListItem[];
-};
+const FETCH_PAGE = 200;
+const MAX_FETCH = 120_000;
+
+const ROW_GRID =
+  "grid grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)] gap-x-2 gap-y-1 items-start";
 
 export default function ReferralsListView({ showLinkToFull = true }: { showLinkToFull?: boolean }) {
-  const [list, setList] = useState<ListResponse | null>(null);
+  const [items, setItems] = useState<ListItem[]>([]);
+  const [totalDownline, setTotalDownline] = useState(0);
   const [listBusy, setListBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<"" | "active" | "suspended">("");
-  const [offset, setOffset] = useState(0);
   const [openReferredBy, setOpenReferredBy] = useState<Record<string, boolean>>({});
-  const limit = 50;
+  const [fetchCapped, setFetchCapped] = useState(false);
+  const parentRef = useRef<HTMLDivElement>(null);
 
   const toggleReferredBy = (id: string) =>
     setOpenReferredBy((p) => ({ ...p, [id]: !p[id] }));
 
-  const loadList = useCallback(async () => {
+  const loadAll = useCallback(async () => {
     setListBusy(true);
     setError(null);
+    setFetchCapped(false);
     try {
-      const qs = new URLSearchParams({
-        depth: "20",
-        limit: String(limit),
-        offset: String(offset),
-      });
-      if (q.trim()) qs.set("q", q.trim());
-      if (status) qs.set("status", status);
+      const accumulated: ListItem[] = [];
+      let offset = 0;
+      let reportedTotal = 0;
 
-      const r = await apiFetch(`/api/referrals/list?${qs.toString()}`);
-      const json = await r.json().catch(() => null);
+      for (;;) {
+        const qs = new URLSearchParams({
+          depth: "20",
+          limit: String(FETCH_PAGE),
+          offset: String(offset),
+        });
+        if (q.trim()) qs.set("q", q.trim());
+        if (status) qs.set("status", status);
 
-      if (!r.ok) throw new Error(json?.error ?? `List API failed (${r.status})`);
-      setList(json);
+        const r = await apiFetch(`/api/referrals/list?${qs.toString()}`);
+        const json = (await r.json().catch(() => null)) as {
+          total?: number;
+          items?: ListItem[];
+          error?: string;
+        } | null;
+
+        if (!r.ok) throw new Error(json?.error ?? `List API failed (${r.status})`);
+        reportedTotal = Number(json?.total ?? 0);
+        const batch = Array.isArray(json?.items) ? json.items : [];
+        accumulated.push(...batch);
+
+        if (accumulated.length >= MAX_FETCH) {
+          setFetchCapped(true);
+          break;
+        }
+        if (batch.length < FETCH_PAGE || accumulated.length >= reportedTotal) break;
+        offset += FETCH_PAGE;
+      }
+
+      setItems(accumulated);
+      setTotalDownline(reportedTotal);
     } catch (e: unknown) {
       setError(String(e instanceof Error ? e.message : e));
+      setItems([]);
+      setTotalDownline(0);
     } finally {
       setListBusy(false);
     }
-  }, [q, status, offset]);
+  }, [q, status]);
 
   useEffect(() => {
-    const t = window.setTimeout(loadList, 300);
+    const t = window.setTimeout(() => void loadAll(), 300);
     return () => window.clearTimeout(t);
-  }, [loadList]);
+  }, [loadAll]);
 
-  const canPrev = offset > 0;
-  const canNext = list ? offset + limit < list.total : false;
+  const rowVirtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 104,
+    overscan: 10,
+  });
 
   return (
     <section className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -105,13 +134,12 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
         )}
       </div>
 
-      {/* Search + filters */}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search email / code / name…"
-          className="w-full sm:w-80 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400"
+          className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 sm:w-80"
         />
         <select
           value={status}
@@ -125,169 +153,147 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
       </div>
 
       {error ? (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          ⚠️ {error}
-        </div>
+        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">⚠️ {error}</div>
       ) : null}
 
-      {/* List header */}
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="text-sm text-zinc-900">
-          Downline List {list ? <span className="text-zinc-500">({list.total})</span> : null}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setOffset((o) => Math.max(o - limit, 0))}
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
-            disabled={!canPrev || listBusy}
-          >
-            Prev
-          </button>
-          <button
-            type="button"
-            onClick={() => setOffset((o) => o + limit)}
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs text-zinc-800 hover:bg-zinc-50 disabled:opacity-50"
-            disabled={!canNext || listBusy}
-          >
-            Next
-          </button>
-        </div>
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm text-zinc-700">
+        <span>
+          Downline <span className="text-zinc-500">({totalDownline} total)</span>
+          {listBusy ? <span className="ml-2 text-zinc-500">Loading…</span> : null}
+        </span>
+        {fetchCapped || (totalDownline > 0 && items.length < totalDownline) ? (
+          <span className="text-xs text-amber-700">
+            Showing {items.length} of {totalDownline}
+            {fetchCapped ? " (load cap — refine search)." : "."}
+          </span>
+        ) : (
+          <span className="text-xs text-zinc-500">{items.length} in scroll area</span>
+        )}
       </div>
 
-      <div className="overflow-auto rounded-2xl border border-zinc-200">
-        <table className="w-full text-sm">
-          <thead className="bg-gradient-to-r from-emerald-50 to-sky-50 text-left text-zinc-700 text-xs">
-            <tr>
-              <th className="px-4 py-3">Level</th>
-              <th className="px-4 py-3">User</th>
-              <th className="px-4 py-3">Referred By</th>
-              <th className="px-4 py-3">Status / Activity</th>
-              <th className="px-4 py-3">Joined</th>
-              <th className="px-4 py-3">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(list?.items ?? []).map((u) => {
-              const isOpen = !!openReferredBy[u.id];
-              const rb = u.referredBy ?? null;
+      <div className="overflow-x-auto rounded-2xl border border-zinc-200">
+        <div className="min-w-[880px]">
+          <div
+            className={`${ROW_GRID} border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-3 py-3 text-left text-xs font-medium text-zinc-700`}
+          >
+            <div>Level</div>
+            <div>User</div>
+            <div>Referred By</div>
+            <div>Status / Activity</div>
+            <div>Joined</div>
+            <div>Action</div>
+          </div>
 
-              return (
-                <tr
-                  key={u.id}
-                  className="border-t border-zinc-200 transition hover:bg-emerald-50/40"
-                >
-                  <td className="px-4 py-3 align-top">
-                    <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-                      L{u.level}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <div className="font-semibold text-zinc-900">{u.name}</div>
-                    <div className="text-xs text-zinc-600">
-                      Mobile: {u.mobile ?? "—"}, {u.email ?? "—"}
-                    </div>
-                    <div className="text-xs text-zinc-600">Code: {u.referralCode}</div>
-                  </td>
-                  <td className="px-4 py-3 align-top font-mono text-xs text-sky-800">
-                    {rb ? (
-                      <div className="mt-2">
-                       <button
-                          type="button"
-                          onClick={() => toggleReferredBy(u.id)}
-                          className="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 px-2.5 py-1 text-[11px] text-sky-800 hover:bg-sky-100 hover:cursor-pointer"
-                        >
-                          <span className="max-w-[140px] truncate">{rb.name}</span>
-                          <span className="ml-1 text-sky-700">{isOpen ? "▲" : "▼"}</span>
-                        </button>
-                        {isOpen ? (
-                          <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-3 text-[11px] text-zinc-700 shadow-sm">
-                            <div className="text-zinc-900">{rb.name}</div>
-                            <div className="mt-0.5 text-zinc-600">
-                              {rb.mobile ?? "—"}, {rb.email ?? "—"}
-                            </div>
-                            {rb.referralCode ? (
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="text-zinc-600">Code:</span>
-                                <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-mono text-[11px] text-emerald-800">
-                                  {rb.referralCode}
-                                </span>
-                                {/* <button
-                                  type="button"
-                                  onClick={() =>
-                                    navigator.clipboard.writeText(rb.referralCode ?? "")
-                                  }
-                                  className="rounded-lg border border-emerald-200 bg-white px-2 py-0.5 text-[11px] text-emerald-800 hover:bg-emerald-50"
-                                >
-                                  Copy
-                                </button> */}
+          <div
+            ref={parentRef}
+            className="h-[min(480px,58vh)] overflow-auto overscroll-contain"
+            style={{ contain: "strict" }}
+          >
+            {listBusy && items.length === 0 ? (
+              <div className="flex items-center justify-center py-16 text-sm text-zinc-500">Loading referrals…</div>
+            ) : items.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-zinc-600">
+                No referrals yet. Share your referral code to grow your network.
+              </div>
+            ) : (
+              <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+                {rowVirtualizer.getVirtualItems().map((vi) => {
+                  const u = items[vi.index];
+                  const isOpen = !!openReferredBy[u.id];
+                  const rb = u.referredBy ?? null;
+                  return (
+                    <div
+                      key={u.id}
+                      data-index={vi.index}
+                      ref={rowVirtualizer.measureElement}
+                      className={`${ROW_GRID} absolute left-0 top-0 w-full border-b border-zinc-100 px-3 py-3 text-sm hover:bg-emerald-50/40`}
+                      style={{
+                        transform: `translateY(${vi.start}px)`,
+                      }}
+                    >
+                      <div className="pt-0.5">
+                        <span className="inline-block rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                          L{u.level}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-zinc-900">{u.name}</div>
+                        <div className="truncate text-xs text-zinc-600">
+                          Mobile: {u.mobile ?? "—"}, {u.email ?? "—"}
+                        </div>
+                        <div className="truncate text-xs text-zinc-600">Code: {u.referralCode}</div>
+                      </div>
+                      <div className="min-w-0 font-mono text-xs text-sky-800">
+                        {rb ? (
+                          <div className="max-h-24 overflow-y-auto">
+                            <button
+                              type="button"
+                              onClick={() => toggleReferredBy(u.id)}
+                              className="inline-flex max-w-full items-center gap-1 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-sky-800 hover:bg-sky-100"
+                            >
+                              <span className="truncate">{rb.name}</span>
+                              <span className="shrink-0 text-sky-700">{isOpen ? "▲" : "▼"}</span>
+                            </button>
+                            {isOpen ? (
+                              <div className="mt-2 rounded-lg border border-zinc-200 bg-white p-2 text-[11px] text-zinc-700 shadow-sm">
+                                <div className="text-zinc-900">{rb.name}</div>
+                                <div className="mt-0.5 text-zinc-600">
+                                  {rb.mobile ?? "—"}, {rb.email ?? "—"}
+                                </div>
+                                {rb.referralCode ? (
+                                  <div className="mt-1 font-mono text-emerald-800">{rb.referralCode}</div>
+                                ) : null}
                               </div>
                             ) : null}
                           </div>
-                        ) : null}
+                        ) : (
+                          <span className="inline-flex rounded-xl border border-zinc-200 bg-zinc-50 px-2 py-1 text-[11px] text-zinc-600">
+                            —
+                          </span>
+                        )}
                       </div>
-                    ) : (
-                      <div className="mt-2 inline-flex items-center rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-[11px] text-zinc-600">
-                        Referred by: —
+                      <div className="min-w-0">
+                        <span
+                          className={
+                            u.status === "active"
+                              ? "inline-block rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700"
+                              : "inline-block rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-700"
+                          }
+                        >
+                          {u.status}
+                        </span>
+                        <span
+                          className={`ml-1 inline-block rounded-full border px-2 py-1 text-xs ${
+                            u.activityStatus === "active"
+                              ? "border-sky-200 bg-sky-50 text-sky-700"
+                              : "border-zinc-200 bg-zinc-50 text-zinc-700"
+                          }`}
+                        >
+                          {u.activityStatus}
+                        </span>
                       </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <span
-                      className={
-                        u.status === "active"
-                          ? "rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700"
-                          : "rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs text-zinc-700"
-                      }
-                    >
-                      {u.status}
-                    </span>
-                    <span className={`ml-2 rounded-full border border-sky-200 bg-sky-50 px-2 py-1 text-xs text-sky-700 
-                      ${u.activityStatus === "active" ? "bg-sky-50 text-sky-700" : "bg-zinc-50 text-zinc-700"}`}>
-                       {u.activityStatus}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-zinc-700 align-top">
-                    {new Date(u.joinedAt).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(u.referralCode)}
-                      className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-white px-3 py-1.5 text-xs text-emerald-800 hover:bg-emerald-50"
-                      title="Copy code"
-                    >
-                      <Share2 className="h-3 w-3" />
-                      Copy
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-            {listBusy ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-zinc-600">
-                  Loading…
-                </td>
-              </tr>
-            ) : null}
-            {!listBusy && (list?.items?.length ?? 0) === 0 ? (
-              <tr>
-                <td colSpan={6} className="py-8 text-center text-zinc-600">
-                  No referrals yet. Share your referral code to grow your network.
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-
-      {list ? (
-        <div className="mt-3 text-xs text-zinc-600">
-          Showing <b>{list.total === 0 ? 0 : offset + 1}</b> –{" "}
-          <b>{Math.min(offset + limit, list.total)}</b> of <b>{list.total}</b>
+                      <div className="whitespace-nowrap text-xs text-zinc-700">
+                        {new Date(u.joinedAt).toLocaleString()}
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(u.referralCode)}
+                          className="inline-flex items-center gap-1 rounded-xl border border-emerald-200 bg-white px-2 py-1.5 text-xs text-emerald-800 hover:bg-emerald-50"
+                          title="Copy code"
+                        >
+                          <Share2 className="h-3 w-3" />
+                          Copy
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
-      ) : null}
+      </div>
     </section>
   );
 }

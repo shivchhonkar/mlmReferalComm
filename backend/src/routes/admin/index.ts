@@ -26,8 +26,54 @@ import { AccountChangeLogModel } from "@/models/AccountChangeLog";
 import { ServiceActionLogModel } from "@/models/ServiceActionLog";
 import { OrderModel } from "@/models/Order";
 import { IncomeModel } from "@/models/Income";
+import { WithdrawalModel } from "@/models/Withdrawal";
+import { getReferralWithdrawalSummary } from "@/lib/referralWithdrawalSummary";
 import { sendEmail } from "@/lib/email";
 import mongoose from "mongoose";
+
+/** Calendar registration window for GET /api/admin/users?period=… (user `createdAt`). */
+function getUserListPeriodRange(
+  period: "weekly" | "monthly" | "quarterly" | "annually"
+): { start: Date; end: Date } {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const d = now.getDate();
+
+  if (period === "monthly") {
+    const start = new Date(y, m, 1, 0, 0, 0, 0);
+    const end = new Date(y, m + 1, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  if (period === "annually") {
+    return {
+      start: new Date(y, 0, 1, 0, 0, 0, 0),
+      end: new Date(y, 11, 31, 23, 59, 59, 999),
+    };
+  }
+
+  if (period === "quarterly") {
+    const q = Math.floor(m / 3);
+    const startM = q * 3;
+    const start = new Date(y, startM, 1, 0, 0, 0, 0);
+    const end = new Date(y, startM + 3, 0, 23, 59, 59, 999);
+    return { start, end };
+  }
+
+  // weekly: Monday 00:00 — Sunday 23:59:59 (local server TZ)
+  const day = new Date(y, m, d).getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const start = new Date(y, m, d + mondayOffset, 0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start, end };
+}
+
+function escapeRegexLiteral(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 /**
  * Register all admin routes
@@ -175,12 +221,32 @@ export function registerAdminRoutes(app: Express) {
       const ctx = await requireAdminRole(req);
       await connectToDatabase();
 
-      const page = Number.parseInt(req.query.page as string) || 1;
-      const limit = Number.parseInt(req.query.limit as string) || 10;
-      const search = req.query.search as string || "";
+      const page = Math.max(1, Number.parseInt(String(req.query.page ?? "1"), 10) || 1);
+      const limitRaw = Number.parseInt(String(req.query.limit ?? "10"), 10);
+      const limit = Math.min(
+        Math.max(Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : 10, 1),
+        2000
+      );
+      const search = String(req.query.search ?? "").trim();
+      const searchName = String(req.query.searchName ?? "").trim();
       const role = req.query.role as string;
       const status = req.query.status as string;
       const type = req.query.type as string; // "sellers" = approved sellers with service count
+
+      const periodRaw = String(req.query.period ?? "all")
+        .trim()
+        .toLowerCase();
+      const periodNorm =
+        periodRaw === "weakly" ? "weekly"
+        : periodRaw === "annual" ? "annually"
+        : periodRaw;
+      const periodFilter: "weekly" | "monthly" | "quarterly" | "annually" | "all" =
+        periodNorm === "weekly" ||
+        periodNorm === "monthly" ||
+        periodNorm === "quarterly" ||
+        periodNorm === "annually"
+          ? (periodNorm as "weekly" | "monthly" | "quarterly" | "annually")
+          : "all";
 
       const today = new Date();
       // Include users without status field (legacy docs) or with status != "deleted"
@@ -204,8 +270,11 @@ export function registerAdminRoutes(app: Express) {
         else if (requestedRoles.length > 1) query.role = { $in: requestedRoles };
       }
       
-      // Handle special "new" filter for users created this month
-      if (status === "new") {
+      // Registration date window (directory / reports). Overrides "new" month filter when set.
+      if (periodFilter !== "all") {
+        const { start, end } = getUserListPeriodRange(periodFilter);
+        query.createdAt = { $gte: start, $lte: end };
+      } else if (status === "new") {
         const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
         query.createdAt = { $gte: startOfMonth };
       } else if (status === "active" || status === "inactive") {
@@ -214,21 +283,70 @@ export function registerAdminRoutes(app: Express) {
         query.status = status;
       }
       
+      if (searchName) {
+        const safe = escapeRegexLiteral(searchName);
+        query.$and = query.$and || [];
+        query.$and.push({
+          $or: [
+            { name: { $regex: safe, $options: "i" } },
+            { fullName: { $regex: safe, $options: "i" } },
+          ],
+        });
+      }
+
       if (search) {
+        const safe = escapeRegexLiteral(search);
         const searchOr = [
-          { name: { $regex: search, $options: "i" } },
-          { fullName: { $regex: search, $options: "i" } },
-          { email: { $regex: search, $options: "i" } },
-          { mobile: { $regex: search, $options: "i" } }
+          { name: { $regex: safe, $options: "i" } },
+          { fullName: { $regex: safe, $options: "i" } },
+          { email: { $regex: safe, $options: "i" } },
+          { mobile: { $regex: safe, $options: "i" } },
         ];
         query.$and = query.$and || [];
         query.$and.push({ $or: searchOr });
       }
 
       const roleOrder: Record<string, number> = { super_admin: 0, admin: 1, moderator: 2, user: 3 };
-      const sort: any = type === "sellers"
-        ? { fullName: 1 }
-        : { createdAt: -1 };
+
+      const sortByRaw = String(req.query.sortBy ?? "createdAt").trim().toLowerCase();
+      const sortOrderRaw = String(req.query.sortOrder ?? "desc").trim().toLowerCase();
+      const sortDir = sortOrderRaw === "asc" ? 1 : -1;
+
+      let sort: Record<string, 1 | -1> =
+        type === "sellers" ? { fullName: 1 } : { createdAt: -1 };
+
+      if (type !== "sellers") {
+        switch (sortByRaw) {
+          case "name":
+            sort = { fullName: sortDir, name: sortDir };
+            break;
+          case "email":
+            sort = { email: sortDir };
+            break;
+          case "mobile":
+            sort = { mobile: sortDir };
+            break;
+          case "referralcode":
+          case "referral":
+            sort = { referralCode: sortDir };
+            break;
+          case "bankname":
+            sort = { bankName: sortDir };
+            break;
+          case "bankaccount":
+          case "bankaccountname":
+            sort = { bankAccountName: sortDir };
+            break;
+          case "bankifsc":
+          case "ifsc":
+            sort = { bankIfsc: sortDir };
+            break;
+          case "createdat":
+          default:
+            sort = { createdAt: sortDir };
+            break;
+        }
+      }
 
       let users: any[];
       let total: number;
@@ -2027,15 +2145,18 @@ export function registerAdminRoutes(app: Express) {
 
       if (!user) return res.status(404).json({ error: "User not found" });
 
-      const entries = await IncomeModel.find({ toUser: userId })
-        .populate("fromUser", "fullName name email mobile referralCode")
-        .populate({
-          path: "purchase",
-          populate: { path: "service", select: "_id name" },
-        })
-        .sort({ createdAt: -1 })
-        .limit(1000)
-        .lean();
+      const [entries, withdrawalSummary] = await Promise.all([
+        IncomeModel.find({ toUser: userId })
+          .populate("fromUser", "fullName name email mobile referralCode")
+          .populate({
+            path: "purchase",
+            populate: { path: "service", select: "_id name" },
+          })
+          .sort({ createdAt: -1 })
+          .limit(1000)
+          .lean(),
+        getReferralWithdrawalSummary(userId),
+      ]);
 
       const totalIncome = entries.reduce((sum: number, e: any) => sum + (Number(e?.amount) || 0), 0);
       const totalBusiness = entries.reduce((sum: number, e: any) => sum + (Number(e?.bv) || 0), 0);
@@ -2060,6 +2181,7 @@ export function registerAdminRoutes(app: Express) {
           totalIncome,
           totalBusiness,
           entries: entries.length,
+          withdrawal: withdrawalSummary,
         },
         ledger: entries,
       });
@@ -2175,6 +2297,104 @@ export function registerAdminRoutes(app: Express) {
         shareLinks,
       });
     } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  // ============================================================================
+  // REFERRAL WITHDRAWAL REVIEW
+  // ============================================================================
+  app.get("/api/admin/withdrawals", async (req: Request, res: Response) => {
+    try {
+      await requireAdminRole(req);
+      await connectToDatabase();
+
+      const statusRaw = String(req.query.status ?? "pending").trim().toLowerCase();
+      const filter: Record<string, unknown> =
+        statusRaw === "all" ? {} : { status: statusRaw === "completed" || statusRaw === "rejected" ? statusRaw : "pending" };
+
+      const rows = await WithdrawalModel.find(filter)
+        .sort({ createdAt: -1 })
+        .limit(200)
+        .populate("user", "email mobile fullName name referralCode role")
+        .lean();
+
+      return res.json({ withdrawals: rows });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Bad request";
+      const status = msg === "Forbidden" ? 403 : 400;
+      return res.status(status).json({ error: msg });
+    }
+  });
+
+  app.patch("/api/admin/withdrawals/:id", async (req: Request, res: Response) => {
+    try {
+      const ctx = await requireAdminRole(req);
+      await connectToDatabase();
+
+      const id = String(req.params.id ?? "").trim();
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ error: "Invalid withdrawal id" });
+      }
+
+      const body = z
+        .object({
+          status: z.enum(["completed", "rejected"]),
+          rejectionReason: z.string().max(500).optional(),
+        })
+        .parse(req.body ?? {});
+
+      const w = await WithdrawalModel.findById(id);
+      if (!w) return res.status(404).json({ error: "Withdrawal not found" });
+      if (w.status !== "pending") {
+        return res.status(400).json({ error: "Only pending withdrawals can be updated" });
+      }
+
+      const reviewer = new mongoose.Types.ObjectId(ctx.userId);
+
+      if (body.status === "rejected") {
+        await WithdrawalModel.updateOne(
+          { _id: id },
+          {
+            $set: {
+              status: "rejected",
+              reviewedAt: new Date(),
+              reviewedBy: reviewer,
+              rejectionReason: body.rejectionReason?.trim() ?? "",
+            },
+          }
+        );
+        const updated = await WithdrawalModel.findById(id).lean();
+        return res.json({ ok: true, withdrawal: updated });
+      }
+
+      const summary = await getReferralWithdrawalSummary(String(w.user));
+      const reserved = summary.totalWithdrawn + summary.totalPendingWithdrawals;
+      if (reserved > summary.maxCumulativeWithdrawalAllowed + 1e-6) {
+        return res.status(400).json({
+          error:
+            "Cannot complete withdrawal: current earnings or caps no longer cover outstanding withdrawal requests.",
+        });
+      }
+
+      await WithdrawalModel.updateOne(
+        { _id: id },
+        {
+          $set: {
+            status: "completed",
+            reviewedAt: new Date(),
+            reviewedBy: reviewer,
+          },
+        }
+      );
+      const updated = await WithdrawalModel.findById(id).lean();
+      return res.json({ ok: true, withdrawal: updated });
+    } catch (err: unknown) {
+      if (err instanceof z.ZodError) {
+        return res.status(400).json({ error: err.flatten() });
+      }
       const msg = err instanceof Error ? err.message : "Bad request";
       const status = msg === "Forbidden" ? 403 : 400;
       return res.status(status).json({ error: msg });

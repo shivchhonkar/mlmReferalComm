@@ -7,6 +7,7 @@ import serviceRoutes from "@/routes/serviceRoutes";
 import purchaseRoutes from "@/routes/purchaseRoutes";
 import ordersRoutes from "@/routes/ordersRoutes";
 import incomeRoutes from "@/routes/incomeRoutes";
+import withdrawalRoutes from "@/routes/withdrawalRoutes";
 // import referralRoutes from "@/routes/referralRoutes";
 import referralRoutes from "@/routes/referralGetRoutes";
 import referralListRoutes from "@/routes/referralListRoutes";
@@ -82,6 +83,7 @@ export function registerRoutes(app: Express) {
 
   // Income tracking and history
   app.use("/api/income", incomeRoutes);
+  app.use("/api/withdrawals", withdrawalRoutes);
 
   // Referral tree visualization
   app.use("/api/referrals", referralRoutes);

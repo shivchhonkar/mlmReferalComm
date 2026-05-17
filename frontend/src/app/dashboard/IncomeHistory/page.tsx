@@ -24,8 +24,16 @@ type Income = {
   createdAt: string;
 };
 
+type IncomeSummary = {
+  totalEarnedAmount: number;
+  withdrawalAmount: number;
+  nonWithdrawableEarnings: number;
+  lifetimeWithdrawalCap: number | null;
+};
+
 type ApiResponse = {
   incomes: Income[];
+  summary?: IncomeSummary;
 };
 
 function fromUserName(u: FromUser | string | undefined): string {
@@ -45,6 +53,7 @@ function formatINRPrecise(value: number): string {
 
 export default function IncomeHistoryPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
+  const [summary, setSummary] = useState<IncomeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,13 +69,16 @@ export default function IncomeHistoryPage() {
         const err = (data as { error?: string }).error ?? "Failed to load income";
         setError(err);
         setIncomes([]);
+        setSummary(null);
         return;
       }
 
       setIncomes(data.incomes ?? []);
+      setSummary(data.summary ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load income");
       setIncomes([]);
+      setSummary(null);
     } finally {
       setLoading(false);
     }
@@ -76,7 +88,8 @@ export default function IncomeHistoryPage() {
     fetchIncomes();
   }, []);
 
-  const totalAmount = incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0);
+  const totalFromRows = incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0);
+  const totalEarnedDisplay = summary?.totalEarnedAmount ?? totalFromRows;
 
   if (loading && incomes.length === 0) {
     return (
@@ -117,13 +130,34 @@ export default function IncomeHistoryPage() {
         </div>
       )}
 
+      {summary != null && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Total earned</p>
+            <p className="text-lg font-semibold text-emerald-900">{formatINRPrecise(totalEarnedDisplay)}</p>
+            <p className="mt-1 text-xs text-emerald-800/70">Full referral credits (not reduced by plan cap)</p>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-sky-800/80">Withdrawal amount</p>
+            <p className="text-lg font-semibold text-sky-900">{formatINRPrecise(summary.withdrawalAmount)}</p>
+            <p className="mt-1 text-xs text-sky-800/70">
+              {summary.lifetimeWithdrawalCap == null
+                ? "Staff role: no withdrawal cap."
+                : summary.nonWithdrawableEarnings > 0
+                  ? `${formatINRPrecise(summary.nonWithdrawableEarnings)} earned above your withdrawable limit stays on record.`
+                  : "Amount you can request to withdraw now (after plan limit and pending requests)."}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="border-b border-zinc-200 bg-zinc-50/80 px-4 py-3">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
               <span className="font-medium text-zinc-800">
-                Total: {formatINRPrecise(totalAmount)}
+                Total (this page): {formatINRPrecise(totalFromRows)}
               </span>
             </div>
             <span className="text-sm text-zinc-500">

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAuth } from "@/lib/useAuth";
 import {
@@ -75,6 +76,19 @@ type Income = {
   createdAt: string;
 };
 
+const INCOME_HISTORY_ROW_GRID =
+  "grid grid-cols-[minmax(112px,1fr)_minmax(160px,1.6fr)_minmax(52px,0.45fr)_minmax(64px,0.55fr)_minmax(88px,0.75fr)] gap-x-2 items-center";
+
+type IncomeSummary = {
+  totalEarnedAmount: number;
+  withdrawalAmount: number;
+  lifetimeWithdrawalCap: number | null;
+  maxCumulativeWithdrawalAllowed: number;
+  totalWithdrawn: number;
+  totalPendingWithdrawals: number;
+  nonWithdrawableEarnings: number;
+};
+
 type ReferralStats = {
   directCount: number;
   directLeft: number;
@@ -91,6 +105,7 @@ export default function DashboardPage() {
   const [me, setMe] = useState<MeResponse["user"] | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [incomes, setIncomes] = useState<Income[]>([]);
+  const [incomeSummary, setIncomeSummary] = useState<IncomeSummary | null>(null);
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
   const [purchaseCount, setPurchaseCount] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
@@ -99,6 +114,14 @@ export default function DashboardPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [pendingSellers, setPendingSellers] = useState<unknown[]>([]);
   const [showAllIncomeModal, setShowAllIncomeModal] = useState(false);
+  const incomeHistoryScrollRef = useRef<HTMLDivElement>(null);
+
+  const incomeHistoryVirtualizer = useVirtualizer({
+    count: incomes.length,
+    getScrollElement: () => incomeHistoryScrollRef.current,
+    estimateSize: () => 56,
+    overscan: 12,
+  });
 
   const formatINRPrecise = useCallback((value: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -113,6 +136,8 @@ export default function DashboardPage() {
     () => incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0),
     [incomes]
   );
+
+  const totalEarnedDisplay = incomeSummary?.totalEarnedAmount ?? totalIncome;
 
   // Chart data: Income trend over time
   const incomeChartData = useMemo(() => {
@@ -219,8 +244,9 @@ export default function DashboardPage() {
       setServices(servicesData?.services ?? []);
 
       const incomeBody = await readApiBody(incomeRes);
-      const incomeData = incomeBody.json as { incomes?: Income[] };
+      const incomeData = incomeBody.json as { incomes?: Income[]; summary?: IncomeSummary };
       setIncomes(incomeData?.incomes ?? []);
+      setIncomeSummary(incomeData?.summary ?? null);
 
       const refBody = await readApiBody(referralsRes);
       const refData = refBody.json as { stats?: ReferralStats };
@@ -583,17 +609,32 @@ export default function DashboardPage() {
                   <IndianRupee className="h-6 w-6" />
                 </div>
                 <div>
-                  <h4 className="text-base font-semibold text-zinc-900">Total income</h4>
-                  <p className="text-xs text-zinc-600">Commission earned from referrals</p>
+                  <h4 className="text-base font-semibold text-zinc-900">Referral earnings</h4>
+                  {/* <p className="text-xs text-zinc-600">Total earned (uncapped) and amount you can withdraw now</p> */}
                 </div>
               </div>
               {dataLoading ? (
                 <div className="h-9 w-28 rounded bg-zinc-200 animate-pulse" />
               ) : (
                 <>
-                  <p className="text-2xl tracking-tight text-emerald-700 mb-4">
-                    {formatINRPrecise(totalIncome)}
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Total earned</p>
+                  <p className="text-2xl tracking-tight text-emerald-700 mb-3">
+                    {formatINRPrecise(totalEarnedDisplay)}
                   </p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">Withdrawal amount</p>
+                  <p className="text-lg tracking-tight text-sky-800 mb-1">
+                    {formatINRPrecise(incomeSummary?.withdrawalAmount ?? 0)}
+                  </p>
+                  {incomeSummary != null && incomeSummary.nonWithdrawableEarnings > 0 ? (
+                    <p className="text-[11px] text-zinc-500 mb-3">
+                      {formatINRPrecise(incomeSummary.nonWithdrawableEarnings)} is not withdrawable under your plan cap
+                      but remains recorded as earned.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-zinc-500 mb-3">
+                      {/* Earnings are uncapped; withdrawals follow your plan limit (staff roles have no limit). */}
+                    </p>
+                  )}
                   {incomeChartData.length > 0 ? (
                     <div className="h-32 mt-2">
                       <ResponsiveContainer width="100%" height="100%">
@@ -820,69 +861,103 @@ export default function DashboardPage() {
             </Link>
           </div>
 
-          <div className="mt-4 overflow-auto rounded-2xl border border-zinc-200">
-            <table className="w-full min-w-[600px] text-sm">
-              <thead className="bg-zinc-50 text-left text-zinc-700">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Date</th>
-                  <th className="px-4 py-3 font-medium">From</th>
-                  <th className="px-4 py-3 font-medium">Level</th>
-                  <th className="px-4 py-3 font-medium">BV</th>
-                  <th className="px-4 py-3 font-medium text-right">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dataLoading ? (
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-t border-zinc-200">
-                      <td className="px-4 py-3"><div className="h-4 w-24 rounded bg-zinc-100 animate-pulse" /></td>
-                      <td className="px-4 py-3"><div className="h-4 w-32 rounded bg-zinc-100 animate-pulse" /></td>
-                      <td className="px-4 py-3"><div className="h-4 w-10 rounded bg-zinc-100 animate-pulse" /></td>
-                      <td className="px-4 py-3"><div className="h-4 w-12 rounded bg-zinc-100 animate-pulse" /></td>
-                      <td className="px-4 py-3 text-right"><div className="ml-auto h-4 w-16 rounded bg-zinc-100 animate-pulse" /></td>
-                    </tr>
-                  ))
-                ) : incomes.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-12 text-center text-zinc-500">
-                      <TrendingUp className="mx-auto mb-2 h-10 w-10 text-zinc-300" />
-                      <p>No income yet. When your referrals make purchases, earnings appear here.</p>
-                      <Link prefetch={false} href="/dashboard/seller/services" className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline hover:cursor-pointer">
-                        Browse services →
-                      </Link>
-                    </td>
-                  </tr>
-                ) : (
-                  incomes.map((inc) => (
-                    <tr
-                      key={inc._id}
-                      className="border-t border-zinc-200 transition hover:bg-zinc-50/80"
+          <div className="mt-4 overflow-hidden rounded-2xl border border-zinc-200">
+            {dataLoading ? (
+              <div className="min-w-[600px]">
+                <div
+                  className={`${INCOME_HISTORY_ROW_GRID} border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm font-medium text-zinc-700`}
+                >
+                  <div>Date</div>
+                  <div>From</div>
+                  <div>Level</div>
+                  <div>BV</div>
+                  <div className="text-right">Amount</div>
+                </div>
+                <div className="h-[min(420px,52vh)] space-y-0 border-t border-zinc-100 p-2">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`${INCOME_HISTORY_ROW_GRID} border-b border-zinc-100 px-4 py-3`}
                     >
-                      <td className="px-4 py-3 text-zinc-800">
-                        {new Date(inc.createdAt).toLocaleString(undefined, {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        })}
-                      </td>
-                      <td className="px-4 py-3 text-zinc-900">
-                        {inc.fromUser?.name? <span className="text-zinc-500 text-bold">{inc.fromUser?.name+", "}</span> : ''}
-                         {inc.fromUser?.email ? <span className="text-zinc-500 text-[13px]">{inc.fromUser?.email}</span> : ''}
-                        {/* {inc.fromUser?.referralCode ? <span className="text-zinc-500">{inc.fromUser?.referralCode}</span> : ''} */}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
-                          L{inc.level}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-900">{formatNumber(inc.bv)}</td>
-                      <td className="px-4 py-3 text-right font-medium text-emerald-700">
-                        {formatINR(inc.amount)}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+                      <div className="h-4 w-24 rounded bg-zinc-100 animate-pulse" />
+                      <div className="h-4 w-32 rounded bg-zinc-100 animate-pulse" />
+                      <div className="h-4 w-10 rounded bg-zinc-100 animate-pulse" />
+                      <div className="h-4 w-12 rounded bg-zinc-100 animate-pulse" />
+                      <div className="ml-auto h-4 w-16 rounded bg-zinc-100 animate-pulse" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : incomes.length === 0 ? (
+              <div className="px-4 py-12 text-center text-sm text-zinc-500">
+                <TrendingUp className="mx-auto mb-2 h-10 w-10 text-zinc-300" />
+                <p>No income yet. When your referrals make purchases, earnings appear here.</p>
+                <Link
+                  prefetch={false}
+                  href="/dashboard/seller/services"
+                  className="mt-2 inline-block text-sm font-medium text-emerald-600 hover:underline hover:cursor-pointer"
+                >
+                  Browse services →
+                </Link>
+              </div>
+            ) : (
+              <div className="min-w-[600px]">
+                <div
+                  className={`${INCOME_HISTORY_ROW_GRID} border-b border-zinc-200 bg-zinc-50 px-4 py-3 text-left text-sm font-medium text-zinc-700`}
+                >
+                  <div>Date</div>
+                  <div>From</div>
+                  <div>Level</div>
+                  <div>BV</div>
+                  <div className="text-right">Amount</div>
+                </div>
+                <div
+                  ref={incomeHistoryScrollRef}
+                  className="h-[min(420px,52vh)] overflow-auto overscroll-contain"
+                  style={{ contain: "strict" }}
+                >
+                  <div
+                    className="relative w-full"
+                    style={{ height: incomeHistoryVirtualizer.getTotalSize() }}
+                  >
+                    {incomeHistoryVirtualizer.getVirtualItems().map((vi) => {
+                      const inc = incomes[vi.index];
+                      return (
+                        <div
+                          key={inc._id}
+                          data-index={vi.index}
+                          ref={incomeHistoryVirtualizer.measureElement}
+                          className={`${INCOME_HISTORY_ROW_GRID} absolute left-0 top-0 w-full border-b border-zinc-200 px-4 py-3 text-sm transition hover:bg-zinc-50/80`}
+                          style={{ transform: `translateY(${vi.start}px)` }}
+                        >
+                          <div className="min-w-0 text-zinc-800">
+                            {new Date(inc.createdAt).toLocaleString(undefined, {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </div>
+                          <div className="min-w-0 text-zinc-900">
+                            {inc.fromUser?.name ? (
+                              <span className="font-medium text-zinc-700">{inc.fromUser.name}, </span>
+                            ) : null}
+                            {inc.fromUser?.email ? (
+                              <span className="text-[13px] text-zinc-500">{inc.fromUser.email}</span>
+                            ) : null}
+                          </div>
+                          <div>
+                            <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700">
+                              L{inc.level}
+                            </span>
+                          </div>
+                          <div className="text-zinc-900">{formatNumber(inc.bv)}</div>
+                          <div className="text-right font-medium text-emerald-700">{formatINR(inc.amount)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </section>
 

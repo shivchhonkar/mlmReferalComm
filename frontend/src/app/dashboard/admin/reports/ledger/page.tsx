@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
-import { Download, RefreshCw } from "lucide-react";
+import { Check, ChevronDown, Download, RefreshCw, Search } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -13,7 +14,22 @@ type UserOption = {
   email?: string;
   mobile?: string;
   referralCode?: string;
+  role?: string;
 };
+
+const USERS_PAGE_SIZE = 500;
+const USERS_MAX_PAGES = 80;
+
+const STAFF_ROLES = new Set(["super_admin", "admin", "moderator"]);
+
+function isEndUserRole(role?: string): boolean {
+  const r = (role ?? "user").toLowerCase();
+  return !STAFF_ROLES.has(r);
+}
+
+const LEDGER_ROW_HEIGHT = 52;
+const LEDGER_GRID_COLS =
+  "grid grid-cols-[minmax(148px,1.25fr)_minmax(120px,1fr)_52px_minmax(110px,1fr)_minmax(100px,0.85fr)_72px_100px] gap-x-2 items-center";
 
 type LedgerEntry = {
   _id: string;
@@ -71,6 +87,105 @@ function formatINRPrecise(value: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+function userPrimaryLabel(u: UserOption): string {
+  return String(u.fullName || u.name || u.email || u.mobile || u._id);
+}
+
+function userMatchesQuery(u: UserOption, q: string): boolean {
+  const needle = q.trim().toLowerCase();
+  if (!needle) return true;
+  const hay = [u.fullName, u.name, u.email, u.mobile, u.referralCode, u.role]
+    .filter(Boolean)
+    .join(" \u0000 ")
+    .toLowerCase();
+  return hay.includes(needle);
+}
+
+function ledgerServiceName(row: LedgerEntry): string {
+  return typeof row.purchase?.service === "string"
+    ? row.purchase.service
+    : row.purchase?.service?.name || row.purchase?.service?._id || "-";
+}
+
+function ledgerFromName(row: LedgerEntry): string {
+  return row.fromUser?.fullName || row.fromUser?.name || row.fromUser?.email || "-";
+}
+
+function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: ledger.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => LEDGER_ROW_HEIGHT,
+    overscan: 15,
+  });
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: 0 });
+  }, [ledger]);
+
+  if (ledger.length === 0) {
+    return (
+      <div className="px-4 py-12 text-center text-sm text-zinc-500">No ledger entries for this user.</div>
+    );
+  }
+
+  return (
+    <>
+      <div className="min-w-[980px] border-b border-zinc-200 bg-zinc-50">
+        <div
+          className={`${LEDGER_GRID_COLS} px-4 py-3 text-xs font-medium uppercase tracking-wider text-zinc-500`}
+        >
+          <div>Date</div>
+          <div>Service</div>
+          <div>Level</div>
+          <div>From User</div>
+          <div>From Mobile</div>
+          <div className="text-right">BV</div>
+          <div className="text-right">Amount</div>
+        </div>
+      </div>
+      <div
+        ref={scrollRef}
+        className="h-[min(70vh,640px)] overflow-auto"
+        style={{ contain: "strict" }}
+      >
+        <div
+          className="relative min-w-[980px]"
+          style={{ height: rowVirtualizer.getTotalSize() }}
+        >
+          {rowVirtualizer.getVirtualItems().map((vi) => {
+            const row = ledger[vi.index];
+            return (
+              <div
+                key={row._id}
+                className={`${LEDGER_GRID_COLS} absolute left-0 top-0 w-full border-b border-zinc-100 px-4 text-sm hover:bg-zinc-50/50`}
+                style={{
+                  height: vi.size,
+                  transform: `translateY(${vi.start}px)`,
+                }}
+              >
+                <div className="truncate text-zinc-700">
+                  {new Date(row.createdAt).toLocaleString("en-IN")}
+                </div>
+                <div className="truncate text-zinc-700">{ledgerServiceName(row)}</div>
+                <div className="text-zinc-700">L{row.level}</div>
+                <div className="truncate text-zinc-700">{ledgerFromName(row)}</div>
+                <div className="truncate text-zinc-700">{row.fromUser?.mobile || "-"}</div>
+                <div className="text-right text-zinc-700">{row.bv ?? 0}</div>
+                <div className="text-right font-medium text-emerald-700">
+                  {formatINRPrecise(row.amount ?? 0)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AdminLedgerReportPage() {
   const [users, setUsers] = useState<UserOption[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
@@ -79,25 +194,135 @@ export default function AdminLedgerReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [ledgerData, setLedgerData] = useState<LedgerPayload | null>(null);
 
+  const [listOpen, setListOpen] = useState(false);
+  const [comboQuery, setComboQuery] = useState("");
+  const [highlightedIdx, setHighlightedIdx] = useState(0);
+  const comboWrapRef = useRef<HTMLDivElement>(null);
+  const comboInputRef = useRef<HTMLInputElement>(null);
+  const blurCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const selectedUser = useMemo(
     () => users.find((u) => u._id === selectedUserId),
     [users, selectedUserId]
   );
 
-  const loadUsers = async () => {
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => userMatchesQuery(u, comboQuery));
+  }, [users, comboQuery]);
+
+  const loadUsers = useCallback(async () => {
     setLoadingUsers(true);
     setError(null);
     try {
-      const res = await apiFetch("/api/admin/users?limit=500&role=user");
-      const body = await readApiBody(res);
-      const data = body.json as { users?: UserOption[]; error?: string };
-      if (!res.ok) throw new Error(data?.error || "Failed to load users");
-      setUsers(Array.isArray(data?.users) ? data.users : []);
+      const combined: UserOption[] = [];
+      let pages = 1;
+      for (let page = 1; page <= pages && page <= USERS_MAX_PAGES; page++) {
+        const res = await apiFetch(
+          `/api/admin/users?page=${page}&limit=${USERS_PAGE_SIZE}&sortBy=createdAt&sortOrder=desc&role=user`
+        );
+        const body = await readApiBody(res);
+        const data = body.json as {
+          users?: UserOption[];
+          pagination?: { pages: number };
+          error?: string;
+        };
+        if (!res.ok) throw new Error(data?.error || "Failed to load users");
+        const batch = (Array.isArray(data?.users) ? data.users : []).filter((u) =>
+          isEndUserRole(u.role)
+        );
+        combined.push(...batch);
+        pages = data.pagination?.pages ?? 1;
+      }
+      setUsers(combined);
+      setSelectedUserId((prev) => (prev && combined.some((u) => u._id === prev) ? prev : ""));
+      setLedgerData(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load users");
       setUsers([]);
     } finally {
       setLoadingUsers(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    setHighlightedIdx((i) => {
+      if (filteredUsers.length === 0) return 0;
+      return Math.min(i, filteredUsers.length - 1);
+    });
+  }, [filteredUsers.length, comboQuery]);
+
+  useEffect(() => {
+    const onDocMouseDown = (e: MouseEvent) => {
+      if (!comboWrapRef.current?.contains(e.target as Node)) {
+        setListOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  const cancelBlurClose = () => {
+    if (blurCloseTimer.current != null) {
+      window.clearTimeout(blurCloseTimer.current);
+      blurCloseTimer.current = null;
+    }
+  };
+
+  const openCombo = () => {
+    cancelBlurClose();
+    setListOpen(true);
+    setComboQuery("");
+    setHighlightedIdx(0);
+    requestAnimationFrame(() => comboInputRef.current?.focus());
+  };
+
+  const selectUser = (u: UserOption) => {
+    cancelBlurClose();
+    setSelectedUserId(u._id);
+    setListOpen(false);
+    setComboQuery("");
+    setLedgerData(null);
+  };
+
+  const inputDisplayValue = listOpen
+    ? comboQuery
+    : selectedUser
+      ? userPrimaryLabel(selectedUser)
+      : "";
+
+  const onComboKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!listOpen && (e.key === "ArrowDown" || e.key === "Enter")) {
+      e.preventDefault();
+      openCombo();
+      return;
+    }
+    if (!listOpen) return;
+
+    if (e.key === "Escape") {
+      e.preventDefault();
+      setListOpen(false);
+      setComboQuery("");
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightedIdx((i) => Math.min(i + 1, Math.max(0, filteredUsers.length - 1)));
+      return;
+    }
+    if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightedIdx((i) => Math.max(i - 1, 0));
+      return;
+    }
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const pick = filteredUsers[highlightedIdx];
+      if (pick) selectUser(pick);
+      return;
     }
   };
 
@@ -141,10 +366,8 @@ export default function AdminLedgerReportPage() {
     lines.push("Date,Service,Level,From User,From Mobile,BV,Amount");
 
     ledgerData.ledger.forEach((row) => {
-      const svc = typeof row.purchase?.service === "string"
-        ? row.purchase.service
-        : row.purchase?.service?.name || row.purchase?.service?._id || "-";
-      const fromName = row.fromUser?.fullName || row.fromUser?.name || row.fromUser?.email || "-";
+      const svc = ledgerServiceName(row);
+      const fromName = ledgerFromName(row);
       lines.push(
         `"${new Date(row.createdAt).toLocaleString("en-IN")}","${String(svc).replace(/,/g, " ")}","L${row.level}","${fromName.replace(/,/g, " ")}","${row.fromUser?.mobile || "-"}",${row.bv ?? 0},${(row.amount ?? 0).toFixed(2)}`
       );
@@ -176,11 +399,8 @@ export default function AdminLedgerReportPage() {
     );
 
     const body = ledgerData.ledger.map((row) => {
-      const svc =
-        typeof row.purchase?.service === "string"
-          ? row.purchase.service
-          : row.purchase?.service?.name || row.purchase?.service?._id || "-";
-      const fromName = row.fromUser?.fullName || row.fromUser?.name || row.fromUser?.email || "-";
+      const svc = ledgerServiceName(row);
+      const fromName = ledgerFromName(row);
       return [
         new Date(row.createdAt).toLocaleString("en-IN"),
         svc,
@@ -219,7 +439,7 @@ export default function AdminLedgerReportPage() {
           disabled={loadingUsers}
         >
           <RefreshCw className={`h-4 w-4 ${loadingUsers ? "animate-spin" : ""}`} />
-          Load Users
+          Refresh list
         </button>
       </div>
 
@@ -228,19 +448,120 @@ export default function AdminLedgerReportPage() {
       )}
 
       <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+        <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Select User
+        </label>
+        <div ref={comboWrapRef} className="relative mb-4 max-w-xl">
+          <div className="relative flex items-stretch">
+            <Search className="pointer-events-none absolute left-3 top-1/2 z-[1] h-4 w-4 -translate-y-1/2 text-zinc-400" />
+            <input
+              ref={comboInputRef}
+              type="text"
+              role="combobox"
+              aria-expanded={listOpen}
+              aria-controls="ledger-user-listbox"
+              aria-autocomplete="list"
+              autoComplete="off"
+              placeholder={loadingUsers ? "Loading users…" : "Search by name, mobile, email, or code…"}
+              value={inputDisplayValue}
+              disabled={loadingUsers && users.length === 0}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (!listOpen) {
+                  setListOpen(true);
+                  setComboQuery(v);
+                } else {
+                  setComboQuery(v);
+                }
+                setHighlightedIdx(0);
+              }}
+              onFocus={() => {
+                if (!listOpen) openCombo();
+              }}
+              readOnly={!listOpen && !!selectedUser}
+              onBlur={() => {
+                blurCloseTimer.current = setTimeout(() => {
+                  setListOpen(false);
+                  setComboQuery("");
+                }, 180);
+              }}
+              onKeyDown={onComboKeyDown}
+              className="min-h-[42px] w-full rounded-lg border border-zinc-200 bg-white py-2 !pl-[40px] pr-11 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 disabled:bg-zinc-50"
+            />
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={listOpen ? "Close list" : "Open list"}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                cancelBlurClose();
+                if (listOpen) {
+                  setListOpen(false);
+                  setComboQuery("");
+                } else {
+                  openCombo();
+                }
+              }}
+              className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-md text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
+            >
+              <ChevronDown
+                className={`h-4 w-4 transition-transform ${listOpen ? "rotate-180" : ""}`}
+                aria-hidden
+              />
+            </button>
+          </div>
+
+          {listOpen && (
+            <div
+              id="ledger-user-listbox"
+              role="listbox"
+              className="absolute left-0 right-0 top-[calc(100%+4px)] z-50 max-h-[min(320px,50vh)] overflow-auto rounded-lg border border-zinc-200 bg-white py-1 shadow-lg ring-1 ring-black/5"
+              onMouseDown={cancelBlurClose}
+            >
+              {filteredUsers.length === 0 ? (
+                <div className="px-3 py-6 text-center text-sm text-zinc-500">
+                  {users.length === 0
+                    ? loadingUsers
+                      ? "Loading…"
+                      : "No users loaded."
+                    : "No matches. Try another name or mobile number."}
+                </div>
+              ) : (
+                filteredUsers.map((u, idx) => {
+                  const primary = userPrimaryLabel(u);
+                  const sub = [u.mobile, u.email].filter(Boolean).join(" · ");
+                  const selected = u._id === selectedUserId;
+                  const hi = idx === highlightedIdx;
+                  return (
+                    <button
+                      key={u._id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      id={`ledger-user-opt-${u._id}`}
+                      className={`flex w-full flex-col gap-0.5 px-3 py-2.5 text-left text-sm transition ${
+                        hi ? "bg-emerald-50" : "hover:bg-zinc-50"
+                      } ${selected ? "border-l-2 border-l-emerald-600" : "border-l-2 border-l-transparent"}`}
+                      onMouseEnter={() => setHighlightedIdx(idx)}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectUser(u);
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-zinc-900">{primary}</span>
+                        {selected && <Check className="ml-auto h-4 w-4 shrink-0 text-emerald-600" aria-hidden />}
+                      </div>
+                      {sub ? <div className="truncate text-xs text-zinc-500">{sub}</div> : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap items-center gap-3">
-          <select
-            value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="min-w-[260px] rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-800"
-          >
-            <option value="">Select user</option>
-            {users.map((u) => (
-              <option key={u._id} value={u._id}>
-                {(u.fullName || u.name || u.email || u.mobile || u._id) as string}
-              </option>
-            ))}
-          </select>
           <button
             type="button"
             onClick={generateLedger}
@@ -308,44 +629,7 @@ export default function AdminLedgerReportPage() {
               <span>Entries: {ledgerData.summary.entries}</span>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[980px] text-sm">
-                <thead className="bg-zinc-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Service</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">Level</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">From User</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">From Mobile</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">BV</th>
-                    <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {ledgerData.ledger.map((row) => {
-                    const serviceName =
-                      typeof row.purchase?.service === "string"
-                        ? row.purchase.service
-                        : row.purchase?.service?.name || row.purchase?.service?._id || "-";
-                    const fromName =
-                      row.fromUser?.fullName || row.fromUser?.name || row.fromUser?.email || "-";
-                    return (
-                      <tr key={row._id} className="hover:bg-zinc-50/50">
-                        <td className="px-4 py-3 text-zinc-700">
-                          {new Date(row.createdAt).toLocaleString("en-IN")}
-                        </td>
-                        <td className="px-4 py-3 text-zinc-700">{serviceName}</td>
-                        <td className="px-4 py-3 text-zinc-700">L{row.level}</td>
-                        <td className="px-4 py-3 text-zinc-700">{fromName}</td>
-                        <td className="px-4 py-3 text-zinc-700">{row.fromUser?.mobile || "-"}</td>
-                        <td className="px-4 py-3 text-right text-zinc-700">{row.bv ?? 0}</td>
-                        <td className="px-4 py-3 text-right font-medium text-emerald-700">
-                          {formatINRPrecise(row.amount ?? 0)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <VirtualizedLedgerTable ledger={ledgerData.ledger} />
             </div>
           </div>
         </>

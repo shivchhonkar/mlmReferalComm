@@ -49,8 +49,8 @@ const adminNavItems: { href: string; label: string; icon?: React.ComponentType<{
     label: "Users",
     icon: Users,
     subItems: [
-      { href: "/dashboard/admin/users/admins", label: "Admins" },
-      { href: "/dashboard/admin/users/users", label: "Users" },
+      { href: "/dashboard/admin/users/admins", label: "Admins" },      
+      { href: "/dashboard/admin/users/users", label: "Manage users" },
       { href: "/dashboard/admin/users/sellers", label: "Sellers" },
       { href: "/dashboard/admin/users/seller-requests", label: "Seller Requests" },
     ],
@@ -59,7 +59,14 @@ const adminNavItems: { href: string; label: string; icon?: React.ComponentType<{
   { href: "/dashboard/admin/communication", label: "Communication", icon: Mail },
   { href: "/dashboard/admin/service-approval", label: "Service Approval", icon: CheckSquare },
   { href: "/dashboard/admin/categories", label: "Categories", icon: FolderOpen },
-  { href: "/dashboard/admin/reports/ledger", label: "Reports", icon: BarChart3 },
+  { href: "/dashboard/admin/reports/ledger", label: "Reports", icon: BarChart3,
+    subItems: [
+      { href: "/dashboard/admin/reports/ledger", label: "Ledger" },
+      // { href: "/dashboard/admin/reports/transactions", label: "Transactions" },
+      // { href: "/dashboard/admin/reports/balance", label: "Balance" },
+      { href: "/dashboard/admin/users/directory", label: "Users" },
+    ],
+   },
   // { href: "/dashboard/admin/analytics", label: "Analytics", icon: BarChart3 },
   
   // { href: "/dashboard/admin/slider", label: "Slider", icon: ImageIcon },

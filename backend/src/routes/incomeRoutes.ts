@@ -2,6 +2,7 @@ import { Router } from "express";
 import { connectToDatabase } from "@/lib/db";
 import { IncomeModel } from "@/models/Income";
 import { requireAuth } from "@/middleware/auth";
+import { getReferralWithdrawalSummary } from "@/lib/referralWithdrawalSummary";
 
 const router = Router();
 
@@ -11,19 +12,22 @@ router.get("/", async (req, res) => {
     const ctx = await requireAuth(req);
     await connectToDatabase();
 
-    const incomes = await IncomeModel.find({ toUser: ctx.userId })
-      .populate("fromUser", "email mobile referralCode fullName fullname name")
-      .populate({
-        path: "purchase",
-        populate: {
-          path: "service",
-          select: "_id name price businessVolume",
-        },
-      })
-      .sort({ createdAt: -1 })
-      .limit(100);
+    const [incomes, summary] = await Promise.all([
+      IncomeModel.find({ toUser: ctx.userId })
+        .populate("fromUser", "email mobile referralCode fullName fullname name")
+        .populate({
+          path: "purchase",
+          populate: {
+            path: "service",
+            select: "_id name price businessVolume",
+          },
+        })
+        .sort({ createdAt: -1 })
+        .limit(100),
+      getReferralWithdrawalSummary(ctx.userId),
+    ]);
 
-    return res.json({ incomes });
+    return res.json({ incomes, summary });
   } catch (err: unknown) {
     console.error('Error fetching income:', err);
     const msg = err instanceof Error ? err.message : "Unable to load income information";

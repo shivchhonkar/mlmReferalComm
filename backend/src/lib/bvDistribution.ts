@@ -3,9 +3,9 @@ import { connectToDatabase } from "@/lib/db";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { IncomeLogModel } from "@/models/IncomeLog";
 import { IncomeModel } from "@/models/Income";
-import { OrderModel } from "@/models/Order";
 import { ServiceModel } from "@/models/Service";
 import { UserModel } from "@/models/User";
+import { isReferralStaffRole } from "@/lib/referralStaffRoles";
 
 export type DistributeBVResult = {
   bv: number;
@@ -24,8 +24,6 @@ type ActiveDistributionRule = {
   basePercentage: number;
   decayEnabled: boolean;
 };
-
-const CAPPING_EXEMPT_ROLES = new Set(["super_admin", "admin", "moderator"]);
 
 function sessionOpt(session: mongoose.ClientSession | null | undefined): { session?: mongoose.ClientSession } {
   return session != null ? { session } : {};
@@ -85,10 +83,10 @@ async function distributeBusinessVolumeInSession(options: {
   let incomeAmount = bv * rule.basePercentage;
 
   const visited = new Set<string>([userObjectId.toString()]);
-  const recipientCapCache = new Map<string, { capAmount: number; earnedSoFar: number }>();
   const logs: Array<{
     fromUserId: mongoose.Types.ObjectId;
     toUserId: mongoose.Types.ObjectId;
+    purchase?: mongoose.Types.ObjectId | null;
     level: number;
     bv: number;
     incomeAmount: number;
@@ -101,43 +99,11 @@ async function distributeBusinessVolumeInSession(options: {
     level: number;
     bv: number;
     amount: number;
+    withdrawableAmount: number;
   }> = [];
 
   // Guardrail for corrupt graphs (should be impossible with correct parent assignment).
   const MAX_LEVELS = 50_000;
-
-  async function getRecipientCapState(
-    recipientId: mongoose.Types.ObjectId
-  ): Promise<{ capAmount: number; earnedSoFar: number }> {
-    const key = recipientId.toString();
-    const cached = recipientCapCache.get(key);
-    if (cached) return cached;
-
-    // Cap basis: user's first non-cancelled order totalAmount.
-    const firstOrderQuery = OrderModel.findOne({
-      user: recipientId,
-      status: { $ne: "CANCELLED" },
-    })
-      .sort({ createdAt: 1 })
-      .select("totals.totalAmount");
-    if (session) firstOrderQuery.session(session);
-    const firstOrder = await firstOrderQuery.lean();
-
-    const capAmountRaw = Number((firstOrder as any)?.totals?.totalAmount ?? 0);
-    const capAmount = Number.isFinite(capAmountRaw) && capAmountRaw > 0 ? capAmountRaw : 0;
-
-    const incomeAgg = await IncomeLogModel.aggregate<{ _id: null; total: number }>([
-      { $match: { toUserId: recipientId } },
-      { $group: { _id: null, total: { $sum: { $ifNull: ["$incomeAmount", 0] } } } },
-    ], session ? { session } : undefined);
-
-    const earnedRaw = Number(incomeAgg[0]?.total ?? 0);
-    const earnedSoFar = Number.isFinite(earnedRaw) && earnedRaw > 0 ? earnedRaw : 0;
-
-    const result = { capAmount, earnedSoFar };
-    recipientCapCache.set(key, result);
-    return result;
-  }
 
   while (parentId) {
     const parentKey = parentId.toString();
@@ -151,47 +117,31 @@ async function distributeBusinessVolumeInSession(options: {
     const recipient = await recipientQuery.lean();
 
     const recipientRole = String((recipient as any)?.role ?? "user");
-    const isCapExempt = CAPPING_EXEMPT_ROLES.has(recipientRole);
+    const isAdminRecipient = isReferralStaffRole(recipientRole);
     // Active-status eligibility applies to normal users only.
     // Admin roles can receive referral income regardless of status.
     const recipientStatus = String((recipient as any)?.status ?? "inactive");
-    const isIncomeEligible = isCapExempt || recipientStatus === "active";
-    if (isIncomeEligible) {
-      let payableAmount = 0;
-      let capState: { capAmount: number; earnedSoFar: number } | null = null;
+    const isIncomeEligible = isAdminRecipient || recipientStatus === "active";
+    if (isIncomeEligible && incomeAmount > 0) {
+      logs.push({
+        fromUserId: userObjectId,
+        toUserId: parentId,
+        purchase: purchaseObjectId ?? null,
+        level,
+        bv,
+        incomeAmount,
+      });
 
-      if (isCapExempt) {
-        payableAmount = incomeAmount;
-      } else {
-        capState = await getRecipientCapState(parentId);
-        const remainingCap = Math.max(capState.capAmount - capState.earnedSoFar, 0);
-        payableAmount = Math.min(incomeAmount, remainingCap);
-      }
-
-      if (payableAmount > 0) {
-        logs.push({
-          fromUserId: userObjectId,
-          toUserId: parentId,
+      if (purchaseObjectId) {
+        incomes.push({
+          fromUser: userObjectId,
+          toUser: parentId,
+          purchase: purchaseObjectId,
           level,
           bv,
-          incomeAmount: payableAmount,
+          amount: incomeAmount,
+          withdrawableAmount: incomeAmount,
         });
-
-        if (purchaseObjectId) {
-          incomes.push({
-            fromUser: userObjectId,
-            toUser: parentId,
-            purchase: purchaseObjectId,
-            level,
-            bv,
-            amount: payableAmount,
-          });
-        }
-
-        // Track in-memory progression so cap remains accurate within this same distribution run.
-        if (capState) {
-          capState.earnedSoFar += payableAmount;
-        }
       }
     }
 
@@ -234,11 +184,7 @@ async function distributeBusinessVolumeInSession(options: {
  * - Level 4: 1.25% of BV
  * - Level 5+: 50% of previous level
  *
- * Rules:
- * - Input: userId, serviceId
- * - Fetch service BV, traverse referral parents upward
- * - Store income logs in MongoDB
- * - Use MongoDB transaction to ensure consistency
+ * Earnings are not capped at distribution time. Withdrawal caps apply only when processing payouts.
  */
 export async function distributeBusinessVolume(options: {
   userId: string;

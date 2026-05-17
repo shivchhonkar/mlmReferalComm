@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import { OrderModel } from "../models/Order";
 import { PurchaseModel } from "../models/Purchase";
 import { IncomeModel } from "../models/Income";
+import { IncomeLogModel } from "../models/IncomeLog";
 import { UserModel } from "../models/User";
 import { ServiceModel } from "../models/Service";
 
@@ -587,6 +588,7 @@ router.patch("/:id/status", async (req, res) => {
         const purchaseIds = purchases.map((p: any) => p._id);
         if (purchaseIds.length > 0) {
           await IncomeModel.deleteMany({ purchase: { $in: purchaseIds } }, opts);
+          await IncomeLogModel.deleteMany({ purchase: { $in: purchaseIds } }, opts);
         }
         await OrderModel.updateOne({ _id: orderId }, { $set: { status: "CANCELLED" } }, opts);
         await syncUserStatusAndAncestorActivity(order.user as mongoose.Types.ObjectId, session);

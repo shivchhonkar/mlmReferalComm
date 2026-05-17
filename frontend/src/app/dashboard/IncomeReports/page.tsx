@@ -15,8 +15,16 @@ type Income = {
   createdAt: string;
 };
 
+type IncomeSummary = {
+  totalEarnedAmount: number;
+  withdrawalAmount: number;
+  nonWithdrawableEarnings: number;
+  lifetimeWithdrawalCap: number | null;
+};
+
 type ApiResponse = {
   incomes: Income[];
+  summary?: IncomeSummary;
 };
 
 type ReportType = "monthly" | "quarterly" | "annual" | "custom";
@@ -42,6 +50,7 @@ function formatINRPrecise(value: number): string {
 
 export default function IncomeReportsPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
+  const [summary, setSummary] = useState<IncomeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reportType, setReportType] = useState<ReportType>("monthly");
@@ -61,13 +70,16 @@ export default function IncomeReportsPage() {
         const err = (data as { error?: string }).error ?? "Failed to load income";
         setError(err);
         setIncomes([]);
+        setSummary(null);
         return;
       }
 
       setIncomes(data.incomes ?? []);
+      setSummary(data.summary ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load income");
       setIncomes([]);
+      setSummary(null);
     } finally {
       setLoading(false);
     }
@@ -332,12 +344,34 @@ export default function IncomeReportsPage() {
         </div>
       )}
 
+      {summary != null && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Total earned (all time)</p>
+            <p className="text-lg font-semibold text-emerald-900">
+              {formatINRPrecise(summary.totalEarnedAmount)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
+            <p className="text-xs font-medium uppercase tracking-wide text-sky-800/80">Withdrawal amount</p>
+            <p className="text-lg font-semibold text-sky-900">{formatINRPrecise(summary.withdrawalAmount)}</p>
+            <p className="mt-1 text-xs text-sky-800/70">
+              {summary.lifetimeWithdrawalCap == null
+                ? "No cap for staff roles."
+                : "After plan limit and pending withdrawal requests."}
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
         <div className="border-b border-zinc-200 bg-zinc-50/80 px-4 py-3">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
-              <span className="font-medium text-zinc-800">Total Income: {formatINRPrecise(totalAmount)}</span>
+              <span className="font-medium text-zinc-800">
+                Period total income: {formatINRPrecise(totalAmount)}
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <TrendingUp className="h-5 w-5 text-sky-600" />

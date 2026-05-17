@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@reduxjs/toolkit": "^2.11.2",
+    "@tanstack/react-virtual": "^3.13.24",
     "dagre": "^0.8.5",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

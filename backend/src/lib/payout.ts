@@ -58,6 +58,7 @@ async function distributeIncome({
           level,
           bv,
           amount,
+          withdrawableAmount: amount,
         },
       ],
       session ? { session } : undefined
