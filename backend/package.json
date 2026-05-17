@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "nodemon --watch src --ext ts,json --exec \"tsx\" src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "create-super-admin": "tsx scripts/create-super-admin.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.0.6",

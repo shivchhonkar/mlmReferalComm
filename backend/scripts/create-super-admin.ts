@@ -1,36 +1,85 @@
-import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+
+import dotenv from "dotenv";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import crypto from "node:crypto";
 
 import { UserModel } from "../src/models/User";
 
+function loadBackendEnv(): string | null {
+  const backendRoot = path.resolve(__dirname, "..");
+  const candidates = [
+    path.join(backendRoot, ".env"),
+    path.join(backendRoot, ".env.local"),
+    path.join(backendRoot, ".env.production"),
+    path.resolve(backendRoot, "..", ".env"),
+  ];
+
+  for (const envPath of candidates) {
+    if (!fs.existsSync(envPath)) continue;
+    const result = dotenv.config({ path: envPath, override: false });
+    if (!result.error) {
+      console.log(`[create-super-admin] Loaded env from ${envPath}`);
+      return envPath;
+    }
+  }
+
+  return null;
+}
+
+function env(key: string): string | undefined {
+  const raw = process.env[key];
+  if (raw == null) return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
 function genReferralCode(len = 10) {
   return crypto.randomBytes(16).toString("hex").slice(0, len).toUpperCase();
 }
 
 async function main() {
-  // ✅ support multiple common env keys
-  const MONGO_URI =
-    process.env.MONGODB_URI ||
-    process.env.MONGO_URI ||
-    process.env.DATABASE_URL;
+  const loadedFrom = loadBackendEnv();
+
+  const MONGO_URI = env("MONGODB_URI") || env("MONGO_URI") || env("DATABASE_URL");
 
   console.log("[create-super-admin] Mongo URI:", MONGO_URI ? "✅ found" : "❌ missing");
 
   if (!MONGO_URI) {
-    throw new Error("Missing MONGODB_URI / MONGO_URI / DATABASE_URL in .env");
+    const backendRoot = path.resolve(__dirname, "..");
+    throw new Error(
+      [
+        "Missing MONGODB_URI (or MONGO_URI / DATABASE_URL).",
+        loadedFrom
+          ? `Env file was loaded (${loadedFrom}) but MONGODB_URI is not set or is commented out.`
+          : `No .env file found. Create ${path.join(backendRoot, ".env")} on the server.`,
+        "Required in .env:",
+        "  MONGODB_URI=mongodb://...",
+        "  ADMIN_EMAIL=...",
+        "  ADMIN_MOBILE=...",
+        "  ADMIN_NAME=...",
+        "  ADMIN_PASS=...",
+        "Or run: MONGODB_URI='mongodb://...' npx tsx scripts/create-super-admin.ts",
+      ].join("\n")
+    );
   }
 
-  
+  const email = env("ADMIN_EMAIL");
+  const mobile = env("ADMIN_MOBILE");
+  const fullName = env("ADMIN_NAME");
+  const password = env("ADMIN_PASS");
+  const role = "super_admin";
+
+  if (!email || !mobile || !fullName || !password) {
+    throw new Error(
+      "Missing admin credentials in .env: set ADMIN_EMAIL, ADMIN_MOBILE, ADMIN_NAME, and ADMIN_PASS (no spaces around =)."
+    );
+  }
+
   await mongoose.connect(MONGO_URI);
   console.log("[create-super-admin] Connected ✅");
-
-  const email = process.env.ADMIN_EMAIL || '';
-  const mobile = process.env.ADMIN_MOBILE;
-  const fullName = process.env.ADMIN_NAME;
-  const password = process.env.ADMIN_PASS || '';
-  const role = 'super_admin';
 
   const existing = await UserModel.findOne({
     role: { $in: ["super_admin", "admin"] },
@@ -57,7 +106,7 @@ async function main() {
         fullName,
         name: fullName,
         passwordHash,
-        role: role,
+        role,
         isVerified: true,
         isBlocked: false,
         status: "active",
@@ -67,9 +116,9 @@ async function main() {
         position: null,
       });
       break;
-    } catch (e: any) {
-      // retry if referralCode collision
-      if (e?.code === 11000 && (e?.keyPattern?.referralCode || e?.keyValue?.referralCode)) continue;
+    } catch (e: unknown) {
+      const err = e as { code?: number; keyPattern?: { referralCode?: unknown }; keyValue?: { referralCode?: unknown } };
+      if (err?.code === 11000 && (err?.keyPattern?.referralCode || err?.keyValue?.referralCode)) continue;
       throw e;
     }
   }
@@ -91,7 +140,7 @@ main()
     process.exit(0);
   })
   .catch(async (e) => {
-    console.error("❌ Failed:", e);
+    console.error("❌ Failed:", e instanceof Error ? e.message : e);
     await mongoose.disconnect().catch(() => {});
     process.exit(1);
   });
