@@ -31,6 +31,13 @@ import {
   Loader2,
 } from "lucide-react";
 import { formatINR } from "@/lib/format";
+import {
+  DYNAMIC_LINK_CATALOG_PRICE,
+  isCatalogPriceRequired,
+  isDynamicLinkPayment,
+  normalizeServicePaymentType,
+  type ServicePaymentType,
+} from "@/lib/servicePayment";
 import AdminServiceUpload from "./AdminServiceUpload";
 import { NoImage } from "@/app/services/components/NoImage";
 
@@ -41,6 +48,9 @@ type Service = {
   price: number;
   originalPrice?: number;
   businessVolume: number;
+  paymentType?: ServicePaymentType;
+  fixedUpiId?: string;
+  requiresAdminPricing?: boolean;
   status: "draft" | "pending" | "pending_approval" | "approved" | "rejected" | "active" | "inactive" | "out_of_stock";
   createdAt: string;
 
@@ -236,6 +246,9 @@ export default function AdminServicesPage() {
   const [categoryId, setCategoryId] = useState("");
   const [subcategoryId, setSubcategoryId] = useState<string | undefined>(undefined);
   const [isFeatured, setIsFeatured] = useState(false);
+  const [paymentType, setPaymentType] = useState<ServicePaymentType>("fixed_upi");
+  const [fixedUpiId, setFixedUpiId] = useState("");
+  const [requiresAdminPricing, setRequiresAdminPricing] = useState(false);
 
   // Edit modal
   const [editOpen, setEditOpen] = useState(false);
@@ -299,6 +312,9 @@ export default function AdminServicesPage() {
   const [categories, setCategories] = useState<{ _id: string; name: string; code?: string }[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [editSubcategoryId, setEditSubcategoryId] = useState<string | undefined>(undefined);
+  const [editPaymentType, setEditPaymentType] = useState<ServicePaymentType>("fixed_upi");
+  const [editFixedUpiId, setEditFixedUpiId] = useState("");
+  const [editRequiresAdminPricing, setEditRequiresAdminPricing] = useState(false);
 
   async function loadCategories() {
     try {
@@ -389,6 +405,9 @@ export default function AdminServicesPage() {
     setCategoryId("");
     setSubcategoryId(undefined);
     setIsFeatured(false);
+    setPaymentType("fixed_upi");
+    setFixedUpiId("");
+    setRequiresAdminPricing(false);
   }
 
   async function createService(e?: React.FormEvent) {
@@ -410,14 +429,22 @@ export default function AdminServicesPage() {
         body: JSON.stringify({
           name,
           slug: finalSlug,
-          price: Number(price),
-          originalPrice: originalPrice !== "" ? Number(originalPrice) : undefined,
+          price: isDynamicLinkPayment(paymentType)
+            ? DYNAMIC_LINK_CATALOG_PRICE
+            : Number(price),
+          originalPrice:
+            isDynamicLinkPayment(paymentType) || originalPrice === ""
+              ? undefined
+              : Number(originalPrice),
           businessVolume: Number(businessVolume),
           image: image || undefined,
           shortDescription: shortDescription || undefined,
           categoryId: categoryId || undefined,
           subcategoryId: subcategoryId || undefined,          
           isFeatured,
+          paymentType,
+          fixedUpiId: paymentType === "fixed_upi" && fixedUpiId.trim() ? fixedUpiId.trim() : undefined,
+          requiresAdminPricing: paymentType === "dynamic_link" ? requiresAdminPricing : false,
           status: canManage ? "active" : "pending_approval", // Non-admins need approval
         }),
       });
@@ -460,6 +487,9 @@ export default function AdminServicesPage() {
       typeof rawSub === "object" ? rawSub?._id ?? "" : rawSub ?? ""
     );
     setEditStatus(validStatuses.includes(s) ? s : "active");
+    setEditPaymentType(normalizeServicePaymentType(service.paymentType));
+    setEditFixedUpiId(service.fixedUpiId ?? "");
+    setEditRequiresAdminPricing(Boolean(service.requiresAdminPricing));
     setEditOpen(true);
   }
 
@@ -495,9 +525,19 @@ export default function AdminServicesPage() {
         isFeatured: editIsFeatured,
         status: editStatus,
       };
-      if (editPrice !== "") payload.price = Number(editPrice);
-      if (editOriginalPrice !== "") payload.originalPrice = Number(editOriginalPrice);
+      if (isDynamicLinkPayment(editPaymentType)) {
+        payload.price = DYNAMIC_LINK_CATALOG_PRICE;
+        payload.originalPrice = undefined;
+      } else {
+        if (editPrice !== "") payload.price = Number(editPrice);
+        if (editOriginalPrice !== "") payload.originalPrice = Number(editOriginalPrice);
+      }
       if (editBusinessVolume !== "") payload.businessVolume = Number(editBusinessVolume);
+      payload.paymentType = editPaymentType;
+      payload.fixedUpiId =
+        editPaymentType === "fixed_upi" && editFixedUpiId.trim() ? editFixedUpiId.trim() : undefined;
+      payload.requiresAdminPricing =
+        editPaymentType === "dynamic_link" ? editRequiresAdminPricing : false;
 
       const res = await apiFetch(`/api/admin/services/${serviceId}`, {
         method: "PUT",
@@ -929,7 +969,10 @@ export default function AdminServicesPage() {
                         <div className="flex items-center gap-2">
                           <span className="flex items-center gap-1 text-lg text-slate-900">
                             <IndianRupee className="h-4 w-4" />
-                            {formatINR(s.price)}
+                            {isDynamicLinkPayment(s.paymentType) &&
+                            (s.price == null || s.price <= 0)
+                              ? "Per order"
+                              : formatINR(s.price)}
                           </span>
                         </div>
                       </div>
@@ -993,7 +1036,13 @@ export default function AdminServicesPage() {
                 "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white disabled:opacity-60",
                 canManage ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-300"
               )}
-              disabled={busy || !canManage || !name || price === "" || businessVolume === ""}
+              disabled={
+                busy ||
+                !canManage ||
+                !name.trim() ||
+                businessVolume === "" ||
+                (isCatalogPriceRequired(paymentType) && price === "")
+              }
             >
               <Check className="h-4 w-4" />
               {busy ? "Creating..." : "Create"}
@@ -1028,35 +1077,69 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
-          <div>
-            <label className={formLabelClass}>Price (₹) *</label>
-            <input
+          <div className="md:col-span-2">
+            <label className={formLabelClass}>Payment type *</label>
+            <select
               className={formInputClass}
-              type="number"
-              value={price}
-              onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-              min={0}
-              step="0.01"
-              placeholder="0.00"
-              required
+              value={paymentType}
+              onChange={(e) => {
+                const v = e.target.value as ServicePaymentType;
+                setPaymentType(v);
+                if (v === "dynamic_link") {
+                  setRequiresAdminPricing(true);
+                  setPrice("");
+                  setOriginalPrice("");
+                }
+              }}
               disabled={!canManage}
-            />
+            >
+              <option value="fixed_upi">Fixed UPI (same UPI for every order)</option>
+              <option value="dynamic_link">Dynamic payment link (per order)</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-500">
+              {paymentType === "fixed_upi"
+                ? "Customers pay via your fixed UPI ID and upload proof."
+                : "No fixed catalog price — admin shares a payment link with the actual amount per order."}
+            </p>
           </div>
 
-           <div>
-            <label className={formLabelClass}>Original Price (₹) *</label>
-            <input
-              className={formInputClass}
-              type="number"
-              value={originalPrice}
-              onChange={(e) => setOriginalPrice(e.target.value === "" ? "" : Number(e.target.value))}
-              min={0}
-              step="0.01"
-              placeholder="0.00"
-              required
-              disabled={!canManage}
-            />
-          </div>
+          {paymentType === "fixed_upi" ? (
+            <>
+              <div>
+                <label className={formLabelClass}>Price (₹) *</label>
+                <input
+                  className={formInputClass}
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  min={0}
+                  step="0.01"
+                  placeholder="0.00"
+                  required
+                  disabled={!canManage}
+                />
+              </div>
+              <div>
+                <label className={formLabelClass}>Original Price (₹)</label>
+                <input
+                  className={formInputClass}
+                  type="number"
+                  value={originalPrice}
+                  onChange={(e) =>
+                    setOriginalPrice(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  min={0}
+                  step="0.01"
+                  placeholder="Optional — for discount display"
+                  disabled={!canManage}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="md:col-span-2 rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2 text-xs text-sky-900">
+              Price is set per order when you add the payment link. Catalog price is not used.
+            </div>
+          )}
 
           <div>
             <label className={formLabelClass}>Business volume (BV) *</label>
@@ -1071,6 +1154,34 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
+
+          {paymentType === "fixed_upi" ? (
+            <div className="md:col-span-2">
+              <label className={formLabelClass}>Fixed UPI ID (optional)</label>
+              <input
+                className={formInputClass}
+                value={fixedUpiId}
+                onChange={(e) => setFixedUpiId(e.target.value)}
+                placeholder="e.g. company@upi — leave blank to use global UPI"
+                disabled={!canManage}
+              />
+            </div>
+          ) : (
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                id="requiresAdminPricing"
+                type="checkbox"
+                checked={requiresAdminPricing}
+                onChange={(e) => setRequiresAdminPricing(e.target.checked)}
+                disabled={!canManage}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              <label htmlFor="requiresAdminPricing" className="text-sm text-slate-700">
+                Requires admin pricing (govt fee / variable amount services)
+              </label>
+            </div>
+          )}
+
           <div className="md:col-span-2">
             <label className={formLabelClass}>Service image</label>
             <p className="mb-2 text-xs text-slate-500">
@@ -1281,30 +1392,63 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
-          <div>
-            <label className={formLabelClass}>Price (₹) *</label>
-            <input
+          <div className="md:col-span-2">
+            <label className={formLabelClass}>Payment type *</label>
+            <select
               className={formInputClass}
-              type="number"
-              step="0.01"
-              min={0}
-              value={editPrice}
-              onChange={(e) => setEditPrice(e.target.value === "" ? "" : Number(e.target.value))}
+              value={editPaymentType}
+              onChange={(e) => {
+                const v = e.target.value as ServicePaymentType;
+                setEditPaymentType(v);
+                if (v === "dynamic_link") {
+                  setEditRequiresAdminPricing(true);
+                  setEditPrice("");
+                  setEditOriginalPrice("");
+                }
+              }}
               disabled={!canManage}
-            />
+            >
+              <option value="fixed_upi">Fixed UPI (same UPI for every order)</option>
+              <option value="dynamic_link">Dynamic payment link (per order)</option>
+            </select>
           </div>
-            <div>
-            <label className={formLabelClass}>Original Price (₹) *</label>
-            <input
-              className={formInputClass}
-              type="number"
-              step="0.01"
-              min={0}
-              value={editOriginalPrice}
-              onChange={(e) => setEditOriginalPrice(e.target.value === "" ? "" : Number(e.target.value))}
-              disabled={!canManage}
-            />
-          </div>
+
+          {editPaymentType === "fixed_upi" ? (
+            <>
+              <div>
+                <label className={formLabelClass}>Price (₹) *</label>
+                <input
+                  className={formInputClass}
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={editPrice}
+                  onChange={(e) => setEditPrice(e.target.value === "" ? "" : Number(e.target.value))}
+                  disabled={!canManage}
+                />
+              </div>
+              <div>
+                <label className={formLabelClass}>Original Price (₹)</label>
+                <input
+                  className={formInputClass}
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={editOriginalPrice}
+                  onChange={(e) =>
+                    setEditOriginalPrice(e.target.value === "" ? "" : Number(e.target.value))
+                  }
+                  placeholder="Optional"
+                  disabled={!canManage}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="md:col-span-2 rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2 text-xs text-sky-900">
+              No fixed catalog price — amount is shared via payment link per order.
+            </div>
+          )}
+
           <div>
             <label className={formLabelClass}>BV *</label>
             <input
@@ -1316,6 +1460,34 @@ export default function AdminServicesPage() {
               disabled={!canManage}
             />
           </div>
+
+          {editPaymentType === "fixed_upi" ? (
+            <div className="md:col-span-2">
+              <label className={formLabelClass}>Fixed UPI ID (optional)</label>
+              <input
+                className={formInputClass}
+                value={editFixedUpiId}
+                onChange={(e) => setEditFixedUpiId(e.target.value)}
+                placeholder="e.g. company@upi — leave blank to use global UPI"
+                disabled={!canManage}
+              />
+            </div>
+          ) : (
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input
+                id="editRequiresAdminPricing"
+                type="checkbox"
+                checked={editRequiresAdminPricing}
+                onChange={(e) => setEditRequiresAdminPricing(e.target.checked)}
+                disabled={!canManage}
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              <label htmlFor="editRequiresAdminPricing" className="text-sm text-slate-700">
+                Requires admin pricing (govt fee / variable amount services)
+              </label>
+            </div>
+          )}
+
           <div className="md:col-span-2">
             <label className={formLabelClass}>Service image</label>
             <p className="mb-2 text-xs text-slate-500">

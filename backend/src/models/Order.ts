@@ -38,8 +38,32 @@ const orderSchema = new Schema(
       index: true,
     },
 
+    /** Per-order payment link (dynamic_link services) */
+    paymentLink: { type: String, trim: true },
+    /**
+     * Service payment lifecycle (dynamic_link orders).
+     * Fixed UPI orders typically leave this unset and use payment.status instead.
+     */
+    servicePaymentStatus: {
+      type: String,
+      enum: [
+        "pending",
+        "awaiting_payment_link",
+        "payment_link_added",
+        "payment_link_shared",
+        "payment_received",
+        "paid",
+      ],
+      index: true,
+    },
+    paymentRequestedAt: { type: Date },
+
     payment: {
-      mode: { type: String, enum: ["COD", "CASH", "RAZORPAY", "UPI"], default: "COD" },
+      mode: {
+        type: String,
+        enum: ["COD", "CASH", "RAZORPAY", "UPI", "DYNAMIC_LINK"],
+        default: "COD",
+      },
       status: { type: String, enum: ["PENDING", "PAID", "FAILED"], default: "PENDING" },
 
       // UPI payment proof (screenshot) - required when mode is UPI

@@ -4,6 +4,11 @@ import { connectToDatabase } from "@/lib/db";
 import { requireSeller } from "@/middleware/auth";
 import { ServiceModel } from "@/models/Service";
 import { logServiceAction } from "@/lib/activityLogger";
+import {
+  catalogPriceRequired,
+  isDynamicLinkService,
+  resolveCatalogPrice,
+} from "@/lib/servicePayment";
 
 /**
  * Seller service routes
@@ -38,16 +43,27 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
       slug: z.string().min(1).optional(),
       image: z.string().optional(),
       gallery: z.array(z.string()).optional(),
-      price: z.number().min(0),
+      price: z.number().min(0).optional(),
       originalPrice: z.number().min(0).optional(),
       currency: z.enum(["INR", "USD"]).default("INR"),
       discountPercent: z.number().min(0).max(100).optional(),
       businessVolume: z.number().min(0),
+      paymentType: z.enum(["fixed_upi", "dynamic_link"]).default("fixed_upi"),
+      fixedUpiId: z.string().optional(),
+      requiresAdminPricing: z.boolean().optional(),
       shortDescription: z.string().max(200).optional(),
       description: z.string().optional(),
       status: z.enum(["draft", "pending"]).default("draft"),
       categoryId: z.string().optional(),
       tags: z.array(z.string()).optional(),
+    }).superRefine((data, ctx) => {
+      if (catalogPriceRequired(data.paymentType) && data.price === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Price is required for fixed UPI services",
+          path: ["price"],
+        });
+      }
     });
 
     try {
@@ -68,17 +84,22 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         return res.status(400).json({ error: `Service with slug "${slug}" already exists` });
       }
 
+      const paymentType = body.paymentType ?? "fixed_upi";
       const service = await ServiceModel.create({
         sellerId: ctx.userId,
         name: body.name,
         slug,
         image,
         gallery: body.gallery,
-        price: body.price,
-        originalPrice: body.originalPrice,
+        price: resolveCatalogPrice(paymentType, body.price),
+        originalPrice: isDynamicLinkService(paymentType) ? undefined : body.originalPrice,
         currency: body.currency,
         discountPercent: body.discountPercent,
         businessVolume: body.businessVolume,
+        paymentType,
+        fixedUpiId: body.fixedUpiId?.trim() || undefined,
+        requiresAdminPricing:
+          body.requiresAdminPricing ?? paymentType === "dynamic_link",
         shortDescription: body.shortDescription,
         description: body.description,
         status: body.status,
@@ -115,6 +136,9 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         currency: z.enum(["INR", "USD"]).optional(),
         discountPercent: z.number().min(0).max(100).optional(),
         businessVolume: z.number().min(0).optional(),
+        paymentType: z.enum(["fixed_upi", "dynamic_link"]).optional(),
+        fixedUpiId: z.string().optional(),
+        requiresAdminPricing: z.boolean().optional(),
         shortDescription: z.string().max(200).optional(),
         description: z.string().optional(),
         status: z.enum(["draft", "pending"]).optional(),

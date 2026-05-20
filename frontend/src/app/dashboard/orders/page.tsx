@@ -20,7 +20,17 @@ import {
   Receipt,
   Filter,
   CheckCircle2,
+  Link2,
+  ExternalLink,
 } from "lucide-react";
+import {
+  canMarkDynamicPaid,
+  canMarkDynamicPaymentReceived,
+  DYNAMIC_PAYMENT_STEP_LABELS,
+  dynamicPaymentStep,
+  isPaymentLinkSharedStatus,
+  servicePaymentStatusLabel,
+} from "@/lib/servicePayment";
 
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { formatINR } from "@/lib/format";
@@ -62,11 +72,19 @@ type ApiTotals = {
 };
 
 type ApiPayment = {
-  mode?: "COD" | "CASH" | "RAZORPAY" | "UPI";
+  mode?: "COD" | "CASH" | "RAZORPAY" | "UPI" | "DYNAMIC_LINK";
   status?: "PENDING" | "PAID" | "FAILED";
   paymentProofUrl?: string;
   paymentReviewStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 };
+
+type ServicePaymentStatusType =
+  | "pending"
+  | "awaiting_payment_link"
+  | "payment_link_added"
+  | "payment_link_shared"
+  | "payment_received"
+  | "paid";
 
 type ApiOrder = {
   _id?: string;
@@ -78,6 +96,9 @@ type ApiOrder = {
   items?: ApiOrderItem[];
   totals?: ApiTotals;
   payment?: ApiPayment;
+  paymentLink?: string;
+  servicePaymentStatus?: ServicePaymentStatusType;
+  paymentRequestedAt?: string;
 };
 
 type OrderStatus = "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED";
@@ -98,6 +119,9 @@ type UiOrder = {
   paymentStatus?: "PENDING" | "PAID" | "FAILED";
   paymentProofUrl?: string;
   paymentReviewStatus?: "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  servicePaymentStatus?: ServicePaymentStatusType;
+  paymentLink?: string;
+  isDynamicPayment?: boolean;
   raw?: ApiOrder;
 };
 
@@ -126,7 +150,209 @@ function safeNum(n: unknown, fallback = 0) {
 
 const ORDER_ROW_GAP = 16;
 const ORDER_ROW_COLLAPSED_HEIGHT = 96;
-const ORDER_ROW_EXPANDED_ESTIMATE = 520;
+const ORDER_ROW_EXPANDED_ESTIMATE = 640;
+
+/* -------------------- DYNAMIC PAYMENT ADMIN WORKFLOW -------------------- */
+
+function DynamicPaymentStepper({ currentStep }: { currentStep: number }) {
+  return (
+    <ol className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-0">
+      {DYNAMIC_PAYMENT_STEP_LABELS.map((label, idx) => {
+        const stepNum = idx + 1;
+        const done = currentStep > stepNum;
+        const active = currentStep === stepNum;
+        return (
+          <li key={label} className="flex items-center gap-2 text-xs sm:mr-2">
+            <span
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                done
+                  ? "bg-emerald-600 text-white"
+                  : active
+                    ? "bg-sky-600 text-white ring-2 ring-sky-200"
+                    : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {done ? <CheckCircle2 className="h-3.5 w-3.5" /> : stepNum}
+            </span>
+            <span
+              className={
+                active ? "font-semibold text-slate-900" : done ? "text-emerald-700" : "text-slate-500"
+              }
+            >
+              {label}
+            </span>
+            {idx < DYNAMIC_PAYMENT_STEP_LABELS.length - 1 ? (
+              <span className="hidden text-slate-300 sm:mx-1 sm:inline">→</span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+type DynamicPaymentAdminProps = {
+  order: UiOrder;
+  paymentLinkDraft: string;
+  onPaymentLinkChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  onShareLink: () => void;
+  onPaymentReceived: () => void;
+  onMarkPaid: () => void;
+  confirming: boolean;
+  cancelling: boolean;
+  saving: boolean;
+};
+
+function DynamicPaymentAdminPanel({
+  order,
+  paymentLinkDraft,
+  onPaymentLinkChange,
+  onConfirm,
+  onCancel,
+  onShareLink,
+  onPaymentReceived,
+  onMarkPaid,
+  confirming,
+  cancelling,
+  saving,
+}: DynamicPaymentAdminProps) {
+  const step = dynamicPaymentStep(order.status, order.servicePaymentStatus);
+  const linkValue = paymentLinkDraft || order.paymentLink || "";
+  const linkShared = isPaymentLinkSharedStatus(order.servicePaymentStatus);
+  const paymentReceived = order.servicePaymentStatus === "payment_received";
+  const isPaid = order.servicePaymentStatus === "paid" || order.paymentStatus === "PAID";
+
+  return (
+    <div className="mt-4 rounded-lg border border-sky-200 bg-gradient-to-b from-sky-50/80 to-white p-4">
+      <p className="text-sm font-semibold text-slate-900">Dynamic payment — admin workflow</p>
+      <p className="mt-1 text-xs text-slate-600">
+        Complete each step in order. BV and commission run only after step 4 (Mark paid).
+      </p>
+      <div className="mt-4">
+        <DynamicPaymentStepper currentStep={isPaid ? 5 : step} />
+      </div>
+
+      {order.status === "PENDING" && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={confirming || cancelling || saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          >
+            {confirming ? "Confirming…" : "1. Confirm order"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling || confirming || saving}
+            className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+          >
+            {cancelling ? "Cancelling…" : "Cancel order"}
+          </button>
+        </div>
+      )}
+
+      {order.status !== "PENDING" &&
+        (order.status === "CONFIRMED" || order.status === "COMPLETED") &&
+        !isPaid && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Payment link (step 2)
+            </label>
+            <input
+              type="url"
+              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:bg-slate-50"
+              placeholder="https://payment-link..."
+              value={linkValue}
+              onChange={(e) => onPaymentLinkChange(e.target.value)}
+              disabled={paymentReceived || saving}
+            />
+            {linkShared && order.paymentLink ? (
+              <a
+                href={order.paymentLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:underline"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                Open saved link
+              </a>
+            ) : null}
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onShareLink}
+              disabled={
+                saving ||
+                !linkValue.trim() ||
+                paymentReceived ||
+                (linkShared && linkValue.trim() === (order.paymentLink ?? "").trim())
+              }
+              className="inline-flex items-center gap-2 rounded-xl border border-sky-300 bg-sky-100 px-4 py-2 text-sm font-medium text-sky-900 hover:bg-sky-200 disabled:opacity-50"
+            >
+              {saving ? "Saving…" : linkShared ? "Update link" : "2. Payment link shared"}
+            </button>
+
+            <button
+              type="button"
+              onClick={onPaymentReceived}
+              disabled={saving || !canMarkDynamicPaymentReceived(order.servicePaymentStatus)}
+              className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 hover:bg-violet-100 disabled:opacity-50"
+            >
+              3. Payment received
+            </button>
+
+            <button
+              type="button"
+              onClick={onMarkPaid}
+              disabled={saving || !canMarkDynamicPaid(order.servicePaymentStatus)}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            >
+              4. Mark paid
+            </button>
+
+            {order.status === "CONFIRMED" && (
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={cancelling || saving}
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60"
+              >
+                Cancel order
+              </button>
+            )}
+          </div>
+
+          {!linkShared && (
+            <p className="text-xs text-amber-700">
+              Save the payment link and mark it shared before recording payment received.
+            </p>
+          )}
+          {linkShared && !paymentReceived && (
+            <p className="text-xs text-violet-700">
+              After the customer pays via the link, click &quot;Payment received&quot;.
+            </p>
+          )}
+          {paymentReceived && (
+            <p className="text-xs text-emerald-700">
+              Payment received — click &quot;Mark paid&quot; to confirm and distribute BV.
+            </p>
+          )}
+        </div>
+      )}
+
+      {isPaid && (
+        <p className="mt-3 text-sm font-medium text-emerald-700">This order is fully paid and fulfilled.</p>
+      )}
+    </div>
+  );
+}
 
 /* -------------------- STATUS BADGES -------------------- */
 
@@ -140,6 +366,26 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
   return (
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${styles[status]}`}>
       {status}
+    </span>
+  );
+}
+
+function ServicePaymentStatusBadge({ status }: { status?: ServicePaymentStatusType }) {
+  if (!status) return null;
+  const label = servicePaymentStatusLabel(status) || status;
+  const styles =
+    status === "paid"
+      ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+      : status === "payment_received"
+        ? "bg-violet-100 text-violet-800 border-violet-200"
+        : status === "payment_link_added" || status === "payment_link_shared"
+          ? "bg-sky-100 text-sky-800 border-sky-200"
+          : status === "awaiting_payment_link"
+            ? "bg-amber-100 text-amber-800 border-amber-200"
+            : "bg-slate-100 text-slate-700 border-slate-200";
+  return (
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${styles}`}>
+      {label}
     </span>
   );
 }
@@ -164,6 +410,7 @@ function PaymentStatusBadge({ status }: { status?: "PENDING" | "PAID" | "FAILED"
 function PaymentModeIcon({ mode }: { mode?: string }) {
   if (mode === "CASH") return <Banknote className="h-4 w-4" />;
   if (mode === "UPI") return <Wallet className="h-4 w-4" />;
+  if (mode === "DYNAMIC_LINK") return <Link2 className="h-4 w-4" />;
   if (mode === "RAZORPAY") return <CreditCard className="h-4 w-4" />;
   return <Wallet className="h-4 w-4" />;
 }
@@ -209,6 +456,8 @@ export default function OrdersPage() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [paymentLinkDraft, setPaymentLinkDraft] = useState<Record<string, string>>({});
+  const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
@@ -257,6 +506,14 @@ export default function OrdersPage() {
           "";
 
         const payment = o.payment as ApiPayment | undefined;
+        const isDynamicPayment =
+          payment?.mode === "DYNAMIC_LINK" ||
+          Boolean(o.servicePaymentStatus) ||
+          Boolean((o as { orderUsesDynamicPaymentLink?: boolean }).orderUsesDynamicPaymentLink);
+        const paymentMode =
+          isDynamicPayment && payment?.mode !== "DYNAMIC_LINK"
+            ? "DYNAMIC_LINK"
+            : payment?.mode;
         return {
           id,
           orderNumber: makeOrderNumber(o),
@@ -268,10 +525,13 @@ export default function OrdersPage() {
           customerName: o.customer?.fullName,
           customerMobile: o.customer?.mobile,
           customerEmail: o.customer?.email,
-          paymentMode: payment?.mode,
+          paymentMode,
           paymentStatus: payment?.status,
           paymentProofUrl: payment?.paymentProofUrl,
           paymentReviewStatus: payment?.paymentReviewStatus,
+          servicePaymentStatus: o.servicePaymentStatus,
+          paymentLink: o.paymentLink,
+          isDynamicPayment,
           raw: o,
         };
       });
@@ -324,6 +584,39 @@ export default function OrdersPage() {
 
   function confirmOrder(orderId: string) {
     updateOrderStatus(orderId, "CONFIRMED");
+  }
+
+  async function saveServicePayment(
+    orderId: string,
+    opts: { paymentLink?: string; action?: "payment_received"; markPaid?: boolean },
+  ) {
+    setSavingPaymentId(orderId);
+    try {
+      const res = await apiFetch(`/api/orders/${orderId}/service-payment`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(opts.paymentLink !== undefined ? { paymentLink: opts.paymentLink } : {}),
+          ...(opts.action ? { action: opts.action } : {}),
+          ...(opts.markPaid ? { markPaid: true } : {}),
+        }),
+      });
+      const data = (await readApiBody(res)).json as any;
+      if (!res.ok) throw new Error(data?.message || data?.error || "Failed");
+      const msg =
+        data?.message ||
+        (opts.markPaid
+          ? "Payment marked paid. BV distributed."
+          : opts.action === "payment_received"
+            ? "Payment marked as received."
+            : "Payment link saved.");
+      showSuccessToast(msg);
+      await loadOrders();
+    } catch (err: any) {
+      showErrorToast(err?.message || "Failed to update payment");
+    } finally {
+      setSavingPaymentId(null);
+    }
   }
 
   async function reviewPayment(orderId: string, action: "approve" | "reject", reason?: string) {
@@ -638,6 +931,9 @@ export default function OrdersPage() {
                         </span>
                         <OrderStatusBadge status={order.status} />
                         <PaymentStatusBadge status={order.paymentStatus} />
+                        {order.isDynamicPayment ? (
+                          <ServicePaymentStatusBadge status={order.servicePaymentStatus} />
+                        ) : null}
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
@@ -728,6 +1024,31 @@ export default function OrdersPage() {
                                 </span>
                                 <PaymentStatusBadge status={order.paymentStatus} />
                               </div>
+                              {order.isDynamicPayment && (
+                                <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm">
+                                  <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">
+                                    Dynamic payment
+                                  </p>
+                                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                                    <ServicePaymentStatusBadge status={order.servicePaymentStatus} />
+                                  </div>
+                                  {order.paymentLink ? (
+                                    <a
+                                      href={order.paymentLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline"
+                                    >
+                                      <ExternalLink className="h-4 w-4" />
+                                      Open payment link
+                                    </a>
+                                  ) : (
+                                    <p className="mt-2 text-xs text-slate-600">
+                                      Payment link not added yet.
+                                    </p>
+                                  )}
+                                </div>
+                              )}
                               {order.paymentMode === "UPI" && order.paymentProofUrl && (
                                 <div className="mt-3">
                                   <p className="text-xs font-medium text-slate-600">Payment screenshot</p>
@@ -755,13 +1076,58 @@ export default function OrdersPage() {
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               <span className="flex items-center gap-2 text-sm text-slate-700">
                                 <PaymentModeIcon mode={order.paymentMode} />
-                                {order.paymentMode === "CASH" ? "Cash" : order.paymentMode === "UPI" ? "UPI" : order.paymentMode === "COD" ? "Pay later" : order.paymentMode || "—"}
+                                {order.paymentMode === "DYNAMIC_LINK"
+                                  ? "Dynamic payment link"
+                                  : order.paymentMode === "CASH"
+                                    ? "Cash"
+                                    : order.paymentMode === "UPI"
+                                      ? "UPI"
+                                      : order.paymentMode === "COD"
+                                        ? "Pay later"
+                                        : order.paymentMode || "—"}
                               </span>
                               <PaymentStatusBadge status={order.paymentStatus} />
+                              {order.isDynamicPayment ? (
+                                <ServicePaymentStatusBadge status={order.servicePaymentStatus} />
+                              ) : null}
                               {order.paymentMode === "UPI" && order.paymentReviewStatus === "PENDING_REVIEW" && (
                                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Awaiting review</span>
                               )}
                             </div>
+                            {order.isDynamicPayment && (
+                              <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm">
+                                {order.status === "PENDING" ? (
+                                  <p className="text-sm text-amber-800">
+                                    Order is being reviewed. You will get a payment link after it is confirmed.
+                                  </p>
+                                ) : order.servicePaymentStatus === "awaiting_payment_link" ||
+                                  order.servicePaymentStatus === "pending" ? (
+                                  <p className="text-sm text-amber-800">
+                                    Order confirmed — payment link will be shared shortly.
+                                  </p>
+                                ) : isPaymentLinkSharedStatus(order.servicePaymentStatus) ? (
+                                  <p className="text-sm text-sky-800">
+                                    Payment link is ready. Please complete payment using the link below.
+                                  </p>
+                                ) : order.servicePaymentStatus === "payment_received" ? (
+                                  <p className="text-sm text-violet-800">
+                                    Payment recorded — awaiting final confirmation.
+                                  </p>
+                                ) : order.paymentLink ? (
+                                  <a
+                                    href={order.paymentLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline"
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                    Pay now
+                                  </a>
+                                ) : (
+                                  <p className="text-xs text-slate-600">Payment link not available yet.</p>
+                                )}
+                              </div>
+                            )}
                             {order.paymentMode === "UPI" && order.paymentProofUrl && (
                               <div className="mt-3">
                                 <p className="text-xs font-medium text-slate-600">Your payment screenshot</p>
@@ -815,7 +1181,34 @@ export default function OrdersPage() {
                         </div>
                       </div>
 
-                      {order.status === "PENDING" && isAdmin && (
+                      {isAdmin &&
+                        order.isDynamicPayment &&
+                        order.status !== "CANCELLED" && (
+                          <DynamicPaymentAdminPanel
+                            order={order}
+                            paymentLinkDraft={paymentLinkDraft[order.id] ?? ""}
+                            onPaymentLinkChange={(value) =>
+                              setPaymentLinkDraft((prev) => ({ ...prev, [order.id]: value }))
+                            }
+                            onConfirm={() => confirmOrder(order.id)}
+                            onCancel={() => cancelOrder(order.id)}
+                            onShareLink={() =>
+                              saveServicePayment(order.id, {
+                                paymentLink:
+                                  paymentLinkDraft[order.id] ?? order.paymentLink ?? "",
+                              })
+                            }
+                            onPaymentReceived={() =>
+                              saveServicePayment(order.id, { action: "payment_received" })
+                            }
+                            onMarkPaid={() => saveServicePayment(order.id, { markPaid: true })}
+                            confirming={confirmingId === order.id}
+                            cancelling={cancellingId === order.id}
+                            saving={savingPaymentId === order.id}
+                          />
+                        )}
+
+                      {order.status === "PENDING" && isAdmin && !order.isDynamicPayment && (
                         <div className="mt-4 flex flex-wrap items-center justify-end gap-3">
                           {order.paymentMode === "UPI" && order.paymentReviewStatus === "PENDING_REVIEW" ? (
                             <>

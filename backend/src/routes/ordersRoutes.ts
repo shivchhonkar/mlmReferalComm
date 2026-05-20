@@ -11,6 +11,18 @@ import { ServiceModel } from "../models/Service";
 import { requireAuth } from "@/middleware/auth";
 import { connectToDatabase } from "@/lib/db";
 import { distributeBusinessVolumeWithSession } from "@/lib/bvDistribution";
+import {
+  enrichAndRepairOrdersForResponse,
+  loadServiceMapForIds,
+  orderItemsUseDynamicLink,
+  orderIsDynamicPaymentOrder,
+} from "@/lib/orderDynamicPayment";
+import {
+  canMarkDynamicPaid,
+  canMarkDynamicPaymentReceived,
+  isDynamicLinkService,
+} from "@/lib/servicePayment";
+import { markOrderPaidAndFulfilled } from "@/lib/orderFulfillment";
 
 const router = express.Router();
 
@@ -148,7 +160,7 @@ router.get("/", async (req, res) => {
       baseFilter.user = user._id;
     }
 
-    const [orders, total] = await Promise.all([
+    const [ordersRaw, total] = await Promise.all([
       OrderModel.find(baseFilter)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -158,6 +170,8 @@ router.get("/", async (req, res) => {
         .lean(),
       OrderModel.countDocuments(baseFilter),
     ]);
+
+    const orders = await enrichAndRepairOrdersForResponse(ordersRaw);
 
     return res.json({
       ok: true,
@@ -216,17 +230,13 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ message: "Invalid service id" });
     }
 
-    const validObjectIds = serviceIds.filter((id: string) =>
-      mongoose.Types.ObjectId.isValid(id) && String(new mongoose.Types.ObjectId(id)) === id
-    );
+    const serviceMap = await loadServiceMapForIds(serviceIds);
 
-    let serviceMap = new Map<string, any>();
-    if (validObjectIds.length > 0) {
-      const services = await ServiceModel.find({ _id: { $in: validObjectIds } })
-        .select("_id name price businessVolume status")
-        .lean();
-      serviceMap = new Map(services.map((s: any) => [String(s._id), s]));
-    }
+    const orderUsesDynamicPaymentLink =
+      paymentModeRaw === "DYNAMIC_LINK" || orderItemsUseDynamicLink(
+        items.map((it: any) => ({ service: String(it?.id ?? "").trim() })),
+        serviceMap,
+      );
 
     for (const it of items) {
       const serviceId = String(it?.id ?? "").trim();
@@ -235,8 +245,11 @@ router.post("/", async (req, res) => {
       if (!serviceId) {
         return res.status(400).json({ message: "Invalid service id: missing" });
       }
-      const isLegacyId = !validObjectIds.includes(serviceId);
-      if (!isLegacyId && !serviceMap.has(serviceId)) {
+      const inCatalog = serviceMap.has(serviceId);
+      const looksLikeObjectId =
+        mongoose.Types.ObjectId.isValid(serviceId) &&
+        String(new mongoose.Types.ObjectId(serviceId)) === serviceId;
+      if (looksLikeObjectId && !inCatalog) {
         return res.status(400).json({ message: `Invalid service id: ${serviceId}` });
       }
       if (!Number.isFinite(qty) || qty <= 0) {
@@ -270,14 +283,23 @@ router.post("/", async (req, res) => {
     const computedTotalQuantity = normalizedItems.reduce((s: number, i: any) => s + i.quantity, 0);
     const computedTotalAmount = normalizedItems.reduce((s: number, i: any) => s + i.price * i.quantity, 0);
 
-    const paymentMode =
-      paymentModeRaw === "RAZORPAY" ? "RAZORPAY"
-      : paymentModeRaw === "UPI" ? "UPI"
-      : paymentModeRaw === "CASH" ? "CASH"
-      : "COD";
+    let paymentMode =
+      paymentModeRaw === "RAZORPAY"
+        ? "RAZORPAY"
+        : paymentModeRaw === "UPI"
+          ? "UPI"
+          : paymentModeRaw === "CASH"
+            ? "CASH"
+            : paymentModeRaw === "DYNAMIC_LINK"
+              ? "DYNAMIC_LINK"
+              : "COD";
 
-    // UPI: require payment proof; order stays PENDING until admin/owner reviews
-    if (paymentMode === "UPI") {
+    if (orderUsesDynamicPaymentLink) {
+      paymentMode = "DYNAMIC_LINK";
+    }
+
+    // Fixed UPI: require payment proof; order stays PENDING until admin reviews
+    if (paymentMode === "UPI" && !orderUsesDynamicPaymentLink) {
       if (!paymentProofUrl || typeof paymentProofUrl !== "string" || !paymentProofUrl.trim()) {
         return res.status(400).json({ message: "UPI payment requires a screenshot as proof. Please upload your payment screenshot." });
       }
@@ -285,7 +307,12 @@ router.post("/", async (req, res) => {
 
     const paymentStatus =
       paymentMode === "CASH" || paymentStatusRaw === "PAID" ? "PAID" : "PENDING";
-    const orderStatus = paymentStatus === "PAID" ? "CONFIRMED" : "PENDING";
+    const orderStatus =
+      orderUsesDynamicPaymentLink
+        ? "PENDING"
+        : paymentStatus === "PAID"
+          ? "CONFIRMED"
+          : "PENDING";
 
     const orderDoc: any = {
       user: user._id,
@@ -302,6 +329,10 @@ router.post("/", async (req, res) => {
         totalAmount: computedTotalAmount,
       },
       status: orderStatus,
+      ...(orderUsesDynamicPaymentLink && {
+        servicePaymentStatus: "awaiting_payment_link",
+        paymentRequestedAt: new Date(),
+      }),
       payment: {
         mode: paymentMode,
         status: paymentStatus,
@@ -316,9 +347,8 @@ router.post("/", async (req, res) => {
       const createOpts = session ? { session } : {};
       const [order] = await OrderModel.create([orderDoc], createOpts);
 
-      // UPI orders: defer purchase creation and BV distribution until payment is approved
-      if (paymentMode === "UPI") {
-        // Keep user/ancestor status fields in sync even when UPI order is created directly as PAID/CONFIRMED.
+      // UPI + dynamic_link: defer purchase creation and BV until payment is confirmed
+      if (paymentMode === "UPI" || paymentMode === "DYNAMIC_LINK") {
         await syncUserStatusAndAncestorActivity(user._id, session);
         return { order, purchasesCreated: 0 };
       }
@@ -362,6 +392,10 @@ router.post("/", async (req, res) => {
             id: String(order._id),
             status: order.status,
             payment: order.payment,
+            servicePaymentStatus: order.servicePaymentStatus,
+            paymentLink: order.paymentLink,
+            paymentRequestedAt: order.paymentRequestedAt,
+            orderUsesDynamicPaymentLink,
             totalAmount: order?.totals?.totalAmount,
             totalQuantity: order?.totals?.totalQuantity,
             createdAt: order.createdAt,
@@ -382,6 +416,10 @@ router.post("/", async (req, res) => {
             id: String(order._id),
             status: order.status,
             payment: order.payment,
+            servicePaymentStatus: order.servicePaymentStatus,
+            paymentLink: order.paymentLink,
+            paymentRequestedAt: order.paymentRequestedAt,
+            orderUsesDynamicPaymentLink,
             totalAmount: order?.totals?.totalAmount,
             totalQuantity: order?.totals?.totalQuantity,
             createdAt: order.createdAt,
@@ -397,6 +435,150 @@ router.post("/", async (req, res) => {
     }
 
     console.error("orders POST error:", err);
+    return res.status(500).json({ message: err?.message || "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/orders/:id/service-payment
+ * Admin: add/update payment link and service payment status for dynamic_link orders.
+ * Body: { paymentLink?: string, servicePaymentStatus?: "payment_link_added" | "paid", markPaid?: boolean }
+ */
+router.patch("/:id/service-payment", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order id" });
+    }
+
+    const user = await UserModel.findById(ctx.userId).select("role").lean();
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isAdminRole((user as any).role)) {
+      return res.status(403).json({ message: "Only admin or super_admin can update service payment." });
+    }
+
+    const { paymentLink, action, markPaid } = req.body ?? {};
+    const order = await OrderModel.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const isDynamic = await orderIsDynamicPaymentOrder({
+      items: order.items as Array<{ service?: string }>,
+      payment: order.payment as { mode?: string },
+      servicePaymentStatus: order.servicePaymentStatus as string | undefined,
+    });
+
+    if (!isDynamic) {
+      return res.status(400).json({
+        message: "Service payment updates apply only to dynamic payment link orders.",
+      });
+    }
+
+    if ((order.payment as any)?.mode !== "DYNAMIC_LINK") {
+      await OrderModel.updateOne(
+        { _id: orderId },
+        {
+          $set: {
+            "payment.mode": "DYNAMIC_LINK",
+            ...(order.servicePaymentStatus
+              ? {}
+              : { servicePaymentStatus: "awaiting_payment_link", paymentRequestedAt: new Date() }),
+          },
+        },
+      );
+    }
+
+    const orderStatus = String(order.status);
+    const payStatus = order.servicePaymentStatus as string | undefined;
+    const update: Record<string, unknown> = {};
+
+    if (typeof paymentLink === "string" && paymentLink.trim()) {
+      if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
+        return res.status(400).json({
+          message: "Confirm the order before sharing a payment link.",
+        });
+      }
+      if (payStatus === "paid") {
+        return res.status(400).json({ message: "Order is already marked paid." });
+      }
+      update.paymentLink = paymentLink.trim();
+      update.servicePaymentStatus = "payment_link_shared";
+    }
+
+    if (action === "payment_received") {
+      if (!canMarkDynamicPaymentReceived(payStatus)) {
+        return res.status(400).json({
+          message: "Share the payment link with the customer before marking payment received.",
+        });
+      }
+      if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
+        return res.status(400).json({ message: "Confirm the order first." });
+      }
+      update.servicePaymentStatus = "payment_received";
+    }
+
+    if (markPaid === true) {
+      const effectivePayStatus =
+        (update.servicePaymentStatus as string | undefined) ?? payStatus;
+      if (!canMarkDynamicPaid(effectivePayStatus)) {
+        return res.status(400).json({
+          message: "Mark payment as received before marking the order paid.",
+        });
+      }
+      if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
+        return res.status(400).json({ message: "Confirm the order first." });
+      }
+
+      const runPaid = async (session: mongoose.ClientSession | null) => {
+        if (Object.keys(update).length > 0) {
+          await OrderModel.updateOne({ _id: orderId }, { $set: update }, session ? { session } : {});
+        }
+        await markOrderPaidAndFulfilled(orderId, session);
+        await syncUserStatusAndAncestorActivity(order.user as mongoose.Types.ObjectId, session);
+      };
+
+      try {
+        const session = await mongoose.startSession();
+        try {
+          await session.withTransaction(async () => runPaid(session));
+        } finally {
+          session.endSession();
+        }
+      } catch (txErr: any) {
+        const msg = String(txErr?.message ?? "");
+        if (msg.includes("replica set") || msg.includes("Transaction numbers")) {
+          await runPaid(null);
+        } else {
+          throw txErr;
+        }
+      }
+
+      const updated = await OrderModel.findById(orderId).lean();
+      return res.json({ message: "Payment marked paid. BV distributed.", order: updated });
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({
+        message: "Provide paymentLink, action: payment_received, or markPaid.",
+      });
+    }
+
+    await OrderModel.updateOne({ _id: orderId }, { $set: update });
+    const updated = await OrderModel.findById(orderId).lean();
+    const msg =
+      update.servicePaymentStatus === "payment_link_shared"
+        ? "Payment link saved and marked as shared."
+        : update.servicePaymentStatus === "payment_received"
+          ? "Payment marked as received."
+          : "Service payment updated.";
+    return res.json({ message: msg, order: updated });
+  } catch (err: any) {
+    if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("orders PATCH service-payment error:", err);
     return res.status(500).json({ message: err?.message || "Internal server error" });
   }
 });

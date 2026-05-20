@@ -6,6 +6,11 @@ import { hashPassword } from "@/lib/password";
 import { generateUniqueReferralCode } from "@/lib/referral";
 import { importUpload } from "@/lib/upload";
 import { processBulkServiceUpload, generateServiceImportTemplate } from "@/lib/bulkServiceImport";
+import {
+  catalogPriceRequired,
+  isDynamicLinkService,
+  resolveCatalogPrice,
+} from "@/lib/servicePayment";
 import { processBulkCategoryUpload, generateCategoryImportTemplate } from "@/lib/bulkCategoryImport";
 import { requireAuth, requireRole, requireAdminRole, requireSuperAdminOrAdmin } from "@/middleware/auth";
 
@@ -927,13 +932,16 @@ export function registerAdminRoutes(app: Express) {
     const schema = z.object({
       name: z.string().min(1),
       slug: z.string().min(1).optional(),
-      image: z.string().url({ message: "Invalid URL format" }).optional(),
-      gallery: z.array(z.string().url({ message: "Invalid URL format" })).optional(),
-      price: z.number().min(0),
+      image: z.string().min(1).optional(),
+      gallery: z.array(z.string()).optional(),
+      price: z.number().min(0).optional(),
       originalPrice: z.number().min(0).optional(),
       currency: z.enum(["INR", "USD"]).default("INR"),
       discountPercent: z.number().min(0).max(100).optional(),
       businessVolume: z.number().min(0),
+      paymentType: z.enum(["fixed_upi", "dynamic_link"]).default("fixed_upi"),
+      fixedUpiId: z.string().optional(),
+      requiresAdminPricing: z.boolean().optional(),
       shortDescription: z.string().max(200).optional(),
       description: z.string().optional(),
       status: z.enum(["draft", "pending", "pending_approval", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
@@ -941,6 +949,14 @@ export function registerAdminRoutes(app: Express) {
       categoryId: z.string().optional(),
       subcategoryId: z.string().optional(),
       tags: z.array(z.string()).optional(),
+    }).superRefine((data, ctx) => {
+      if (catalogPriceRequired(data.paymentType) && data.price === undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Price is required for fixed UPI services",
+          path: ["price"],
+        });
+      }
     });
 
     try {
@@ -960,17 +976,22 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ error: `Service with slug "${slug}" already exists` });
       }
 
+      const paymentType = body.paymentType ?? "fixed_upi";
       const service = await ServiceModel.create({
         sellerId: ctx.userId,
         name: body.name,
         slug,
         image,
         gallery: body.gallery,
-        price: body.price,
-        originalPrice: body.originalPrice,
+        price: resolveCatalogPrice(paymentType, body.price),
+        originalPrice: isDynamicLinkService(paymentType) ? undefined : body.originalPrice,
         currency: body.currency,
         discountPercent: body.discountPercent,
         businessVolume: body.businessVolume,
+        paymentType,
+        fixedUpiId: body.fixedUpiId?.trim() || undefined,
+        requiresAdminPricing:
+          body.requiresAdminPricing ?? paymentType === "dynamic_link",
         shortDescription: body.shortDescription,
         description: body.description,
         status: body.status || "pending_approval", // Default to pending_approval if not specified
@@ -1000,6 +1021,9 @@ export function registerAdminRoutes(app: Express) {
         currency: z.enum(["INR", "USD"]).optional(),
         discountPercent: z.number().min(0).max(100).optional(),
         businessVolume: z.number().min(0).optional(),
+        paymentType: z.enum(["fixed_upi", "dynamic_link"]).optional(),
+        fixedUpiId: z.string().optional(),
+        requiresAdminPricing: z.boolean().optional(),
         shortDescription: z.string().max(200).optional(),
         description: z.string().optional(),
         status: z.enum(["draft", "pending", "approved", "rejected", "active", "inactive", "out_of_stock"]).optional(),
@@ -1020,10 +1044,28 @@ export function registerAdminRoutes(app: Express) {
         return res.status(400).json({ error: "Service ID is required" });
       }
 
+      const existing = await ServiceModel.findById(id).lean();
+      if (!existing) return res.status(404).json({ error: "Service not found" });
+
+      const effectivePaymentType = body.paymentType ?? (existing as { paymentType?: string }).paymentType;
+      const updatePayload: Record<string, unknown> = { ...body };
+      if (isDynamicLinkService(effectivePaymentType)) {
+        updatePayload.price = resolveCatalogPrice(effectivePaymentType, body.price);
+        updatePayload.originalPrice = undefined;
+      } else if (catalogPriceRequired(effectivePaymentType) && body.price === undefined) {
+        // keep existing price when not sent
+      } else if (catalogPriceRequired(effectivePaymentType) && body.price !== undefined) {
+        updatePayload.price = resolveCatalogPrice(effectivePaymentType, body.price);
+      }
+
       // Service model uses CUID (string) for _id; support ObjectId for legacy data
-      let service = await ServiceModel.findByIdAndUpdate(id, body, { new: true });
+      let service = await ServiceModel.findByIdAndUpdate(id, updatePayload, { new: true });
       if (!service && mongoose.Types.ObjectId.isValid(id) && id.length === 24) {
-        service = await ServiceModel.findByIdAndUpdate(new mongoose.Types.ObjectId(id), body, { new: true });
+        service = await ServiceModel.findByIdAndUpdate(
+          new mongoose.Types.ObjectId(id),
+          updatePayload,
+          { new: true },
+        );
       }
       if (!service) return res.status(404).json({ error: "Service not found" });
       return res.json({ service });

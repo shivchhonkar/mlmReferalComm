@@ -4,10 +4,14 @@ import Link from "next/link";
 export default async function CheckoutSuccessPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ orderId?: string }>;
+  searchParams?: Promise<{ orderId?: string; payment?: string }>;
 }) {
-  const params = (await (searchParams ?? Promise.resolve({}))) as { orderId?: string };
+  const params = (await (searchParams ?? Promise.resolve({}))) as {
+    orderId?: string;
+    payment?: string;
+  };
   const orderId = typeof params.orderId === "string" ? params.orderId : undefined;
+  const isDynamic = params.payment === "dynamic";
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -23,9 +27,18 @@ export default async function CheckoutSuccessPage({
             <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
               Order placed
             </h1>
-            <p className="mt-2 text-slate-600">
-              Your service order has been created. Cash orders are confirmed; UPI orders require payment proof review; pay-later orders will be updated when payment is received.
-            </p>
+            {isDynamic ? (
+              <p className="mt-2 text-slate-600">
+                Your order is confirmed. Our team will add a unique payment link for this order
+                (govt fee / variable amount). Check your orders page — you can pay once the link
+                appears.
+              </p>
+            ) : (
+              <p className="mt-2 text-slate-600">
+                Your service order has been created. Cash orders are confirmed; UPI orders require
+                payment proof review; pay-later orders will be updated when payment is received.
+              </p>
+            )}
 
             {orderId ? (
               <div className="mt-5 flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

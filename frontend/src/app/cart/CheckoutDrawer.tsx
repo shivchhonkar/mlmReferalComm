@@ -22,6 +22,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearCart } from "@/store/slices/cartSlice";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
+import { isDynamicLinkPayment } from "@/lib/servicePayment";
 
 type CheckoutDrawerProps = {
   open: boolean;
@@ -51,6 +52,20 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const cart = useAppSelector((s) => s.cart);
   const items = useMemo(() => Object.values(cart.items), [cart.items]);
 
+  const { isDynamicCheckout, cartMixedPaymentTypes } = useMemo(() => {
+    let hasFixed = false;
+    let hasDynamic = false;
+    for (const it of items) {
+      if (isDynamicLinkPayment(it.paymentType)) hasDynamic = true;
+      else hasFixed = true;
+    }
+    const mixed = hasFixed && hasDynamic;
+    return {
+      cartMixedPaymentTypes: mixed,
+      isDynamicCheckout: hasDynamic && !mixed,
+    };
+  }, [items]);
+
   // from userSlice
   const user = useAppSelector((s) => s.user.profile);
 
@@ -73,18 +88,22 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const [proofUploading, setProofUploading] = useState(false);
   const [copiedField, setCopiedField] = useState<"upi" | "link" | null>(null);
 
-  const upiId = (process.env.NEXT_PUBLIC_UPI_ID ?? "").trim();
+  const globalUpiId = (process.env.NEXT_PUBLIC_UPI_ID ?? "").trim();
+  const effectiveUpiId = useMemo(() => {
+    const fromItem = items.map((i) => i.fixedUpiId?.trim()).find(Boolean);
+    return (fromItem || globalUpiId).trim();
+  }, [items, globalUpiId]);
   const upiPayLink = useMemo(() => {
     const amount = Number(cart.totalAmount || 0).toFixed(2);
     const params = new URLSearchParams({
-      pa: upiId || "",
+      pa: effectiveUpiId || globalUpiId || "",
       pn: "Sambhariya Marketing",
       am: amount,
       cu: "INR",
       tn: `Order payment of ${formatINR(cart.totalAmount)}`,
     });
     return `upi://pay?${params.toString()}`;
-  }, [cart.totalAmount]);
+  }, [cart.totalAmount, effectiveUpiId, globalUpiId]);
 
   const qrImageUrl = useMemo(
     () =>
@@ -129,9 +148,10 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   const canSubmit =
     items.length > 0 &&
+    !cartMixedPaymentTypes &&
     form.fullName.trim().length >= 2 &&
     form.mobile.trim().length === 10 &&
-    (paymentMethod !== "upi" || !!paymentProofUrl);
+    (isDynamicCheckout || paymentMethod !== "upi" || !!paymentProofUrl);
 
   async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -164,7 +184,9 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
 
   async function placeOrder() {
     if (!canSubmit) {
-      if (paymentMethod === "upi" && !paymentProofUrl) {
+      if (cartMixedPaymentTypes) {
+        showErrorToast("Cannot mix fixed UPI and dynamic payment link services in one order.");
+      } else if (paymentMethod === "upi" && !paymentProofUrl && !isDynamicCheckout) {
         showErrorToast("Please upload your UPI payment screenshot to proceed.");
       } else {
         showErrorToast("Please fill name and 10-digit mobile number.");
@@ -175,7 +197,8 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
     setLoading(true);
     try {
       const isCashPaid = paymentMethod === "cash";
-      const isUpi = paymentMethod === "upi";
+      const isUpi = !isDynamicCheckout && paymentMethod === "upi";
+      const isDynamic = isDynamicCheckout;
       const payload = {
         user: {
           id: (user as any)?.id || user?._id || undefined,
@@ -203,11 +226,11 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
           totalAmount: cart.totalAmount,
         },
         payment: {
-          mode: isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
+          mode: isDynamic ? "DYNAMIC_LINK" : isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
           status: isCashPaid ? "PAID" : "PENDING",
           ...(isUpi && paymentProofUrl && { proofUrl: paymentProofUrl }),
         },
-        paymentMode: isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
+        paymentMode: isDynamic ? "DYNAMIC_LINK" : isCashPaid ? "CASH" : isUpi ? "UPI" : "COD",
         paymentStatus: isCashPaid ? "PAID" : "PENDING",
         ...(isUpi && paymentProofUrl && { paymentProofUrl }),
       };
@@ -234,7 +257,11 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
       showSuccessToast("Order placed successfully!");
 
       onClose();
-      router.push(`/checkout/success${orderId ? `?orderId=${orderId}` : ""}`);
+      const successQs = new URLSearchParams();
+      if (orderId) successQs.set("orderId", String(orderId));
+      if (isDynamicCheckout) successQs.set("payment", "dynamic");
+      const qs = successQs.toString();
+      router.push(`/checkout/success${qs ? `?${qs}` : ""}`);
     } catch (err: any) {
       showErrorToast(err?.message || "Checkout failed");
     } finally {
@@ -271,7 +298,9 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               </div>
 
               <p className="mt-1 text-sm text-zinc-600">
-                Services only · UPI payment with screenshot verification.
+                {isDynamicCheckout
+                  ? "Admin will share a payment link after you place the order."
+                  : "Services only · UPI payment with screenshot verification."}
               </p>
 
               <div className="mt-3 flex flex-wrap gap-2">
@@ -361,10 +390,24 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
               <div className="text-sm font-semibold text-zinc-900">
                Payment Method
               </div>
-              <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-                {/* UPI transfer is currently enabled. Other payment methods will be available soon. */}
-                Make payment via UPI and upload screenshot for verification.
-              </div>
+              {cartMixedPaymentTypes ? (
+                <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                  Your cart mixes fixed UPI and dynamic payment link services. Please checkout
+                  them in separate orders.
+                </div>
+              ) : isDynamicCheckout ? (
+                <div className="mt-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+                  <p className="font-medium">Dynamic payment link</p>
+                  <p className="mt-1 text-xs">
+                    After placing the order, our team will add a unique payment link (govt fee /
+                    variable amount). You can pay once the link appears in your orders.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+                  Make payment via UPI and upload screenshot for verification.
+                </div>
+              )}
               {/* <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -407,8 +450,8 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                 </button>
               </div> */}
 
-              {/* UPI: mandatory screenshot upload */}
-              {paymentMethod === "upi" && (
+              {/* UPI: mandatory screenshot upload (fixed_upi services only) */}
+              {!isDynamicCheckout && paymentMethod === "upi" && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/80 p-4">
                   <label className="text-sm font-semibold text-amber-900">Scan & Pay via UPI</label>
                   <p className="mt-1 text-xs text-amber-800">
@@ -423,12 +466,12 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                       />
                       <div className="w-full min-w-0 space-y-2">
                         <div className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
-                          UPI ID: <span className="font-semibold text-zinc-900">{upiId}</span>
+                          UPI ID: <span className="font-semibold text-zinc-900">{effectiveUpiId}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            onClick={() => copyText(upiId, "upi")}
+                            onClick={() => copyText(effectiveUpiId, "upi")}
                             className="inline-flex items-center gap-1 rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
                           >
                             {copiedField === "upi" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}

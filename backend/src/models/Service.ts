@@ -36,6 +36,18 @@ const serviceSchema = new Schema(
     // Business Volume (BV) for this service purchase
     businessVolume: { type: Number, required: true, min: 0 },
 
+    /** fixed_upi = same UPI for every order; dynamic_link = admin adds link per order */
+    paymentType: {
+      type: String,
+      enum: ["fixed_upi", "dynamic_link"],
+      default: "fixed_upi",
+      index: true,
+    },
+    /** UPI ID / VPA shown for fixed_upi services (falls back to env / admin settings) */
+    fixedUpiId: { type: String, trim: true },
+    /** When true, final price may be set by admin per order (dynamic_link) */
+    requiresAdminPricing: { type: Boolean, default: false },
+
     // Short description for previews
     shortDescription: { type: String, trim: true, maxlength: 200 },
     

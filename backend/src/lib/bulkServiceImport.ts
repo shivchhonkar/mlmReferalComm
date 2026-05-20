@@ -190,6 +190,7 @@ export async function bulkInsertServices(
 
       const newService = new ServiceModel({
         ...service,
+        paymentType: "fixed_upi",
         rating: 0,
         reviewCount: 0,
       });

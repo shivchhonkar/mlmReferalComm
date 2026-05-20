@@ -7,6 +7,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem, removeItem, updateQty } from "@/store/slices/cartSlice";
 import { NoImage } from "./NoImage";
 import type { Service } from "@/store/slices/serviceSlice";
+import { isDynamicLinkPayment } from "@/lib/servicePayment";
 interface ServiceCardProps {
   service: Service;
   onSelect?: (service: Service) => void;
@@ -32,6 +33,7 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
   }, [hasDiscount, service]);
 
   const isFeatured = Boolean((service as any).isFeatured);
+  const isDynamicLink = isDynamicLinkPayment(service.paymentType);
 
   const handleAddToCart = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
@@ -42,6 +44,8 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
         price: service.price,
         businessVolume: service.businessVolume,
         quantity: 1,
+        paymentType: service.paymentType,
+        fixedUpiId: service.fixedUpiId,
       })
     );
   };
@@ -73,6 +77,11 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
         {isFeatured && (
           <span className="inline-flex items-center gap-1 rounded-full bg-orange-500 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
             <Sparkles className="h-3.5 w-3.5" />
+          </span>
+        )}
+        {isDynamicLink && (
+          <span className="rounded-full bg-sky-600 px-2.5 py-1 text-xs font-bold text-white shadow-sm">
+            Payment link
           </span>
         )}
       </div>
@@ -150,7 +159,11 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
         {/* Price */}
         <div className="space-y-1">
           <div className="flex items-end gap-2">
-            <div className="text-lg font-bold text-[var(--gray-900)]">{formatINR(service.price)}</div>
+            <div className="text-lg font-bold text-[var(--gray-900)]">
+              {isDynamicLink && (!service.price || service.price <= 0)
+                ? "Price on request"
+                : formatINR(service.price)}
+            </div>
             {hasDiscount && (service as any).originalPrice && (
               <div className="text-sm text-[var(--gray-400)] line-through pb-0.5">{formatINR((service as any).originalPrice)}</div>
             )}
