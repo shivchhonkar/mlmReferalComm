@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, Suspense, useCallback, Fragment } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAuth } from "@/lib/useAuth";
 import {
   Users,
@@ -739,6 +740,25 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
     }
   };
 
+  const usersTableScrollRef = useRef<HTMLDivElement>(null);
+
+  const usersRowVirtualizer = useVirtualizer({
+    count: users.length,
+    getScrollElement: () => usersTableScrollRef.current,
+    estimateSize: (index) => {
+      const rowUser = users[index];
+      const expanded = rowUser && expandedUserId === rowUser._id;
+      return (expanded ? 420 : 76) + 4;
+    },
+    overscan: 4,
+    getItemKey: (index) => users[index]?._id ?? index,
+  });
+
+  useEffect(() => {
+    usersRowVirtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- remeasure expanded rows
+  }, [expandedUserId, users.length]);
+
   const assignReferral = async () => {
     if (!selectedUserForReferral) return;
 
@@ -1249,13 +1269,30 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-600">Actions</th>
                 </tr>
               </thead>
+            </table>
+          </div>
+          <div
+            ref={usersTableScrollRef}
+            className="h-[min(70vh,640px)] overflow-auto"
+            style={{ contain: "strict" }}
+          >
+            <div className="relative min-w-[1100px]" style={{ height: usersRowVirtualizer.getTotalSize() }}>
+              {usersRowVirtualizer.getVirtualItems().map((vi) => {
+                const u = users[vi.index];
+                if (!u) return null;
+                const rowBusy = mutating === u._id;
 
-              <tbody className="divide-y divide-slate-100">
-                {users.map((u) => {
-                  const rowBusy = mutating === u._id;
-
-                  return (
-                    <Fragment key={u._id}>
+                return (
+                  <div
+                    key={u._id}
+                    data-index={vi.index}
+                    ref={usersRowVirtualizer.measureElement}
+                    className="absolute left-0 top-0 w-full"
+                    style={{ transform: `translateY(${vi.start}px)` }}
+                  >
+                    <table className="w-full">
+                      <tbody className="divide-y divide-slate-100">
+                    <Fragment>
                     <tr
                       className={[
                         "transition-colors",
@@ -1544,10 +1581,12 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                       </tr>
                     )}
                     </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Pagination */}

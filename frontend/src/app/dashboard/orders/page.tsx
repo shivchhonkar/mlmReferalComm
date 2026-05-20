@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import Link from "next/link";
 import {
   ShoppingBag,
@@ -16,8 +17,6 @@ import {
   Banknote,
   CreditCard,
   Wallet,
-  ChevronLeft,
-  ChevronRight,
   Receipt,
   Filter,
   CheckCircle2,
@@ -125,9 +124,9 @@ function safeNum(n: unknown, fallback = 0) {
   return Number.isFinite(x) ? x : fallback;
 }
 
-function clamp(n: number, min: number, max: number) {
-  return Math.min(Math.max(n, min), max);
-}
+const ORDER_ROW_GAP = 16;
+const ORDER_ROW_COLLAPSED_HEIGHT = 96;
+const ORDER_ROW_EXPANDED_ESTIMATE = 520;
 
 /* -------------------- STATUS BADGES -------------------- */
 
@@ -211,9 +210,8 @@ export default function OrdersPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
 
   async function loadOrders() {
     if (!user) {
@@ -403,20 +401,30 @@ export default function OrdersPage() {
   }, [orders, filterOption, query]);
 
   const totalRows = filteredOrders.length;
-  const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
-  const safePage = clamp(page, 1, totalPages);
 
-  const pageSlice = useMemo(() => {
-    const start = (safePage - 1) * pageSize;
-    return filteredOrders.slice(start, start + pageSize);
-  }, [filteredOrders, safePage, pageSize]);
-
-  const showingFrom = totalRows === 0 ? 0 : (safePage - 1) * pageSize + 1;
-  const showingTo = Math.min(totalRows, safePage * pageSize);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredOrders.length,
+    getScrollElement: () => listScrollRef.current,
+    estimateSize: (index) => {
+      const order = filteredOrders[index];
+      const base =
+        order && expandedId === order.id
+          ? ORDER_ROW_EXPANDED_ESTIMATE
+          : ORDER_ROW_COLLAPSED_HEIGHT;
+      return base + ORDER_ROW_GAP;
+    },
+    overscan: 6,
+    getItemKey: (index) => filteredOrders[index]?.id ?? index,
+  });
 
   useEffect(() => {
-    if (safePage > totalPages && totalPages >= 1) setPage(1);
-  }, [safePage, totalPages]);
+    listScrollRef.current?.scrollTo({ top: 0 });
+  }, [filterOption, query]);
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- remeasure when expand/filter changes
+  }, [expandedId, filteredOrders.length]);
 
   return (
     <div className="min-h-screen bg-white">
@@ -487,10 +495,7 @@ export default function OrdersPage() {
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder="Search orders, customer..."
               className="w-full rounded-xl border border-slate-200 bg-white py-2.5 !pl-10 pr-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-emerald-500/20 focus:border-emerald-500 focus:ring-2"
             />
@@ -529,7 +534,6 @@ export default function OrdersPage() {
                             setFilterOption(opt.value);
                             setFilterQuery("");
                             setDropdownOpen(false);
-                            setPage(1);
                           }}
                           className={`w-full px-3 py-2 text-left text-sm transition hover:cursor-pointer ${
                             filterOption === opt.value
@@ -547,27 +551,11 @@ export default function OrdersPage() {
             )}
           </div>
           </div>
-          <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white hover:cursor-pointer"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <span className="min-w-[7rem] px-3 py-1.5 text-center text-sm text-slate-700">
-                Page {safePage} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white hover:cursor-pointer"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </div>
+          {!loading && totalRows > 0 && (
+            <span className="text-sm text-slate-600">
+              {totalRows} order{totalRows !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
 
         {/* Orders list */}
@@ -590,7 +578,7 @@ export default function OrdersPage() {
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-200 border-t-emerald-600" />
             <p className="mt-4 text-sm text-slate-600">Loading orders...</p>
           </div>
-        ) : pageSlice.length === 0 ? (
+        ) : filteredOrders.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white py-20 text-center shadow-sm">
             <Package className="mx-auto h-12 w-12 text-slate-300" />
             <h3 className="mt-4 text-lg font-semibold text-slate-900">No orders found</h3>
@@ -608,15 +596,32 @@ export default function OrdersPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {pageSlice.map((order) => {
+          <div
+            ref={listScrollRef}
+            className="h-[min(70vh,800px)] overflow-auto"
+            style={{ contain: "strict" }}
+          >
+            <div
+              className="relative w-full"
+              style={{ height: rowVirtualizer.getTotalSize() }}
+            >
+            {rowVirtualizer.getVirtualItems().map((vi) => {
+              const order = filteredOrders[vi.index];
+              if (!order) return null;
               const isExpanded = expandedId === order.id;
               const rawItems = order.raw?.items ?? [];
 
               return (
                 <div
                   key={order.id}
+                  data-index={vi.index}
+                  ref={rowVirtualizer.measureElement}
+                  className="absolute left-0 top-0 w-full"
+                  style={{ transform: `translateY(${vi.start}px)` }}
+                >
+                <div
                   className="overflow-hidden rounded-sm border border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
+                  style={{ marginBottom: ORDER_ROW_GAP }}
                 >
                   {/* Summary row - always visible */}
                   <div
@@ -876,53 +881,9 @@ export default function OrdersPage() {
                     </div>
                   )}
                 </div>
+                </div>
               );
             })}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {!loading && totalRows > 0 && (
-          <div className="mt-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4 ">
-              <span className="text-sm text-slate-600 min-w-[160px]">
-                Showing {showingFrom}–{showingTo} of {totalRows}
-              </span>
-              <select
-                value={pageSize}
-                onChange={(e) => {
-                  setPageSize(Number(e.target.value));
-                  setPage(1);
-                }}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:border-emerald-500"
-              >
-                {[5, 10, 20, 50].map((n) => (
-                  <option key={n} value={n}>
-                    {n} per page
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={safePage <= 1}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <span className="min-w-[7rem] px-3 py-1.5 text-center text-sm text-slate-700">
-                Page {safePage} of {totalPages}
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                disabled={safePage >= totalPages}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
             </div>
           </div>
         )}

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
-import { BarChart3, RefreshCw, User, TrendingUp } from "lucide-react";
+import { BarChart3, RefreshCw, TrendingUp } from "lucide-react";
+import VirtualizedIncomeTable from "./VirtualizedIncomeTable";
 
 type FromUser = {
   _id?: string;
@@ -34,13 +35,8 @@ type IncomeSummary = {
 type ApiResponse = {
   incomes: Income[];
   summary?: IncomeSummary;
+  totalRecords?: number;
 };
-
-function fromUserName(u: FromUser | string | undefined): string {
-  if (!u || typeof u === "string") return "-";
-  const n = u.fullName ?? u.fullname ?? u.name ?? u.email;
-  return n || "-";
-}
 
 function formatINRPrecise(value: number): string {
   return new Intl.NumberFormat("en-IN", {
@@ -54,6 +50,7 @@ function formatINRPrecise(value: number): string {
 export default function IncomeHistoryPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [summary, setSummary] = useState<IncomeSummary | null>(null);
+  const [totalRecords, setTotalRecords] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -70,15 +67,18 @@ export default function IncomeHistoryPage() {
         setError(err);
         setIncomes([]);
         setSummary(null);
+        setTotalRecords(0);
         return;
       }
 
       setIncomes(data.incomes ?? []);
       setSummary(data.summary ?? null);
+      setTotalRecords(Number(data.totalRecords ?? data.incomes?.length ?? 0));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load income");
       setIncomes([]);
       setSummary(null);
+      setTotalRecords(0);
     } finally {
       setLoading(false);
     }
@@ -88,8 +88,10 @@ export default function IncomeHistoryPage() {
     fetchIncomes();
   }, []);
 
-  const totalFromRows = incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0);
-  const totalEarnedDisplay = summary?.totalEarnedAmount ?? totalFromRows;
+  const totalEarnedDisplay =
+    summary?.totalEarnedAmount ??
+    incomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0);
+  const totalRecordsDisplay = totalRecords > 0 ? totalRecords : incomes.length;
 
   if (loading && incomes.length === 0) {
     return (
@@ -157,11 +159,11 @@ export default function IncomeHistoryPage() {
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
               <span className="font-medium text-zinc-800">
-                Total (this page): {formatINRPrecise(totalFromRows)}
+                Total income: {formatINRPrecise(totalEarnedDisplay)}
               </span>
             </div>
             <span className="text-sm text-zinc-500">
-              {incomes.length} record{incomes.length !== 1 ? "s" : ""}
+              {totalRecordsDisplay} total record{totalRecordsDisplay !== 1 ? "s" : ""}
             </span>
           </div>
         </div>
@@ -176,70 +178,7 @@ export default function IncomeHistoryPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
-              <thead>
-                <tr className="border-b border-zinc-200 bg-zinc-50/50">
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    Date
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    Level
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    From
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    BV
-                  </th>
-                  <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-zinc-500">
-                    Amount
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100">
-                {incomes.map((inc) => (
-                  <tr
-                    key={inc._id}
-                    className="transition hover:bg-zinc-50/50"
-                  >
-                    <td className="whitespace-nowrap px-4 py-3 text-sm text-zinc-600">
-                      {inc.createdAt
-                        ? new Date(inc.createdAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : "-"}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700">
-                        L{inc.level}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                    <div className="flex space-y-0.5 ">
-                      <span className="flex items-center gap-2 text-sm text-zinc-700">
-                        <User className="h-4 w-4 shrink-0 text-zinc-400" />
-                        {fromUserName(inc.fromUser)}
-                      </span>
-                      {typeof inc.fromUser === "object" &&
-                        inc.fromUser?.referralCode && (
-                          <p className="ml-2 mt-0.5 text-xs text-zinc-500">
-                            {inc.fromUser.referralCode}
-                          </p>
-                        )}
-                    </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm text-zinc-600">
-                      {inc.bv ?? 0}
-                    </td>
-                    <td className="px-4 py-3 text-right text-emerald-700">
-                      {formatINRPrecise(inc.amount ?? 0)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <VirtualizedIncomeTable incomes={incomes} />
           </div>
         )}
       </div>

@@ -25,6 +25,7 @@ type IncomeSummary = {
 type ApiResponse = {
   incomes: Income[];
   summary?: IncomeSummary;
+  totalRecords?: number;
 };
 
 type ReportType = "monthly" | "quarterly" | "annual" | "custom";
@@ -50,6 +51,7 @@ function formatINRPrecise(value: number): string {
 
 export default function IncomeReportsPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
+  const [totalRecords, setTotalRecords] = useState<number | null>(null);
   const [summary, setSummary] = useState<IncomeSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +64,12 @@ export default function IncomeReportsPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await apiFetch("/api/income");
+      const params = new URLSearchParams({ forReports: "1" });
+      if (reportType === "custom") {
+        if (customFrom) params.set("from", customFrom);
+        if (customTo) params.set("to", customTo);
+      }
+      const res = await apiFetch(`/api/income?${params.toString()}`);
       const body = await readApiBody(res);
       const data = (body.json ?? {}) as ApiResponse;
 
@@ -71,15 +78,18 @@ export default function IncomeReportsPage() {
         setError(err);
         setIncomes([]);
         setSummary(null);
+        setTotalRecords(null);
         return;
       }
 
       setIncomes(data.incomes ?? []);
       setSummary(data.summary ?? null);
+      setTotalRecords(typeof data.totalRecords === "number" ? data.totalRecords : null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to load income");
       setIncomes([]);
       setSummary(null);
+      setTotalRecords(null);
     } finally {
       setLoading(false);
     }
@@ -92,7 +102,7 @@ export default function IncomeReportsPage() {
   const filteredIncomes = useMemo(() => {
     if (reportType !== "custom") return incomes;
     const from = customFrom ? new Date(`${customFrom}T00:00:00`) : null;
-    const to = customTo ? new Date(`${customTo}T23:59:59`) : null;
+    const to = customTo ? new Date(`${customTo}T23:59:59.999`) : null;
     return incomes.filter((inc) => {
       const dt = new Date(inc.createdAt);
       if (Number.isNaN(dt.getTime())) return false;
@@ -101,6 +111,13 @@ export default function IncomeReportsPage() {
       return true;
     });
   }, [incomes, reportType, customFrom, customTo]);
+
+  const reportTotalLabel =
+    reportType === "custom"
+      ? customFrom || customTo
+        ? "Selected range total income"
+        : "Custom range total income"
+      : "Report total income";
 
   const totalAmount = filteredIncomes.reduce((sum, inc) => sum + (inc.amount ?? 0), 0);
   const totalBusiness = filteredIncomes.reduce((sum, inc) => sum + (inc.bv ?? 0), 0);
@@ -202,6 +219,10 @@ export default function IncomeReportsPage() {
   };
 
   const generateReport = () => {
+    if (reportType === "custom") {
+      void fetchIncomes();
+      return;
+    }
     setReportRows(buildReport(reportType));
   };
 
@@ -370,7 +391,7 @@ export default function IncomeReportsPage() {
             <div className="flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-emerald-600" />
               <span className="font-medium text-zinc-800">
-                Period total income: {formatINRPrecise(totalAmount)}
+                {reportTotalLabel}: {formatINRPrecise(totalAmount)}
               </span>
             </div>
             <div className="flex items-center gap-2">
@@ -469,8 +490,13 @@ export default function IncomeReportsPage() {
             </button>
           </div>
 
-          {availableYears.length > 0 && (
-            <p className="mb-2 text-xs text-zinc-500">Data years: {availableYears.join(", ")}</p>
+          {totalRecords != null && (
+            <p className="mb-2 text-xs text-zinc-500">
+              {reportType === "custom" && (customFrom || customTo)
+                ? `${filteredIncomes.length} record${filteredIncomes.length === 1 ? "" : "s"} in selected range`
+                : `${totalRecords} total record${totalRecords === 1 ? "" : "s"}`}
+              {availableYears.length > 0 ? ` · Years: ${availableYears.join(", ")}` : ""}
+            </p>
           )}
 
           {reportRows.length === 0 ? (
