@@ -13,6 +13,7 @@ import { UserModel } from "@/models/User";
 import { PasswordResetModel } from "@/models/PasswordReset";
 import { authLimiter, requireAuth, setAuthCookie, clearAuthCookie, DUMMY_PASSWORD_HASH } from "@/middleware/auth";
 import { logLoginActivity, logLogoutActivity } from "@/lib/activityLogger";
+import googleAuthRoutes from "@/routes/googleAuthRoutes";
 
 const router = Router();
 
@@ -406,5 +407,7 @@ router.post("/reset-password", async (req, res) => {
     return sendValidationError(res, msg);
   }
 });
+
+router.use(googleAuthRoutes);
 
 export default router;

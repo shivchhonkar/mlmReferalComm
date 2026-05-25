@@ -8,6 +8,7 @@ import { Gift, ArrowLeft, UserPlus, User, Mail, LockKeyhole, Ticket, Phone } fro
 import { useAppDispatch } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
 
@@ -328,8 +329,17 @@ export default function RegisterPage() {
                 </div>
               )}
 
+              <div className="mt-6 space-y-4">
+                <GoogleSignInButton referralCode={referralCode} />
+                <div className="relative flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[var(--gray-200)]" />
+                  <span className="text-xs font-medium text-[var(--gray-500)]">or register with email</span>
+                  <div className="h-px flex-1 bg-[var(--gray-200)]" />
+                </div>
+              </div>
+
               {/* Form */}
-              <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+              <form className="mt-4 space-y-4" onSubmit={onSubmit}>
                 {/* Name */}
                 <div className="space-y-2">
                   <label htmlFor="name" className="block text-sm font-bold text-[var(--gray-800)]">

@@ -8,6 +8,7 @@ import { useAppDispatch } from "@/store/hooks";
 import { setUserProfile } from "@/store/slices/userSlice";
 import { ArrowLeft, LockKeyhole, Mail, Eye, EyeOff } from "lucide-react";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
+import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
 
@@ -150,8 +151,17 @@ export default function LoginPage() {
                 </div>
               )}
 
+              <div className="mt-6 space-y-4">
+                <GoogleSignInButton />
+                <div className="relative flex items-center gap-3">
+                  <div className="h-px flex-1 bg-[var(--gray-200)]" />
+                  <span className="text-xs font-medium text-[var(--gray-500)]">or sign in with email</span>
+                  <div className="h-px flex-1 bg-[var(--gray-200)]" />
+                </div>
+              </div>
+
               {/* Form */}
-              <form className="mt-6 space-y-4" onSubmit={onSubmit}>
+              <form className="mt-4 space-y-4" onSubmit={onSubmit}>
                 {/* Email or Phone */}
                 <div className="space-y-2">
                   <label htmlFor="emailOrPhone" className="block text-sm font-bold text-[var(--gray-800)]">

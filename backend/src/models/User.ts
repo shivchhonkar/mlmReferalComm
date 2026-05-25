@@ -15,6 +15,7 @@ const userSchema = new Schema(
     countryCode: { type: String, default: "+91", trim: true },
     name: { type: String, trim: true, default: "" },
     email: { type: String, unique: true, lowercase: true, trim: true, sparse: true },
+    googleId: { type: String, unique: true, sparse: true, index: true },
     passwordHash: { type: String, required: true },
     role: { type: String, enum: ["super_admin", "admin", "moderator", "user"], required: true, default: "user" },
     isVerified: { type: Boolean, default: false },

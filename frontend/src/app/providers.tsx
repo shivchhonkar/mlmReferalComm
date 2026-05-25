@@ -9,6 +9,7 @@ import { makeStore, type AppStore } from "@/store/store";
 import { loadCartFromStorage, setupCartPersistence, loadUserFromStorage, setupUserPersistence } from "@/store/persistence";
 import { hydrateCart } from "@/store/slices/cartSlice";
 import { setUserProfile } from "@/store/slices/userSlice";
+import GoogleOAuthProviderWrapper from "@/components/auth/GoogleOAuthProvider";
 
 export default function Providers({ children }: { children: React.ReactNode }) {
   const [store] = useState<AppStore>(() => makeStore());
@@ -30,7 +31,7 @@ export default function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <Provider store={store}>
-      {children}
+      <GoogleOAuthProviderWrapper>{children}</GoogleOAuthProviderWrapper>
       <ToastContainer
         position="top-right"
         autoClose={3000}
