@@ -52,6 +52,116 @@ export type ReferralWithdrawalSummary = {
   nonWithdrawableEarnings: number;
 };
 
+function buildReferralWithdrawalSummary(
+  totalEarnedAmount: number,
+  lifetimeWithdrawalCap: number | null,
+  totalWithdrawn: number,
+  totalPendingWithdrawals: number,
+): ReferralWithdrawalSummary {
+  const maxCumulativeWithdrawalAllowed =
+    lifetimeWithdrawalCap === null
+      ? totalEarnedAmount
+      : Math.min(totalEarnedAmount, Math.max(0, lifetimeWithdrawalCap));
+
+  const reserved = totalWithdrawn + totalPendingWithdrawals;
+  const withdrawalAmount = Math.max(0, maxCumulativeWithdrawalAllowed - reserved);
+
+  const nonWithdrawableEarnings =
+    lifetimeWithdrawalCap === null ? 0 : Math.max(0, totalEarnedAmount - maxCumulativeWithdrawalAllowed);
+
+  return {
+    totalEarnedAmount,
+    withdrawalAmount,
+    lifetimeWithdrawalCap,
+    maxCumulativeWithdrawalAllowed,
+    totalWithdrawn,
+    totalPendingWithdrawals,
+    nonWithdrawableEarnings,
+  };
+}
+
+export type ReferralEarningsListFields = Pick<
+  ReferralWithdrawalSummary,
+  "totalEarnedAmount" | "withdrawalAmount"
+>;
+
+/** Batch-load referral earnings for many users (used by admin referrals list). */
+export async function getReferralWithdrawalSummariesBatch(
+  userIds: mongoose.Types.ObjectId[],
+): Promise<Map<string, ReferralEarningsListFields>> {
+  const out = new Map<string, ReferralEarningsListFields>();
+  if (!userIds.length) return out;
+
+  const uniqueIds = [
+    ...new Map(userIds.map((id) => [id.toString(), id])).values(),
+  ];
+
+  const users = await UserModel.find({ _id: { $in: uniqueIds } })
+    .select("_id role")
+    .lean();
+  const roleById = new Map(
+    users.map((u) => [String(u._id), String((u as { role?: string }).role ?? "user")]),
+  );
+
+  const [earnedAgg, completedAgg, pendingAgg, firstOrders] = await Promise.all([
+    IncomeModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      { $match: { toUser: { $in: uniqueIds } } },
+      { $group: { _id: "$toUser", total: { $sum: { $ifNull: ["$amount", 0] } } } },
+    ]),
+    WithdrawalModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      { $match: { user: { $in: uniqueIds }, status: "completed" } },
+      { $group: { _id: "$user", total: { $sum: { $ifNull: ["$amount", 0] } } } },
+    ]),
+    WithdrawalModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
+      { $match: { user: { $in: uniqueIds }, status: "pending" } },
+      { $group: { _id: "$user", total: { $sum: { $ifNull: ["$amount", 0] } } } },
+    ]),
+    OrderModel.aggregate<{ _id: mongoose.Types.ObjectId; totalAmount: number }>([
+      { $match: { user: { $in: uniqueIds }, status: { $ne: "CANCELLED" } } },
+      { $sort: { createdAt: 1 } },
+      {
+        $group: {
+          _id: "$user",
+          totalAmount: { $first: "$totals.totalAmount" },
+        },
+      },
+    ]),
+  ]);
+
+  const earnedById = new Map(earnedAgg.map((r) => [String(r._id), Number(r.total) || 0]));
+  const withdrawnById = new Map(completedAgg.map((r) => [String(r._id), Number(r.total) || 0]));
+  const pendingById = new Map(pendingAgg.map((r) => [String(r._id), Number(r.total) || 0]));
+  const firstOrderById = new Map(
+    firstOrders.map((r) => {
+      const raw = Number(r.totalAmount ?? 0);
+      const cap = Number.isFinite(raw) && raw > 0 ? raw : 0;
+      return [String(r._id), cap] as const;
+    }),
+  );
+
+  for (const id of uniqueIds) {
+    const key = id.toString();
+    const role = roleById.get(key) ?? "user";
+    const totalEarnedAmount = earnedById.get(key) ?? 0;
+    const lifetimeWithdrawalCap = isReferralStaffRole(role)
+      ? null
+      : (firstOrderById.get(key) ?? 0);
+
+    const summary = buildReferralWithdrawalSummary(
+      totalEarnedAmount,
+      lifetimeWithdrawalCap,
+      withdrawnById.get(key) ?? 0,
+      pendingById.get(key) ?? 0,
+    );
+    out.set(key, {
+      totalEarnedAmount: summary.totalEarnedAmount,
+      withdrawalAmount: summary.withdrawalAmount,
+    });
+  }
+
+  return out;
+}
+
 export async function getReferralWithdrawalSummary(
   userId: string,
   session?: mongoose.ClientSession | null
@@ -68,11 +178,6 @@ export async function getReferralWithdrawalSummary(
   const totalEarnedAmount = Number(earnedAgg[0]?.total ?? 0) || 0;
 
   const lifetimeWithdrawalCap = await getFirstOrderWithdrawalCap(userObjectId, session);
-
-  const maxCumulativeWithdrawalAllowed =
-    lifetimeWithdrawalCap === null
-      ? totalEarnedAmount
-      : Math.min(totalEarnedAmount, Math.max(0, lifetimeWithdrawalCap));
 
   const completedPipe = [
     { $match: { user: userObjectId, status: "completed" } },
@@ -92,19 +197,10 @@ export async function getReferralWithdrawalSummary(
   const pendingAgg = await pendingAggQ;
   const totalPendingWithdrawals = Number(pendingAgg[0]?.total ?? 0) || 0;
 
-  const reserved = totalWithdrawn + totalPendingWithdrawals;
-  const withdrawalAmount = Math.max(0, maxCumulativeWithdrawalAllowed - reserved);
-
-  const nonWithdrawableEarnings =
-    lifetimeWithdrawalCap === null ? 0 : Math.max(0, totalEarnedAmount - maxCumulativeWithdrawalAllowed);
-
-  return {
+  return buildReferralWithdrawalSummary(
     totalEarnedAmount,
-    withdrawalAmount,
     lifetimeWithdrawalCap,
-    maxCumulativeWithdrawalAllowed,
     totalWithdrawn,
     totalPendingWithdrawals,
-    nonWithdrawableEarnings,
-  };
+  );
 }

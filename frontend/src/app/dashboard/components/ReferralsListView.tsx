@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { apiFetch } from "@/lib/apiClient";
+import { formatINRPrecise } from "@/lib/format";
 import { Network, Share2 } from "lucide-react";
 
 type ReferredBy = {
@@ -27,15 +28,57 @@ type ListItem = {
   level: number;
   parentId: string | null;
   referredBy?: ReferredBy;
+  earnings?: {
+    totalEarnedAmount: number;
+    withdrawalAmount: number;
+  };
 };
 
 const FETCH_PAGE = 200;
 const MAX_FETCH = 120_000;
 
-const ROW_GRID =
-  "grid grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)] gap-x-2 gap-y-1 items-start";
+async function fetchEarningsForUsers(
+  userIds: string[],
+): Promise<Record<string, { totalEarnedAmount: number; withdrawalAmount: number }>> {
+  if (!userIds.length) return {};
+  const qs = new URLSearchParams({ ids: userIds.join(",") });
+  const r = await apiFetch(`/api/referrals/earnings?${qs.toString()}`);
+  const json = (await r.json().catch(() => null)) as {
+    earnings?: Record<string, { totalEarnedAmount: number; withdrawalAmount: number }>;
+  } | null;
+  if (!r.ok || !json?.earnings) return {};
+  return json.earnings;
+}
 
-export default function ReferralsListView({ showLinkToFull = true }: { showLinkToFull?: boolean }) {
+function mergeEarningsIntoItems(
+  rows: ListItem[],
+  earnings: Record<string, { totalEarnedAmount: number; withdrawalAmount: number }>,
+): ListItem[] {
+  if (!Object.keys(earnings).length) return rows;
+  return rows.map((item) => ({
+    ...item,
+    earnings: earnings[item.id] ?? item.earnings,
+  }));
+}
+
+const ROW_GRID_BASE =
+  "grid gap-x-2 gap-y-1 items-start grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)]";
+
+const ROW_GRID_ADMIN =
+  "grid gap-x-2 gap-y-1 items-start grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(120px,0.95fr)_minmax(72px,0.5fr)_minmax(160px,1.15fr)]";
+
+export default function ReferralsListView({
+  showLinkToFull = true,
+  viewerIsStaff = false,
+}: {
+  showLinkToFull?: boolean;
+  /** From /api/me — shows earnings column for admin while list loads */
+  viewerIsStaff?: boolean;
+}) {
+  const [includesEarnings, setIncludesEarnings] = useState(false);
+  const showEarnings = includesEarnings || viewerIsStaff;
+  const rowGrid = showEarnings ? ROW_GRID_ADMIN : ROW_GRID_BASE;
+
   const [items, setItems] = useState<ListItem[]>([]);
   const [totalDownline, setTotalDownline] = useState(0);
   const [listBusy, setListBusy] = useState(false);
@@ -53,10 +96,12 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
     setListBusy(true);
     setError(null);
     setFetchCapped(false);
+    setIncludesEarnings(false);
     try {
       const accumulated: ListItem[] = [];
       let offset = 0;
       let reportedTotal = 0;
+      let listIncludesEarnings = false;
 
       for (;;) {
         const qs = new URLSearchParams({
@@ -71,10 +116,15 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
         const json = (await r.json().catch(() => null)) as {
           total?: number;
           items?: ListItem[];
+          includesEarnings?: boolean;
           error?: string;
         } | null;
 
         if (!r.ok) throw new Error(json?.error ?? `List API failed (${r.status})`);
+        if (json?.includesEarnings === true) {
+          listIncludesEarnings = true;
+          setIncludesEarnings(true);
+        }
         reportedTotal = Number(json?.total ?? 0);
         const batch = Array.isArray(json?.items) ? json.items : [];
         accumulated.push(...batch);
@@ -87,16 +137,26 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
         offset += FETCH_PAGE;
       }
 
-      setItems(accumulated);
+      let finalItems = accumulated;
+      if (viewerIsStaff || listIncludesEarnings) {
+        const earningsMap = await fetchEarningsForUsers(accumulated.map((row) => row.id));
+        if (Object.keys(earningsMap).length > 0) {
+          setIncludesEarnings(true);
+          finalItems = mergeEarningsIntoItems(accumulated, earningsMap);
+        }
+      }
+
+      setItems(finalItems);
       setTotalDownline(reportedTotal);
     } catch (e: unknown) {
       setError(String(e instanceof Error ? e.message : e));
       setItems([]);
       setTotalDownline(0);
+      setIncludesEarnings(false);
     } finally {
       setListBusy(false);
     }
-  }, [q, status]);
+  }, [q, status, viewerIsStaff]);
 
   useEffect(() => {
     const t = window.setTimeout(() => void loadAll(), 300);
@@ -172,16 +232,17 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-        <div className="min-w-[880px]">
+        <div className={showEarnings ? "min-w-[1100px]" : "min-w-[880px]"}>
           <div
-            className={`${ROW_GRID} border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-3 py-3 text-left text-xs font-medium text-zinc-700`}
+            className={`${rowGrid} border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-3 py-3 text-left text-xs font-medium text-zinc-700`}
           >
             <div>Level</div>
             <div>User</div>
             <div>Referred By</div>
-            <div>Status / Activity</div>
+            <div>User Status / Downline Activities</div>
             <div>Joined</div>
             <div>Action</div>
+            {showEarnings ? <div>Referral earnings</div> : null}
           </div>
 
           <div
@@ -206,7 +267,7 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                       key={u.id}
                       data-index={vi.index}
                       ref={rowVirtualizer.measureElement}
-                      className={`${ROW_GRID} absolute left-0 top-0 w-full border-b border-zinc-100 px-3 py-3 text-sm hover:bg-emerald-50/40`}
+                      className={`${rowGrid} absolute left-0 top-0 w-full border-b border-zinc-100 px-3 py-3 text-sm hover:bg-emerald-50/40`}
                       style={{
                         transform: `translateY(${vi.start}px)`,
                       }}
@@ -286,6 +347,22 @@ export default function ReferralsListView({ showLinkToFull = true }: { showLinkT
                           Copy
                         </button>
                       </div>
+                      {showEarnings ? (
+                        <div className="space-y-1 text-xs">
+                          <div>
+                            <span className="text-zinc-500">Total earned</span>
+                            <div className="font-semibold text-emerald-800">
+                              {formatINRPrecise(u.earnings?.totalEarnedAmount ?? 0)}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-zinc-500">Withdrawal amount</span>
+                            <div className="font-semibold text-sky-800">
+                              {formatINRPrecise(u.earnings?.withdrawalAmount ?? 0)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

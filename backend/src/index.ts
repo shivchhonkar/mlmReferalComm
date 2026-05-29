@@ -7,7 +7,10 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import "module-alias/register"
+import moduleAlias from "module-alias";
+
+// tsx runs from src/; production runs from dist/ — keep @ aligned with the entry folder.
+moduleAlias.addAlias("@", path.resolve(__dirname));
 
 import type { NextFunction, Request, Response } from "express";
 
@@ -22,7 +25,7 @@ const app = express();
 // Trust proxy for rate limiting when behind reverse proxy/load balancer
 app.set('trust proxy', 1);
 
-const port = Number(process.env.PORT ?? 4000);
+const port = Number(process.env.PORT ?? 4001);
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com";
 
 // Security middleware

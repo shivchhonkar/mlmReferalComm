@@ -2,7 +2,10 @@ import { Router } from "express"
 import mongoose from "mongoose"
 import { UserModel } from "../models/User"
 import { requireAuth } from "../middleware/auth"
+import { connectToDatabase } from "@/lib/db"
 import { syncDownlineActivityStatusForUser } from "@/lib/referralDownlineActivity"
+import { isReferralStaffRole } from "@/lib/referralStaffRoles"
+import { getReferralWithdrawalSummariesBatch } from "@/lib/referralWithdrawalSummary"
 
 const router = Router()
 
@@ -18,7 +21,12 @@ const router = Router()
 router.get("/", async (req, res) => {
   try {
     const ctx = await requireAuth(req)
+    await connectToDatabase()
     const userId = ctx.userId
+
+    const viewerDoc = await UserModel.findById(userId).select("role").lean()
+    const viewerRole = String((viewerDoc as { role?: string } | null)?.role ?? ctx.role)
+    const includesEarnings = isReferralStaffRole(viewerRole)
 
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ error: "Invalid user id" })
@@ -201,11 +209,26 @@ router.get("/", async (req, res) => {
       }),
     )
 
+    const downlineUserIds = data
+      .map((u: { _id?: unknown }) => {
+        const raw = u?._id
+        if (!raw) return null
+        if (raw instanceof mongoose.Types.ObjectId) return raw
+        const s = String(raw)
+        return mongoose.Types.ObjectId.isValid(s) ? new mongoose.Types.ObjectId(s) : null
+      })
+      .filter((id): id is mongoose.Types.ObjectId => id !== null)
+
+    const earningsByUserId = includesEarnings
+      ? await getReferralWithdrawalSummariesBatch(downlineUserIds)
+      : null
+
     return res.json({
       total: meta.total ?? 0,
       offset,
       limit,
       depth,
+      includesEarnings,
       items: data.map((u: any) => ({
         id: String(u._id),
         name: u.name || u.fullName || "User",
@@ -230,6 +253,14 @@ router.get("/", async (req, res) => {
               referralCode: u.referredBy.referralCode || "",
             }
           : null,
+        ...(includesEarnings && earningsByUserId
+          ? {
+              earnings: earningsByUserId.get(String(u._id)) ?? {
+                totalEarnedAmount: 0,
+                withdrawalAmount: 0,
+              },
+            }
+          : {}),
       })),
     })
   } catch (e: any) {

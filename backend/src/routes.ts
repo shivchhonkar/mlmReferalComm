@@ -11,6 +11,7 @@ import withdrawalRoutes from "@/routes/withdrawalRoutes";
 // import referralRoutes from "@/routes/referralRoutes";
 import referralRoutes from "@/routes/referralGetRoutes";
 import referralListRoutes from "@/routes/referralListRoutes";
+import referralEarningsRoutes from "@/routes/referralEarningsRoutes";
 import referralSearchRoutes from "@/routes/referralSearchRoutes";
 // import referralRoutes from ""
 import businessOpportunityRoutes from "@/routes/businessOpportunityRoutes";
@@ -87,6 +88,7 @@ export function registerRoutes(app: Express) {
 
   // Referral tree visualization
   app.use("/api/referrals", referralRoutes);
+  app.use("/api/referrals/earnings", referralEarningsRoutes);
   app.use("/api/referrals/list", referralListRoutes);
   
   app.use("/api/referrals/search", referralSearchRoutes);

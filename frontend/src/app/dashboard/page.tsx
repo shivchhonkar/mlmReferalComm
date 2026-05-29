@@ -836,7 +836,7 @@ export default function DashboardPage() {
 
         {/* Referrals list */}
         <section className="mb-10">
-          <ReferralsListView showLinkToFull />
+          <ReferralsListView showLinkToFull viewerIsStaff={isAdmin} />
         </section>
 
         {/* Income history */}

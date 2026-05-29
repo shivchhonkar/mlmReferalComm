@@ -81,6 +81,10 @@ type ListItem = {
   parentId: string | null
   businessVolume: number
   referredBy?: ReferredBy
+  earnings?: {
+    totalEarnedAmount: number
+    withdrawalAmount: number
+  }
 }
 
 type ListResponse = {
@@ -88,6 +92,7 @@ type ListResponse = {
   offset: number
   limit: number
   depth: number
+  includesEarnings?: boolean
   items: ListItem[]
 }
 
@@ -269,7 +274,8 @@ function layoutWithDagre(nodes: RFNode[], edges: RFEdge[]) {
 export default function ReferralsPage() {
   const { user } = useAuth()
   const [error, setError] = useState<string | null>(null)
-  const canViewPrivateContacts = ["super_admin", "admin"].includes(String((user as any)?.role || ""))
+  const userRole = String((user as any)?.role || "")
+  const canViewPrivateContacts = ["super_admin", "admin"].includes(userRole)
 
   // View toggle
   const [view, setView] = useState<"tree" | "list">("list")
@@ -286,6 +292,8 @@ export default function ReferralsPage() {
   const [q, setQ] = useState("")
   const [status, setStatus] = useState<"" | "active" | "suspended">("")
   const [list, setList] = useState<ListResponse | null>(null)
+  const viewerIsStaff = ["super_admin", "admin", "moderator"].includes(userRole)
+  const showEarnings = list?.includesEarnings === true || viewerIsStaff
   const [listBusy, setListBusy] = useState(false)
   const [offset, setOffset] = useState(0)
   const limit = 50
@@ -356,7 +364,23 @@ export default function ReferralsPage() {
         if (!r.ok) throw new Error(json?.error ?? `List API failed (${r.status}). ${text.slice(0, 120)}...`)
         if (!json) throw new Error(`List API returned non-JSON. ${text.slice(0, 120)}...`)
 
-        setList(json)
+        let items = Array.isArray(json.items) ? json.items : []
+        if (viewerIsStaff && items.length > 0) {
+          const ids = items.map((row: ListItem) => row.id).join(",")
+          const er = await apiFetch(`/api/referrals/earnings?ids=${encodeURIComponent(ids)}`)
+          const ej = (await er.json().catch(() => null)) as {
+            earnings?: Record<string, { totalEarnedAmount: number; withdrawalAmount: number }>
+          } | null
+          if (er.ok && ej?.earnings) {
+            items = items.map((row: ListItem) => ({
+              ...row,
+              earnings: ej.earnings?.[row.id] ?? row.earnings,
+            }))
+            json.includesEarnings = true
+          }
+        }
+
+        setList({ ...json, items })
       } catch (e: any) {
         setError(String(e?.message ?? e))
       } finally {
@@ -365,7 +389,7 @@ export default function ReferralsPage() {
     }, 350)
 
     return () => window.clearTimeout(t)
-  }, [view, q, status, offset])
+  }, [view, q, status, offset, viewerIsStaff])
 
   const stats = data?.stats ?? null
 
@@ -660,6 +684,7 @@ export default function ReferralsPage() {
               items={list?.items ?? []}
               listBusy={listBusy}
               canViewPrivateContacts={canViewPrivateContacts}
+              showEarnings={showEarnings}
               openReferredBy={openReferredBy}
               onToggleReferredBy={toggleReferredBy}
             />

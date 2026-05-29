@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Share2 } from "lucide-react";
+import { formatINRPrecise } from "@/lib/format";
 
 export type ReferralListItem = {
   id: string;
@@ -22,19 +23,27 @@ export type ReferralListItem = {
     email?: string;
     referralCode?: string;
   } | null;
+  earnings?: {
+    totalEarnedAmount: number;
+    withdrawalAmount: number;
+  };
 };
 
 const ROW_COLLAPSED = 88;
 const ROW_EXPANDED = 200;
 const ROW_GAP = 0;
 
-const ROW_GRID =
-  "grid grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)] gap-x-2 items-start";
+const ROW_GRID_BASE =
+  "grid gap-x-2 items-start grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)]";
+
+const ROW_GRID_ADMIN =
+  "grid gap-x-2 items-start grid-cols-[minmax(52px,0.55fr)_minmax(160px,1.35fr)_minmax(120px,1fr)_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(120px,0.95fr)_minmax(80px,0.55fr)_minmax(148px,1.05fr)]";
 
 type Props = {
   items: ReferralListItem[];
   listBusy: boolean;
   canViewPrivateContacts: boolean;
+  showEarnings?: boolean;
   openReferredBy: Record<string, boolean>;
   onToggleReferredBy: (id: string) => void;
 };
@@ -43,10 +52,12 @@ export default function VirtualizedReferralsList({
   items,
   listBusy,
   canViewPrivateContacts,
+  showEarnings = false,
   openReferredBy,
   onToggleReferredBy,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rowGrid = showEarnings ? ROW_GRID_ADMIN : ROW_GRID_BASE;
 
   const rowVirtualizer = useVirtualizer({
     count: items.length,
@@ -67,9 +78,9 @@ export default function VirtualizedReferralsList({
 
   return (
     <div className="overflow-auto rounded-xl border border-zinc-200">
-      <div className="min-w-[980px]">
+      <div className={showEarnings ? "min-w-[1140px]" : "min-w-[980px]"}>
         <div
-          className={`${ROW_GRID} border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-4 py-3 text-left text-xs font-medium text-zinc-700`}
+          className={`${rowGrid} border-b border-zinc-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-4 py-3 text-left text-xs font-medium text-zinc-700`}
         >
           <div>Level</div>
           <div>User</div>
@@ -78,6 +89,7 @@ export default function VirtualizedReferralsList({
           <div>Business Volume</div>
           <div>Joined</div>
           <div>Action</div>
+          {showEarnings ? <div>Referral earnings</div> : null}
         </div>
 
         <div
@@ -102,7 +114,7 @@ export default function VirtualizedReferralsList({
                     key={u.id}
                     data-index={vi.index}
                     ref={rowVirtualizer.measureElement}
-                    className={`${ROW_GRID} absolute left-0 top-0 w-full border-b border-zinc-200 px-4 py-3 text-sm hover:bg-emerald-50/40`}
+                    className={`${rowGrid} absolute left-0 top-0 w-full border-b border-zinc-200 px-4 py-3 text-sm hover:bg-emerald-50/40`}
                     style={{ transform: `translateY(${vi.start}px)` }}
                   >
                     <div className="pt-0.5">
@@ -207,6 +219,22 @@ export default function VirtualizedReferralsList({
                         Copy
                       </button>
                     </div>
+                    {showEarnings ? (
+                      <div className="space-y-1 text-xs">
+                        <div>
+                          <span className="text-zinc-500">Total earned</span>
+                          <div className="font-semibold text-emerald-800">
+                            {formatINRPrecise(u.earnings?.totalEarnedAmount ?? 0)}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="text-zinc-500">Withdrawal amount</span>
+                          <div className="font-semibold text-sky-800">
+                            {formatINRPrecise(u.earnings?.withdrawalAmount ?? 0)}
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
