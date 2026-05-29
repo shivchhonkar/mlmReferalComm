@@ -10,6 +10,7 @@ import {
   Building,
   MapPin,
   CreditCard,
+  IndianRupee,
   Settings,
   ShoppingBag,
   Cog,
@@ -56,6 +57,7 @@ interface UserProfile {
   signature?: string;
   currencyCode?: string;
   currencySymbol?: string;
+  upiLink?: string;
 
   createdAt?: string;
   updatedAt?: string;
@@ -90,7 +92,10 @@ export default function ProfilePage() {
   const [basicInfo, setBasicInfo] = useState({
     name: "",
     email: "",
+    upiLink: "",
   });
+
+  const [basicErrors, setBasicErrors] = useState<{ upiLink?: string }>({});
 
   const [companyInfo, setCompanyInfo] = useState({
     businessName: "",
@@ -161,6 +166,27 @@ export default function ProfilePage() {
     }
   }
 
+  function isValidUpiId(v: string): boolean {
+    const s = v.trim();
+    if (!s) return true;
+    if (s.length > 200) return false;
+    if (/^upi:\/\//i.test(s)) return true;
+    if (/^https?:\/\//i.test(s)) return true;
+    return /^[a-zA-Z0-9._-]{2,256}@[a-zA-Z0-9.-]{2,64}$/.test(s);
+  }
+
+  function validateBasicInfo(next?: typeof basicInfo) {
+    const values = next ?? basicInfo;
+    const nextErrors: { upiLink?: string } = {};
+    const upiVal = values.upiLink?.trim() ?? "";
+    if (upiVal && !isValidUpiId(upiVal)) {
+      nextErrors.upiLink =
+        "Enter a valid UPI ID (e.g. yourname@paytm) or UPI payment link.";
+    }
+    setBasicErrors(nextErrors);
+    return nextErrors;
+  }
+
   function validateCompanyInfo(next?: typeof companyInfo) {
     const values = next ?? companyInfo;
     const nextErrors: { companyEmail?: string; website?: string } = {};
@@ -197,6 +223,7 @@ export default function ProfilePage() {
       setBasicInfo({
         name: data.user.name || "",
         email: data.user.email || "",
+        upiLink: data.user.upiLink || "",
       });
 
       setCompanyInfo({
@@ -235,8 +262,14 @@ export default function ProfilePage() {
         setImagePreview(data.user.profileImage);
       }
 
-      // validate company fields once (so existing invalid values show immediately)
-      setTimeout(() => validateCompanyInfo(), 0);
+      setTimeout(() => {
+        validateCompanyInfo();
+        validateBasicInfo({
+          name: data.user.name || "",
+          email: data.user.email || "",
+          upiLink: data.user.upiLink || "",
+        });
+      }, 0);
     } catch (error) {
       console.error("Failed to load profile:", error);
     } finally {
@@ -307,12 +340,23 @@ export default function ProfilePage() {
   };
 
   const saveBasicInfo = async () => {
+    const errs = validateBasicInfo();
+    if (Object.keys(errs).length > 0) {
+      showErrorToast("Please fix the UPI ID before saving");
+      return;
+    }
+
     setSaving(true);
     try {
+      const payload = {
+        name: basicInfo.name,
+        email: basicInfo.email,
+        upiLink: basicInfo.upiLink.trim(),
+      };
       const res = await apiFetch("/api/profile/basic", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(basicInfo),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
 
@@ -618,7 +662,9 @@ export default function ProfilePage() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-lg font-semibold text-slate-900">Basic Information</h2>
-                <p className="mt-1 text-sm text-slate-500">Update your name and contact email.</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Update your name, contact email, and UPI ID for withdrawal payouts.
+                </p>
               </div>
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <div>
@@ -638,6 +684,46 @@ export default function ProfilePage() {
                     onChange={(e) => setBasicInfo({ ...basicInfo, email: e.target.value })}
                     className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-500/20 focus:bg-white"
                   />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-2 flex items-center gap-2 text-sm font-semibold text-zinc-700">
+                    <IndianRupee className="h-4 w-4 text-emerald-600" />
+                    UPI ID
+                  </label>
+                  <input
+                    type="text"
+                    value={basicInfo.upiLink}
+                    onChange={(e) => {
+                      const next = { ...basicInfo, upiLink: e.target.value };
+                      setBasicInfo(next);
+                      validateBasicInfo(next);
+                    }}
+                    onBlur={() => {
+                      const trimmed = basicInfo.upiLink.trim();
+                      if (trimmed !== basicInfo.upiLink) {
+                        const next = { ...basicInfo, upiLink: trimmed };
+                        setBasicInfo(next);
+                        validateBasicInfo(next);
+                      } else {
+                        validateBasicInfo();
+                      }
+                    }}
+                    placeholder="e.g. yourname@paytm"
+                    className={[
+                      "w-full rounded-2xl border bg-zinc-50 px-4 py-3 text-sm font-medium text-zinc-900 shadow-sm transition focus:outline-none focus:ring-2 focus:bg-white",
+                      basicErrors.upiLink
+                        ? "border-red-300 focus:border-red-400 focus:ring-red-500/20"
+                        : "border-zinc-200 focus:border-emerald-400 focus:ring-emerald-500/20",
+                    ].join(" ")}
+                  />
+                  {basicErrors.upiLink ? (
+                    <p className="mt-1.5 text-xs font-semibold text-red-600">{basicErrors.upiLink}</p>
+                  ) : (
+                    <p className="mt-1.5 text-xs text-zinc-500">
+                      Used when admin pays your referral withdrawals via UPI. You can also paste a
+                      full UPI payment link if needed.
+                    </p>
+                  )}
                 </div>
               </div>
 

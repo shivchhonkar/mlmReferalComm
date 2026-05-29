@@ -31,7 +31,13 @@ type PaymentRow = {
   payoutNote?: string;
   reviewedAt?: string;
   createdAt?: string;
-  customer?: { id?: string; name?: string; email?: string; mobile?: string } | null;
+  customer?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    mobile?: string;
+    upiLink?: string;
+  } | null;
 };
 
 type PendingPaymentRow = {
@@ -41,7 +47,13 @@ type PendingPaymentRow = {
   payableAmount: number;
   totalEarned?: number;
   createdAt?: string;
-  customer?: { id?: string; name?: string; email?: string; mobile?: string } | null;
+  customer?: {
+    id?: string;
+    name?: string;
+    email?: string;
+    mobile?: string;
+    upiLink?: string;
+  } | null;
 };
 
 type ReportPayload = {
@@ -172,6 +184,7 @@ export default function AdminIncomeReportsPage() {
         headers: [
           "Requested",
           "Customer",
+          "UPI ID",
           "Email/Mobile",
           "Requested amt (INR)",
           "Withdrawable (INR)",
@@ -181,6 +194,7 @@ export default function AdminIncomeReportsPage() {
         rows: pendingPayments.map((row) => [
           row.createdAt ? new Date(row.createdAt).toLocaleString("en-IN") : "—",
           customerLabel(row.customer),
+          row.customer?.upiLink?.trim() || "—",
           row.customer?.email || row.customer?.mobile || "—",
           row.requestedAmount.toFixed(2),
           row.withdrawableBalance.toFixed(2),
@@ -418,6 +432,14 @@ export default function AdminIncomeReportsPage() {
                         <div className="font-medium text-zinc-900">
                           {row.customer?.name || "—"}
                         </div>
+                        {row.customer?.upiLink?.trim() ? (
+                          <div
+                            className="mt-0.5 break-all font-mono text-[11px] font-medium text-emerald-800"
+                            title={row.customer.upiLink}
+                          >
+                            {row.customer.upiLink.trim()}
+                          </div>
+                        ) : null}
                         <div className="text-zinc-500">
                           {row.customer?.email || row.customer?.mobile || ""}
                         </div>

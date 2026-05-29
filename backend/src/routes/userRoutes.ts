@@ -86,7 +86,8 @@ router.get("/profile", async (req, res) => {
         signature: user.signature,
         currencyCode: user.currencyCode,
         currencySymbol: user.currencySymbol,
-        
+        upiLink: user.upiLink || "",
+
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
       },
@@ -114,18 +115,19 @@ router.put("/profile/basic", async (req, res) => {
       if (existingEmail) return sendValidationError(res, VALIDATION_MESSAGES.EMAIL_EXISTS, 409);
     }
 
-    const user = await UserModel.findByIdAndUpdate(
-      ctx.userId, 
-      body, 
-      { new: true }
-    );
+    const update: Record<string, unknown> = { ...body };
+    if (typeof body.upiLink === "string") {
+      update.upiLink = body.upiLink.trim();
+    }
+
+    const user = await UserModel.findByIdAndUpdate(ctx.userId, update, { new: true });
 
     if (!user) return sendValidationError(res, "User not found", 404);
 
     logAccountChange(req as any, {
       userId: ctx.userId as any,
       changedBy: ctx.userId as any,
-      changedFields: Object.keys(body),
+      changedFields: Object.keys(update),
       changeType: "profile",
     }).catch(() => {});
 
@@ -135,6 +137,7 @@ router.put("/profile/basic", async (req, res) => {
         name: user.name,
         email: user.email,
         mobile: user.mobile,
+        upiLink: user.upiLink || "",
       }
     }, "Profile updated successfully");
   } catch (err: unknown) {

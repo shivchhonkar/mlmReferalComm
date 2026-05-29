@@ -143,6 +143,12 @@ export const authValidation = {
       .min(2, VALIDATION_MESSAGES.FULL_NAME_REQUIRED)
       .max(100, 'Full name cannot exceed 100 characters')
       .optional(),
+    /** UPI VPA (e.g. name@paytm) or payment link for receiving payouts */
+    upiLink: z
+      .string()
+      .max(200, 'UPI ID cannot exceed 200 characters')
+      .optional()
+      .or(z.literal('')),
   }).refine((v) => Object.keys(v).length > 0, {
     message: 'Please provide at least one field to update'
   })

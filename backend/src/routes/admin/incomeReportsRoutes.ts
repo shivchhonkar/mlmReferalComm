@@ -146,7 +146,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
           },
         ]),
         WithdrawalModel.find({ status: "pending" })
-          .populate("user", "fullName name email mobile referralCode role")
+          .populate("user", "fullName name email mobile referralCode role upiLink")
           .sort({ createdAt: -1 })
           .limit(500)
           .lean(),
@@ -223,6 +223,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
                   name: user.fullName || user.name || "",
                   email: user.email || "",
                   mobile: user.mobile || "",
+                  upiLink: String(user.upiLink ?? "").trim(),
                 }
               : null,
           };
