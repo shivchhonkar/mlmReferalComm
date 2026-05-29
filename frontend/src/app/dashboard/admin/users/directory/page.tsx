@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAuth } from "@/lib/useAuth";
@@ -25,6 +25,7 @@ export type DirectorySortKey =
   | "referralCode"
   | "bankAccount"
   | "bankIfsc"
+  | "upi"
   | "createdAt";
 
 type SortDir = "asc" | "desc";
@@ -43,6 +44,7 @@ type DirectoryUser = {
   bankName?: string;
   bankIfsc?: string;
   bankAddress?: string;
+  upiLink?: string;
 };
 
 type UsersResponse = {
@@ -69,11 +71,38 @@ const SORT_QUERY: Record<DirectorySortKey, string> = {
   referralCode: "referralCode",
   bankAccount: "bankAccountName",
   bankIfsc: "bankIfsc",
+  upi: "upiLink",
   createdAt: "createdAt",
 };
 
-const GRID_COLS =
-  "grid grid-cols-[minmax(120px,1.1fr)_minmax(150px,1.35fr)_minmax(96px,0.75fr)_minmax(88px,0.65fr)_minmax(150px,1.1fr)_minmax(130px,0.95fr)_minmax(100px,0.75fr)] gap-x-2 gap-y-1 items-start";
+/** Inline grid — dynamic Tailwind `grid-cols-[…]` is not generated at build time. */
+function directoryGridStyle(showHiddenColumns: boolean): CSSProperties {
+  const base =
+    "minmax(120px,1.1fr) minmax(150px,1.35fr) minmax(96px,0.75fr)";
+  const bank = "minmax(150px,1.1fr) minmax(130px,0.95fr) minmax(110px,0.95fr)";
+  const cols = showHiddenColumns
+    ? `${base} minmax(88px,0.65fr) ${bank} minmax(100px,0.75fr)`
+    : `${base} ${bank}`;
+  return {
+    display: "grid",
+    gridTemplateColumns: cols,
+    columnGap: "0.5rem",
+    rowGap: "0.25rem",
+    alignItems: "start",
+  };
+}
+
+const TABLE_MIN_WIDTH: Record<"compact" | "full", number> = {
+  compact: 920,
+  full: 1120,
+};
+
+function upiDisplayHref(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  if (/^(https?:\/\/|upi:\/\/)/i.test(t)) return t;
+  return null;
+}
 
 function displayName(u: DirectoryUser): string {
   const n = (u.fullName || u.name || "").trim();
@@ -128,7 +157,15 @@ function SortHead({
   );
 }
 
-function DirectoryRow({ u, includeStaff }: { u: DirectoryUser; includeStaff: boolean }) {
+function DirectoryRow({
+  u,
+  includeStaff,
+  showHiddenColumns,
+}: {
+  u: DirectoryUser;
+  includeStaff: boolean;
+  showHiddenColumns: boolean;
+}) {
   return (
     <>
       <div className="min-w-0 pt-0.5">
@@ -141,7 +178,9 @@ function DirectoryRow({ u, includeStaff }: { u: DirectoryUser; includeStaff: boo
       </div>
       <div className="min-w-0 break-all text-zinc-700">{u.email || "—"}</div>
       <div className="whitespace-nowrap text-zinc-700">{u.mobile || "—"}</div>
-      <div className="font-mono text-xs text-zinc-800">{u.referralCode || "—"}</div>
+      {showHiddenColumns ? (
+        <div className="font-mono text-xs text-zinc-800">{u.referralCode || "—"}</div>
+      ) : null}
       <div className="min-w-0 text-zinc-700">
         <div className="font-medium text-zinc-900">{u.bankAccountName || "—"}</div>
         <div className="font-mono text-xs text-zinc-600">{u.bankAccountNumber || "—"}</div>
@@ -155,15 +194,42 @@ function DirectoryRow({ u, includeStaff }: { u: DirectoryUser; includeStaff: boo
           </div>
         ) : null}
       </div>
-      <div className="whitespace-nowrap text-xs text-zinc-600">
-        {u.createdAt
-          ? new Date(u.createdAt).toLocaleString("en-IN", {
-              day: "numeric",
-              month: "short",
-              year: "numeric",
-            })
-          : "—"}
+      <div className="min-w-0 text-zinc-700">
+        {(() => {
+          const upi = (u.upiLink || "").trim();
+          if (!upi) return <span className="text-zinc-400">—</span>;
+          const href = upiDisplayHref(upi);
+          if (href) {
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-xs font-medium text-emerald-700 hover:underline"
+                title={upi}
+              >
+                {upi}
+              </a>
+            );
+          }
+          return (
+            <span className="break-all font-mono text-xs text-zinc-800" title={upi}>
+              {upi}
+            </span>
+          );
+        })()}
       </div>
+      {showHiddenColumns ? (
+        <div className="whitespace-nowrap text-xs text-zinc-600">
+          {u.createdAt
+            ? new Date(u.createdAt).toLocaleString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })
+            : "—"}
+        </div>
+      ) : null}
     </>
   );
 }
@@ -181,8 +247,14 @@ export default function AdminUserDirectoryPage() {
   const [truncated, setTruncated] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showHiddenColumns, setShowHiddenColumns] = useState(false);
 
   const parentRef = useRef<HTMLDivElement>(null);
+  const gridStyle = useMemo(
+    () => directoryGridStyle(showHiddenColumns),
+    [showHiddenColumns],
+  );
+  const tableMinWidth = showHiddenColumns ? TABLE_MIN_WIDTH.full : TABLE_MIN_WIDTH.compact;
 
   const periodLabel = useMemo(() => PERIODS.find((p) => p.key === period)?.label ?? period, [period]);
 
@@ -353,67 +425,115 @@ export default function AdminUserDirectoryPage() {
       )}
 
       <div className="overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm">
-        <div className="border-b border-zinc-100 bg-zinc-50/80 px-4 py-3 text-sm text-zinc-600">
-          {period === "all" ? (
-            <span>Registrations{!includeStaff ? " (role: user)" : ""}.</span>
-          ) : (
-            <span>
-              <strong>{periodLabel}</strong> (by account created date).
-            </span>
-          )}{" "}
-          <strong>{total}</strong> matching — showing <strong>{rows.length}</strong> loaded
-          {truncated ? (
-            <span className="text-amber-700">
-              {" "}
-              (list capped: fetch at most {MAX_PAGES * PAGE_SIZE} rows; narrow period or search)
-            </span>
-          ) : null}
-          {loading ? <span className="text-zinc-500"> — loading…</span> : null}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-100 bg-zinc-50/80 px-4 py-3">
+          <p className="text-sm text-zinc-600">
+            {period === "all" ? (
+              <span>Registrations{!includeStaff ? " (role: user)" : ""}.</span>
+            ) : (
+              <span>
+                <strong>{periodLabel}</strong> (by account created date).
+              </span>
+            )}{" "}
+            <strong>{total}</strong> matching — showing <strong>{rows.length}</strong> loaded
+            {truncated ? (
+              <span className="text-amber-700">
+                {" "}
+                (list capped: fetch at most {MAX_PAGES * PAGE_SIZE} rows; narrow period or search)
+              </span>
+            ) : null}
+            {loading ? <span className="text-zinc-500"> — loading…</span> : null}
+          </p>
+          <label className="flex shrink-0 cursor-pointer items-center gap-2 text-sm text-zinc-700">
+            <input
+              type="checkbox"
+              checked={showHiddenColumns}
+              onChange={(e) => setShowHiddenColumns(e.target.checked)}
+              className="rounded border-zinc-300 text-emerald-600 focus:ring-emerald-500"
+            />
+            View hidden columns
+          </label>
         </div>
 
-        <div className="min-w-0 border-b border-zinc-200 bg-zinc-50/95 px-3 py-2">
-          <div className={`${GRID_COLS} text-xs font-semibold uppercase tracking-wide text-zinc-600`}>
-            <SortHead label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="Email" column="email" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="Mobile" column="mobile" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="Referral" column="referralCode" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="Bank (name / no.)" column="bankAccount" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="IFSC / Bank" column="bankIfsc" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-            <SortHead label="Registered" column="createdAt" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
-          </div>
-        </div>
-
-        <div
-          ref={parentRef}
-          className="h-[min(70vh,720px)] w-full overflow-auto"
-          style={{ contain: "strict" }}
-        >
-          {loading && rows.length === 0 ? (
-            <div className="flex items-center justify-center py-20 text-zinc-500">Loading…</div>
-          ) : rows.length === 0 ? (
-            <div className="flex items-center justify-center py-20 text-zinc-500">No users in this period.</div>
-          ) : (
-            <div
-              className="relative w-full"
-              style={{ height: rowVirtualizer.getTotalSize() }}
-            >
-              {rowVirtualizer.getVirtualItems().map((vi) => {
-                const u = rows[vi.index];
-                return (
-                  <div
-                    key={u._id}
-                    className={`${GRID_COLS} absolute left-0 top-0 w-full border-b border-zinc-100 px-3 py-2 text-sm hover:bg-zinc-50/90`}
-                    style={{
-                      height: vi.size,
-                      transform: `translateY(${vi.start}px)`,
-                    }}
-                  >
-                    <DirectoryRow u={u} includeStaff={includeStaff} />
-                  </div>
-                );
-              })}
+        <div className="overflow-x-auto">
+          <div style={{ minWidth: tableMinWidth }}>
+            <div className="border-b border-zinc-200 bg-zinc-50/95 px-3 py-2">
+              <div
+                className="text-xs font-semibold uppercase tracking-wide text-zinc-600"
+                style={gridStyle}
+              >
+                <SortHead label="Name" column="name" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                <SortHead label="Email" column="email" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                <SortHead label="Mobile" column="mobile" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                {showHiddenColumns ? (
+                  <SortHead
+                    label="Referral"
+                    column="referralCode"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                  />
+                ) : null}
+                <SortHead
+                  label="Bank (name / no.)"
+                  column="bankAccount"
+                  sortKey={sortKey}
+                  sortDir={sortDir}
+                  onToggle={toggleSort}
+                />
+                <SortHead label="IFSC / Bank" column="bankIfsc" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                <SortHead label="UPI" column="upi" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
+                {showHiddenColumns ? (
+                  <SortHead
+                    label="Registered"
+                    column="createdAt"
+                    sortKey={sortKey}
+                    sortDir={sortDir}
+                    onToggle={toggleSort}
+                  />
+                ) : null}
+              </div>
             </div>
-          )}
+
+            <div
+              ref={parentRef}
+              className="h-[min(70vh,720px)] w-full overflow-y-auto overflow-x-hidden"
+              style={{ contain: "strict" }}
+            >
+              {loading && rows.length === 0 ? (
+                <div className="flex items-center justify-center py-20 text-zinc-500">Loading…</div>
+              ) : rows.length === 0 ? (
+                <div className="flex items-center justify-center py-20 text-zinc-500">
+                  No users in this period.
+                </div>
+              ) : (
+                <div
+                  className="relative w-full"
+                  style={{ height: rowVirtualizer.getTotalSize() }}
+                >
+                  {rowVirtualizer.getVirtualItems().map((vi) => {
+                    const u = rows[vi.index];
+                    return (
+                      <div
+                        key={u._id}
+                        className="absolute left-0 top-0 w-full border-b border-zinc-100 px-3 py-2 text-sm hover:bg-zinc-50/90"
+                        style={{
+                          ...gridStyle,
+                          height: vi.size,
+                          transform: `translateY(${vi.start}px)`,
+                        }}
+                      >
+                        <DirectoryRow
+                          u={u}
+                          includeStaff={includeStaff}
+                          showHiddenColumns={showHiddenColumns}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 

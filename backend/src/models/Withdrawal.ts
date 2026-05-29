@@ -14,6 +14,15 @@ const withdrawalSchema = new Schema(
     reviewedAt: { type: Date, default: null },
     reviewedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
     rejectionReason: { type: String, trim: true, default: "" },
+    /** How admin paid the user (set when marking completed or manual payout). */
+    paymentMethod: {
+      type: String,
+      enum: ["cash", "upi", null],
+      default: null,
+    },
+    /** UPI screenshot path (required when paymentMethod is upi). */
+    paymentProofUrl: { type: String, trim: true, default: "" },
+    payoutNote: { type: String, trim: true, default: "" },
   },
   { timestamps: true }
 );

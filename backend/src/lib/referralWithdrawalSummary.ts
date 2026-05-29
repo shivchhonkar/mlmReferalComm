@@ -82,7 +82,10 @@ function buildReferralWithdrawalSummary(
 
 export type ReferralEarningsListFields = Pick<
   ReferralWithdrawalSummary,
-  "totalEarnedAmount" | "withdrawalAmount"
+  | "totalEarnedAmount"
+  | "withdrawalAmount"
+  | "totalWithdrawn"
+  | "totalPendingWithdrawals"
 >;
 
 /** Batch-load referral earnings for many users (used by admin referrals list). */
@@ -156,6 +159,8 @@ export async function getReferralWithdrawalSummariesBatch(
     out.set(key, {
       totalEarnedAmount: summary.totalEarnedAmount,
       withdrawalAmount: summary.withdrawalAmount,
+      totalWithdrawn: summary.totalWithdrawn,
+      totalPendingWithdrawals: summary.totalPendingWithdrawals,
     });
   }
 

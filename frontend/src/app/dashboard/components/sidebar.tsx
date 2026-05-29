@@ -30,11 +30,22 @@ import { useAuth } from "@/lib/useAuth";
 import { apiFetch } from "@/lib/apiClient";
 import { showSuccessToast, showErrorToast } from "@/lib/toast";
 
-const navItems: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+const navItems: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  customerOnly?: boolean;
+}[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { href: "/dashboard/orders", label: "Orders", icon: ShoppingBag },
   { href: "/dashboard/referrals", label: "Referrals", icon: Network },
   { href: "/dashboard/IncomeHistory", label: "Income History", icon: BarChart3 },
+  {
+    href: "/dashboard/paymentTransactions",
+    label: "Payment Transactions",
+    icon: CreditCard,
+    customerOnly: true,
+  },
   { href: "/dashboard/IncomeReports", label: "Income Reports", icon: BarChart3 },
   { href: "/dashboard/ServiceIncomeReports", label: "Service Income Reports", icon: BarChart3 },
   { href: "/dashboard/profile", label: "Profile", icon: User },
@@ -59,14 +70,23 @@ const adminNavItems: { href: string; label: string; icon?: React.ComponentType<{
   { href: "/dashboard/admin/communication", label: "Communication", icon: Mail },
   { href: "/dashboard/admin/service-approval", label: "Service Approval", icon: CheckSquare },
   { href: "/dashboard/admin/categories", label: "Categories", icon: FolderOpen },
-  { href: "/dashboard/admin/reports/ledger", label: "Reports", icon: BarChart3,
+  {
+    href: "/dashboard/admin/reports/ledger",
+    label: "Reports",
+    icon: BarChart3,
     subItems: [
       { href: "/dashboard/admin/reports/ledger", label: "Ledger" },
-      // { href: "/dashboard/admin/reports/transactions", label: "Transactions" },
-      // { href: "/dashboard/admin/reports/balance", label: "Balance" },
       { href: "/dashboard/admin/users/directory", label: "Users" },
+      { href: "/dashboard/admin/reports/income-reports", label: "Admin Income & Payouts" },
+      { href: "/dashboard/admin/reports/income-reports/payouts", label: "Payout queue" },
+      { href: "/dashboard/admin/reports/income-reports/history", label: "Payment history" },
+      { href: "/dashboard/admin/reports/income-reports/audit", label: "Payout audit log" },
+      {
+        href: "/dashboard/admin/reports/customers-income-reports",
+        label: "Customers income list",
+      },
     ],
-   },
+  },
   // { href: "/dashboard/admin/analytics", label: "Analytics", icon: BarChart3 },
   
   // { href: "/dashboard/admin/slider", label: "Slider", icon: ImageIcon },
@@ -84,13 +104,20 @@ export default function DashboardSidebar() {
   const pathname = usePathname();
   const { user } = useAuth();
   const [usersExpanded, setUsersExpanded] = useState(false);
+  const [reportsExpanded, setReportsExpanded] = useState(false);
 
   const isAdmin = ["super_admin", "admin", "moderator"].includes((user as { role?: string })?.role ?? "");
 
-  // Auto-expand Users when on any users sub-route
+  // Auto-expand sections when on their sub-routes
   useEffect(() => {
     if (pathname.startsWith("/dashboard/admin/users")) {
       setUsersExpanded(true);
+    }
+    if (
+      pathname.startsWith("/dashboard/admin/reports") ||
+      pathname.startsWith("/dashboard/admin/users/directory")
+    ) {
+      setReportsExpanded(true);
     }
   }, [pathname]);
   const isSellerApproved =
@@ -120,7 +147,8 @@ export default function DashboardSidebar() {
       </div>
 
       <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, customerOnly }) => {
+          if (customerOnly && isAdmin) return null;
           const active = pathname === href || (href !== "/dashboard" && pathname.startsWith(href));
           return (
             <Link
@@ -163,19 +191,32 @@ export default function DashboardSidebar() {
             </div>
             {adminNavItems.map((item) => {
               const { href, label, icon: Icon, subItems } = item;
-              const isUsersSection = !!subItems;
+              const isReportsSection = href.startsWith("/dashboard/admin/reports");
               const active =
                 pathname === href ||
                 (href !== "/dashboard/admin" && pathname.startsWith(href + "/")) ||
-                (subItems && subItems.some((s) => pathname === s.href));
+                (subItems &&
+                  subItems.some(
+                    (s) =>
+                      pathname === s.href ||
+                      (s.href.startsWith("/dashboard/admin/reports/income-reports") &&
+                        pathname.startsWith("/dashboard/admin/reports/income-reports")) ||
+                      (s.href.includes("/customers-income-reports") &&
+                        pathname.startsWith(
+                          "/dashboard/admin/reports/customers-income-reports",
+                        )),
+                  ));
 
               if (subItems) {
-                const expanded = usersExpanded;
+                const expanded = isReportsSection ? reportsExpanded : usersExpanded;
+                const toggleExpanded = isReportsSection
+                  ? () => setReportsExpanded((e) => !e)
+                  : () => setUsersExpanded((e) => !e);
                 return (
                   <div key={href} className="space-y-0.5 hover:cursor-pointer">
                     <button
                       type="button"
-                      onClick={() => setUsersExpanded((e) => !e)}
+                      onClick={toggleExpanded}
                       className={cn(
                         "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition",
                         active
@@ -194,7 +235,17 @@ export default function DashboardSidebar() {
                     {expanded && (
                       <div className="ml-0 mt-0.5 space-y-0.5 border-l-1 border-white/30 pl-4">
                         {subItems.map((sub) => {
-                          const subActive = pathname === sub.href;
+                          const subActive =
+                            sub.href === "/dashboard/admin/reports/income-reports"
+                              ? pathname === sub.href
+                              : sub.href === "/dashboard/admin/reports/customers-income-reports"
+                                ? pathname === sub.href ||
+                                  /^\/dashboard\/admin\/reports\/customers-income-reports\/[a-f0-9]{24}$/i.test(
+                                    pathname,
+                                  )
+                                : pathname === sub.href ||
+                                  (sub.href.startsWith("/dashboard/admin/reports/income-reports") &&
+                                    pathname.startsWith(sub.href));
                           return (
                             <Link
                               key={sub.href}

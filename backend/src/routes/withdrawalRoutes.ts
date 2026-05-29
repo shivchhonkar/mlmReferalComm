@@ -5,6 +5,7 @@ import { connectToDatabase } from "@/lib/db";
 import { requireAuth } from "@/middleware/auth";
 import { WithdrawalModel } from "@/models/Withdrawal";
 import { getReferralWithdrawalSummary } from "@/lib/referralWithdrawalSummary";
+import { resolveReportPeriodRange } from "@/lib/reportPeriodRange";
 
 const router = Router();
 
@@ -17,15 +18,118 @@ router.get("/", async (req, res) => {
     const ctx = await requireAuth(req);
     await connectToDatabase();
 
-    const [summary, withdrawals] = await Promise.all([
+    const userObjectId = new mongoose.Types.ObjectId(ctx.userId);
+    const statusParam = String(req.query.status ?? "all").toLowerCase();
+    const allowedStatuses = new Set(["all", "pending", "completed", "rejected"]);
+    const statusFilter = allowedStatuses.has(statusParam) ? statusParam : "all";
+    const limitRaw = Number(req.query.limit);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(1, Math.floor(limitRaw)), 500) : 200;
+
+    const withdrawalQuery: {
+      user: mongoose.Types.ObjectId;
+      status?: string;
+      createdAt?: { $gte: Date; $lte: Date };
+    } = {
+      user: userObjectId,
+    };
+    if (statusFilter !== "all") {
+      withdrawalQuery.status = statusFilter;
+    }
+
+    let period: {
+      key: string;
+      label: string;
+      start: string;
+      end: string;
+    } | null = null;
+
+    const periodParam = String(req.query.period ?? "monthly").trim();
+    if (periodParam) {
+      try {
+        const range = resolveReportPeriodRange(
+          periodParam,
+          String(req.query.from ?? ""),
+          String(req.query.to ?? ""),
+        );
+        withdrawalQuery.createdAt = { $gte: range.start, $lte: range.end };
+        period = {
+          key: range.key,
+          label: range.label,
+          start: range.start.toISOString(),
+          end: range.end.toISOString(),
+        };
+      } catch (rangeErr: unknown) {
+        const msg =
+          rangeErr instanceof Error ? rangeErr.message : "Invalid report period";
+        return res.status(400).json({ error: msg });
+      }
+    }
+
+    const aggMatch: Record<string, unknown> = { user: userObjectId };
+    if (withdrawalQuery.createdAt) {
+      aggMatch.createdAt = withdrawalQuery.createdAt;
+    }
+
+    const [summary, withdrawals, statusAgg] = await Promise.all([
       getReferralWithdrawalSummary(ctx.userId),
-      WithdrawalModel.find({ user: ctx.userId })
+      WithdrawalModel.find(withdrawalQuery)
         .sort({ createdAt: -1 })
-        .limit(50)
+        .limit(limit)
+        .populate("reviewedBy", "fullName name email")
         .lean(),
+      WithdrawalModel.aggregate<{
+        _id: string;
+        count: number;
+        totalAmount: number;
+      }>([
+        { $match: aggMatch },
+        {
+          $group: {
+            _id: "$status",
+            count: { $sum: 1 },
+            totalAmount: { $sum: { $ifNull: ["$amount", 0] } },
+          },
+        },
+      ]),
     ]);
 
-    return res.json({ summary, withdrawals });
+    const statusCounts = {
+      all: 0,
+      pending: 0,
+      completed: 0,
+      rejected: 0,
+    };
+    const statusAmounts = {
+      all: 0,
+      pending: 0,
+      completed: 0,
+      rejected: 0,
+    };
+    for (const row of statusAgg) {
+      const key = String(row._id ?? "") as keyof typeof statusCounts;
+      if (!(key in statusCounts)) continue;
+      statusCounts[key] = row.count;
+      statusAmounts[key] = Number(row.totalAmount) || 0;
+      statusCounts.all += row.count;
+      statusAmounts.all += Number(row.totalAmount) || 0;
+    }
+
+    const periodSummary = {
+      requestCount: statusCounts.all,
+      requestAmount: statusAmounts.all,
+      paidAmount: statusAmounts.completed,
+      pendingAmount: statusAmounts.pending,
+      rejectedAmount: statusAmounts.rejected,
+    };
+
+    return res.json({
+      summary,
+      withdrawals,
+      statusCounts,
+      statusAmounts,
+      period,
+      periodSummary,
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unable to load withdrawals";
     const status =

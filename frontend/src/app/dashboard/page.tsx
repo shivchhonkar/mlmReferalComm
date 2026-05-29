@@ -114,6 +114,8 @@ export default function DashboardPage() {
   const [copiedCode, setCopiedCode] = useState(false);
   const [pendingSellers, setPendingSellers] = useState<unknown[]>([]);
   const [showAllIncomeModal, setShowAllIncomeModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState("");
   const incomeHistoryScrollRef = useRef<HTMLDivElement>(null);
 
   const incomeHistoryVirtualizer = useVirtualizer({
@@ -138,6 +140,14 @@ export default function DashboardPage() {
   );
 
   const totalEarnedDisplay = incomeSummary?.totalEarnedAmount ?? totalIncome;
+
+  const maxWithdrawable = incomeSummary?.withdrawalAmount ?? 0;
+
+  const parsedWithdrawAmount = Number(withdrawAmount);
+  const isWithdrawAmountValid =
+    Number.isFinite(parsedWithdrawAmount) &&
+    parsedWithdrawAmount > 0 &&
+    parsedWithdrawAmount <= maxWithdrawable + 1e-9;
 
   // Chart data: Income trend over time
   const incomeChartData = useMemo(() => {
@@ -280,6 +290,45 @@ export default function DashboardPage() {
     }
   };
 
+  const submitWithdrawalRequest = async () => {
+    const available = maxWithdrawable;
+    const amt = Number(withdrawAmount);
+    if (!isWithdrawAmountValid) {
+      showErrorToast(
+        available <= 0
+          ? "No withdrawal amount available"
+          : `Enter an amount greater than 0 and up to ${formatINRPrecise(available)}`,
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiFetch("/api/withdrawals", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ amount: amt }),
+      });
+      const body = await readApiBody(res);
+      const data = body.json as { error?: string; summary?: IncomeSummary };
+      if (!res.ok) {
+        const errMsg =
+          typeof data?.error === "string"
+            ? data.error
+            : (data?.error as { formErrors?: string[] })?.formErrors?.[0] ?? "Request failed";
+        throw new Error(errMsg);
+      }
+      if (data.summary) setIncomeSummary(data.summary);
+      showSuccessToast("Withdrawal request submitted. Admin will review and pay.");
+      setShowWithdrawModal(false);
+      setWithdrawAmount("");
+      await loadAll();
+    } catch (e: unknown) {
+      showErrorToast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const copyReferralCode = () => {
     const code = me?.referralCode ?? "";
     if (!code) return;
@@ -395,7 +444,26 @@ export default function DashboardPage() {
         )}
             
           </div>
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex max-w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto">
+            {!isAdmin ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setWithdrawAmount(maxWithdrawable > 0 ? String(maxWithdrawable) : "");
+                  setShowWithdrawModal(true);
+                }}
+                disabled={busy || dataLoading || maxWithdrawable <= 0}
+                title={
+                  maxWithdrawable <= 0
+                    ? "No withdrawal amount available"
+                    : `Request up to ${formatINRPrecise(maxWithdrawable)}`
+                }
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-medium text-sky-800 shadow-sm transition hover:bg-sky-50 hover:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 sm:px-4 sm:py-2.5"
+              >
+                <IndianRupee className="h-4 w-4 shrink-0" />
+                Request withdrawal
+              </button>
+            ) : null}
             {isAdmin ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
@@ -409,40 +477,36 @@ export default function DashboardPage() {
               <Link
                 prefetch={false}
                 href="dashboard/seller/services"
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer sm:px-4 sm:py-2.5"
               >
-                <Package className="h-4 w-4" />
+                <Package className="h-4 w-4 shrink-0" />
                 Manage services
               </Link>
             ) : isSellerPending ? (
               <span
-                className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm font-medium text-amber-800"
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800 sm:px-4 sm:py-2.5"
                 title="Admin will review your request"
               >
-                <Package className="h-4 w-4 text-amber-600" />
-                Request sent for approval
+                <Package className="h-4 w-4 shrink-0 text-amber-600" />
+                Seller pending
               </span>
             ) : isSellerRejected ? (
-              <div className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
-                <span className="text-sm font-medium text-zinc-600">
-                  Seller request was rejected. Contact admin to reapply
-                </span>
-                <button
-                  type="button"
-                  onClick={handleBecomeSeller}
-                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-white px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50 hover:cursor-pointer disabled:opacity-60"
-                  disabled={busy}
-                >
-                  Re-request
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleBecomeSeller}
+                disabled={busy}
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer disabled:opacity-60 sm:px-4 sm:py-2.5"
+              >
+                <Package className="h-4 w-4 shrink-0" />
+                Re-request seller
+              </button>
             ) : hasNotRequestedSeller ? (
               <button
                 type="button"
                 onClick={handleBecomeSeller}
-                className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
+                className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer sm:px-4 sm:py-2.5"
               >
-                <Package className="h-4 w-4" />
+                <Package className="h-4 w-4 shrink-0" />
                 Become a Seller
               </button>
             ) : null}
@@ -455,12 +519,12 @@ export default function DashboardPage() {
               Cart <span className="text-zinc-500">({cart.totalQuantity})</span>
             </Link> */}
             <button
-              className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:opacity-60 hover:cursor-pointer text-red-600 border-red-300 hover:bg-red-50 hover:text-red-700"
+              className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-600 shadow-sm transition hover:bg-red-50 hover:text-red-700 disabled:opacity-60 hover:cursor-pointer sm:px-4 sm:py-2.5"
               onClick={logout}
               disabled={busy}
               type="button"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4 shrink-0" />
               Logout
             </button>
           </div>
@@ -1053,6 +1117,84 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
+
+      {showWithdrawModal && !isAdmin ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold text-zinc-900">Request withdrawal</h3>
+            <p className="mt-1 text-sm text-zinc-600">
+              Withdrawal amount (max you can request):{" "}
+              <strong className="text-sky-800">{formatINRPrecise(maxWithdrawable)}</strong>
+            </p>
+            {(incomeSummary?.totalPendingWithdrawals ?? 0) > 0 ? (
+              <p className="mt-2 text-xs text-amber-700">
+                You have {formatINRPrecise(incomeSummary?.totalPendingWithdrawals ?? 0)} in pending
+                requests. New requests must stay within your remaining withdrawable balance.
+              </p>
+            ) : null}
+            <div className="mt-4">
+              <label className="text-xs font-medium text-zinc-500">Amount (INR)</label>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                max={maxWithdrawable > 0 ? maxWithdrawable : undefined}
+                value={withdrawAmount}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "" || raw === ".") {
+                    setWithdrawAmount(raw);
+                    return;
+                  }
+                  const n = Number(raw);
+                  if (!Number.isFinite(n)) return;
+                  if (maxWithdrawable > 0 && n > maxWithdrawable) {
+                    setWithdrawAmount(String(maxWithdrawable));
+                    return;
+                  }
+                  setWithdrawAmount(raw);
+                }}
+                className="mt-1 w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm"
+                placeholder={`Max ${formatINRPrecise(maxWithdrawable)}`}
+              />
+              {withdrawAmount && !isWithdrawAmountValid ? (
+                <p className="mt-1 text-xs text-red-600">
+                  Amount must be greater than 0 and not more than your withdrawal amount (
+                  {formatINRPrecise(maxWithdrawable)}).
+                </p>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setWithdrawAmount(maxWithdrawable > 0 ? String(maxWithdrawable) : "")}
+                className="mt-2 text-xs font-medium text-emerald-700 hover:underline"
+              >
+                Use full withdrawal amount
+              </button>
+            </div>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  setShowWithdrawModal(false);
+                  setWithdrawAmount("");
+                }}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={busy || !isWithdrawAmountValid}
+                onClick={() => void submitWithdrawalRequest()}
+                className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Submit request
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {showAllIncomeModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">

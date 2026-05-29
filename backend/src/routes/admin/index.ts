@@ -16,7 +16,9 @@ import { requireAuth, requireRole, requireAdminRole, requireSuperAdminOrAdmin } 
 
 import { UserModel } from "@/models/User";
 import { ServiceModel } from "@/models/Service";
-import { logAccountChange, logServiceAction } from "@/lib/activityLogger";
+import { logAccountChange, logServiceAction, logAdminPaymentAction } from "@/lib/activityLogger";
+import { registerAdminIncomeReportRoutes } from "@/routes/admin/incomeReportsRoutes";
+import { assertValidAdminPayoutPayment, ADMIN_PAYOUT_PAYMENT_METHODS } from "@/lib/adminPayoutPayment";
 import { CategoryModel } from "@/models/Category";
 import { SubcategoryModel } from "@/models/Subcategory";
 import { PurchaseModel } from "@/models/Purchase";
@@ -345,6 +347,10 @@ export function registerAdminRoutes(app: Express) {
           case "bankifsc":
           case "ifsc":
             sort = { bankIfsc: sortDir };
+            break;
+          case "upilink":
+          case "upi":
+            sort = { upiLink: sortDir };
             break;
           case "createdat":
           default:
@@ -2385,6 +2391,9 @@ export function registerAdminRoutes(app: Express) {
         .object({
           status: z.enum(["completed", "rejected"]),
           rejectionReason: z.string().max(500).optional(),
+          paymentMethod: z.enum(ADMIN_PAYOUT_PAYMENT_METHODS).optional(),
+          paymentProofUrl: z.string().optional(),
+          payoutNote: z.string().max(500).optional(),
         })
         .parse(req.body ?? {});
 
@@ -2408,8 +2417,27 @@ export function registerAdminRoutes(app: Express) {
             },
           }
         );
+        await logAdminPaymentAction(req, {
+          adminId: reviewer,
+          targetUserId: w.user as mongoose.Types.ObjectId,
+          withdrawalId: w._id,
+          action: "withdrawal_rejected",
+          amount: w.amount,
+          previousStatus: "pending",
+          newStatus: "rejected",
+          note: body.rejectionReason,
+        });
         const updated = await WithdrawalModel.findById(id).lean();
-        return res.json({ ok: true, withdrawal: updated });
+        const summary = await getReferralWithdrawalSummary(String(w.user));
+        return res.json({ ok: true, withdrawal: updated, summary });
+      }
+
+      const paymentMethod = body.paymentMethod ?? "cash";
+      try {
+        assertValidAdminPayoutPayment(paymentMethod, body.paymentProofUrl);
+      } catch (validationErr: unknown) {
+        const msg = validationErr instanceof Error ? validationErr.message : "Invalid payment";
+        return res.status(400).json({ error: msg });
       }
 
       const summary = await getReferralWithdrawalSummary(String(w.user));
@@ -2428,11 +2456,26 @@ export function registerAdminRoutes(app: Express) {
             status: "completed",
             reviewedAt: new Date(),
             reviewedBy: reviewer,
+            paymentMethod,
+            paymentProofUrl:
+              paymentMethod === "upi" ? String(body.paymentProofUrl ?? "").trim() : "",
+            payoutNote: body.payoutNote?.trim() ?? "",
           },
         }
       );
+      await logAdminPaymentAction(req, {
+        adminId: reviewer,
+        targetUserId: w.user as mongoose.Types.ObjectId,
+        withdrawalId: w._id,
+        action: "withdrawal_completed",
+        amount: w.amount,
+        previousStatus: "pending",
+        newStatus: "completed",
+        note: [paymentMethod, body.payoutNote].filter(Boolean).join(" — "),
+      });
       const updated = await WithdrawalModel.findById(id).lean();
-      return res.json({ ok: true, withdrawal: updated });
+      const updatedSummary = await getReferralWithdrawalSummary(String(w.user));
+      return res.json({ ok: true, withdrawal: updated, summary: updatedSummary });
     } catch (err: unknown) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ error: err.flatten() });
@@ -2442,6 +2485,8 @@ export function registerAdminRoutes(app: Express) {
       return res.status(status).json({ error: msg });
     }
   });
+
+  registerAdminIncomeReportRoutes(app);
 
   // KYC management routes moved to admin/kycAdminRoutes.ts and mounted at /api/admin/kyc
 }

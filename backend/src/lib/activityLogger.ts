@@ -4,7 +4,14 @@ import { LoginActivityLogModel } from "@/models/LoginActivityLog";
 import { LogoutActivityLogModel } from "@/models/LogoutActivityLog";
 import { AccountChangeLogModel } from "@/models/AccountChangeLog";
 import { ServiceActionLogModel } from "@/models/ServiceActionLog";
+import { AdminPaymentActionLogModel } from "@/models/AdminPaymentActionLog";
 import mongoose from "mongoose";
+
+export type AdminPaymentActionType =
+  | "withdrawal_completed"
+  | "withdrawal_rejected"
+  | "manual_payout"
+  | "status_note";
 
 type AccountChangeType = "profile" | "business" | "email" | "role" | "status" | "permission" | "kyc" | "other";
 type ServiceActionType = "created" | "activated" | "approved" | "rejected" | "modified" | "deactivated" | "expired";
@@ -79,6 +86,39 @@ export async function logAccountChange(
 }
 
 /** Log service action (approved, rejected, etc.). */
+/** Log admin payment / withdrawal actions for audit trail. */
+export async function logAdminPaymentAction(
+  req: Request,
+  options: {
+    adminId: mongoose.Types.ObjectId | string;
+    targetUserId: mongoose.Types.ObjectId | string;
+    withdrawalId?: mongoose.Types.ObjectId | string | null;
+    action: AdminPaymentActionType;
+    amount?: number | null;
+    previousStatus?: string;
+    newStatus?: string;
+    note?: string;
+  },
+): Promise<void> {
+  try {
+    const { ip, userAgent } = getRequestMetadata(req);
+    await AdminPaymentActionLogModel.create({
+      adminId: options.adminId,
+      targetUserId: options.targetUserId,
+      withdrawalId: options.withdrawalId ?? null,
+      action: options.action,
+      amount: options.amount ?? null,
+      previousStatus: options.previousStatus ?? "",
+      newStatus: options.newStatus ?? "",
+      note: options.note?.trim() ?? "",
+      ip: ip ?? undefined,
+      userAgent: userAgent ?? undefined,
+    });
+  } catch (err) {
+    console.error("[ActivityLogger] Failed to log admin payment action:", err);
+  }
+}
+
 export async function logServiceAction(options: {
   serviceId: string;
   sellerId: mongoose.Types.ObjectId;
