@@ -42,9 +42,8 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
   if (user.status === "deleted") throw new Error("Account has been deleted");
   if (user.status === "suspended") throw new Error("Account has been suspended by administrator");
   if (user.sessionExpiresAt && new Date(user.sessionExpiresAt) < new Date()) {
-    // Update activity status to inactive on session expiration
+    // Session expires auth access, but should not alter downline-activity state.
     await UserModel.findByIdAndUpdate(payload.sub, { 
-      activityStatus: "inactive",
       lastLogoutAt: new Date()
     });
     throw new Error("Session has expired");

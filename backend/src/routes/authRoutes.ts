@@ -171,8 +171,7 @@ router.post("/login", async (req, res) => {
     setAuthCookie(res, token);
 
     await UserModel.findByIdAndUpdate(user._id, { 
-      lastLoginAt: new Date(),
-      activityStatus: "active"
+      lastLoginAt: new Date()
     });
 
     logLoginActivity(req, { userId: user._id, success: true }).catch(() => {});
@@ -205,9 +204,8 @@ router.post("/logout", async (req, res) => {
 
     logLogoutActivity(req, { userId: ctx.userId }).catch(() => {});
 
-    // Update user activity status to inactive on logout
+    // Keep logout audit timestamp only; do not drive downline-activity state from logout.
     await UserModel.findByIdAndUpdate(ctx.userId, { 
-      activityStatus: "inactive",
       lastLogoutAt: new Date()
     });
 

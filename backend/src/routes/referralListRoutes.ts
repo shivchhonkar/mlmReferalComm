@@ -2,6 +2,7 @@ import { Router } from "express"
 import mongoose from "mongoose"
 import { UserModel } from "../models/User"
 import { requireAuth } from "../middleware/auth"
+import { syncDownlineActivityStatusForUser } from "@/lib/referralDownlineActivity"
 
 const router = Router()
 
@@ -191,6 +192,15 @@ router.get("/", async (req, res) => {
     const meta = rows?.[0]?.meta?.[0] ?? { total: 0 }
     const data = rows?.[0]?.data ?? []
 
+    const activityByUserId = new Map<string, "active" | "inactive">()
+    await Promise.all(
+      data.map(async (u: { _id?: mongoose.Types.ObjectId }) => {
+        if (!u?._id) return
+        const synced = await syncDownlineActivityStatusForUser(u._id)
+        if (synced) activityByUserId.set(String(u._id), synced)
+      }),
+    )
+
     return res.json({
       total: meta.total ?? 0,
       offset,
@@ -203,7 +213,7 @@ router.get("/", async (req, res) => {
         mobile: u.mobile || "",
         referralCode: u.referralCode,
         status: u.status,
-        activityStatus: u.activityStatus,
+        activityStatus: activityByUserId.get(String(u._id)) ?? u.activityStatus,
         position: u.position ?? null,
         joinedAt: u.createdAt,
         level: (u.level ?? 0) + 1, // downline level (root children = 1)

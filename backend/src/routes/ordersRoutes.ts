@@ -11,6 +11,8 @@ import { ServiceModel } from "../models/Service";
 import { requireAuth } from "@/middleware/auth";
 import { connectToDatabase } from "@/lib/db";
 import { distributeBusinessVolumeWithSession } from "@/lib/bvDistribution";
+import { isReferralStaffRole } from "@/lib/referralStaffRoles";
+import { syncDownlineActivityStatusForUser } from "@/lib/referralDownlineActivity";
 import {
   enrichAndRepairOrdersForResponse,
   loadServiceMapForIds,
@@ -44,67 +46,31 @@ async function hasQualifyingOrder(userId: mongoose.Types.ObjectId, session?: mon
   return !!exists;
 }
 
-async function hasDownlineQualifyingOrder(userId: mongoose.Types.ObjectId, session?: mongoose.ClientSession | null) {
-  const pipeline: any[] = [
-    { $match: { _id: userId } },
-    {
-      $graphLookup: {
-        from: "users",
-        startWith: "$_id",
-        connectFromField: "_id",
-        connectToField: "parent",
-        as: "downline",
-        maxDepth: 25,
-      },
-    },
-    { $project: { downlineIds: "$downline._id" } },
-    {
-      $lookup: {
-        from: "orders",
-        let: { ids: "$downlineIds" },
-        pipeline: [
-          {
-            $match: {
-              $expr: {
-                $and: [
-                  { $in: ["$user", "$$ids"] },
-                  { $in: ["$status", QUALIFYING_ORDER_STATUSES] },
-                ],
-              },
-            },
-          },
-          { $limit: 1 },
-        ],
-        as: "qualifyingDownlineOrders",
-      },
-    },
-    {
-      $project: {
-        hasAny: { $gt: [{ $size: "$qualifyingDownlineOrders" }, 0] },
-      },
-    },
-  ];
-  const agg = UserModel.aggregate(pipeline);
-  if (session) agg.session(session);
-  const rows = await agg;
-  return !!rows?.[0]?.hasAny;
-}
-
 async function syncUserStatusAndAncestorActivity(userId: mongoose.Types.ObjectId, session?: mongoose.ClientSession | null) {
-  const userQuery = UserModel.findById(userId).select("_id parent");
+  const userQuery = UserModel.findById(userId).select("_id parent role");
   if (session) userQuery.session(session);
   const userDoc = await userQuery.lean();
   if (!userDoc?._id) return;
 
-  // Rule: user status is active only after own qualifying purchase/order.
-  const ownActive = await hasQualifyingOrder(userDoc._id as mongoose.Types.ObjectId, session);
-  await UserModel.updateOne(
-    { _id: userDoc._id },
-    { $set: { status: ownActive ? "active" : "inactive" } as any },
-    session ? { session } : undefined
-  );
+  // Rule for normal users only: status is active only after own qualifying order.
+  // Staff/admin users are excluded from this automatic status/activity flow.
+  const userRole = String((userDoc as any).role ?? "user");
+  if (!isReferralStaffRole(userRole)) {
+    const ownActive = await hasQualifyingOrder(userDoc._id as mongoose.Types.ObjectId, session);
+    await UserModel.updateOne(
+      { _id: userDoc._id },
+      {
+        $set: {
+          status: ownActive ? "active" : "inactive",
+        } as any,
+      },
+      session ? { session } : undefined
+    );
+  }
 
-  // Rule: parent activity depends on whether any downline has qualifying purchase/order.
+  // Downline Activities: recompute from qualifying orders in the team (not login / not own order).
+  await syncDownlineActivityStatusForUser(userDoc._id as mongoose.Types.ObjectId, session);
+
   let cursor = userDoc.parent ? new mongoose.Types.ObjectId(userDoc.parent) : null;
   const visited = new Set<string>();
   while (cursor) {
@@ -112,17 +78,14 @@ async function syncUserStatusAndAncestorActivity(userId: mongoose.Types.ObjectId
     if (visited.has(key)) break;
     visited.add(key);
 
-    const hasActiveDownline = await hasDownlineQualifyingOrder(cursor, session);
-    await UserModel.updateOne(
-      { _id: cursor },
-      { $set: { activityStatus: hasActiveDownline ? "active" : "inactive" } },
-      session ? { session } : undefined
-    );
+    const currentUserQuery = UserModel.findById(cursor).select("parent role");
+    if (session) currentUserQuery.session(session);
+    const currentUser = await currentUserQuery.lean();
+    if (!currentUser?._id) break;
 
-    const parentQuery = UserModel.findById(cursor).select("parent");
-    if (session) parentQuery.session(session);
-    const parent = await parentQuery.lean();
-    cursor = parent?.parent ? new mongoose.Types.ObjectId(parent.parent) : null;
+    await syncDownlineActivityStatusForUser(cursor, session);
+
+    cursor = currentUser?.parent ? new mongoose.Types.ObjectId(currentUser.parent) : null;
   }
 }
 

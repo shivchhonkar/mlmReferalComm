@@ -70,7 +70,6 @@ async function issueLoginSession(
 
   await UserModel.findByIdAndUpdate(user._id, {
     lastLoginAt: new Date(),
-    activityStatus: "active",
   });
 
   logLoginActivity(req, { userId: user._id, success: true }).catch(() => {});
