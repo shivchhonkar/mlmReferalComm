@@ -25,6 +25,8 @@ const app = express();
 // Trust proxy for rate limiting when behind reverse proxy/load balancer
 app.set('trust proxy', 1);
 
+CORS_ORIGIN=http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com
+
 const port = Number(process.env.PORT ?? 4001);
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com";
 
@@ -58,23 +60,47 @@ const authLimiter = rateLimit({
 // Support multiple CORS origins (comma-separated)
 const allowedOrigins = corsOrigin.split(",").map(o => o.trim());
 
+// app.use(
+//   cors({
+//     origin: (origin, callback) => {
+//       // Allow requests with no origin for development tools and mobile apps
+//       if (!origin) return callback(null, true);
+      
+//       // Strict origin validation for production
+//       if (allowedOrigins.includes(origin)) {
+//         callback(null, true);
+//       } else {
+//         callback(new Error("Not allowed by CORS"), false);
+//       }
+//     },
+//     credentials: true,
+//     optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+//   })
+// );
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin for development tools and mobile apps
+      console.log("CORS CHECK:", origin);
+
       if (!origin) return callback(null, true);
-      
-      // Strict origin validation for production
-      if (allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error("Not allowed by CORS"), false);
+
+      if (origin.includes("localhost")) {
+        return callback(null, true);
       }
+
+      if (origin.includes("sambhariyamarketing.com")) {
+        return callback(null, true);
+      }
+
+      console.log("❌ BLOCKED:", origin);
+
+      callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-    optionsSuccessStatus: 200, // Some legacy browsers choke on 204
   })
 );
+
 app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 
