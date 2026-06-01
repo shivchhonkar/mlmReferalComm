@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/db";
 import { IncomeModel } from "@/models/Income";
 import { requireAuth } from "@/middleware/auth";
 import { getReferralWithdrawalSummary } from "@/lib/referralWithdrawalSummary";
+import { resolveReportPeriodRange } from "@/lib/reportPeriodRange";
 
 const router = Router();
 
@@ -40,10 +41,32 @@ async function handleIncomeList(req: Request, res: Response, options: { forRepor
 
   const from = typeof req.query.from === "string" ? req.query.from : undefined;
   const to = typeof req.query.to === "string" ? req.query.to : undefined;
+  const periodParam = typeof req.query.period === "string" ? req.query.period.trim() : "";
+
+  let createdAtFilter: { createdAt?: { $gte?: Date; $lte?: Date } } = {};
+  let period: {
+    key: string;
+    label: string;
+    start: string;
+    end: string;
+  } | null = null;
+
+  if (periodParam) {
+    const range = resolveReportPeriodRange(periodParam, from ?? "", to ?? "");
+    createdAtFilter = { createdAt: { $gte: range.start, $lte: range.end } };
+    period = {
+      key: range.key,
+      label: range.label,
+      start: range.start.toISOString(),
+      end: range.end.toISOString(),
+    };
+  } else if (options.forReports) {
+    createdAtFilter = parseDateRangeQuery(from, to);
+  }
 
   const incomeFilter = {
     toUser: ctx.userId,
-    ...(options.forReports ? parseDateRangeQuery(from, to) : {}),
+    ...createdAtFilter,
   };
 
   let incomeQuery = IncomeModel.find(incomeFilter)
@@ -51,29 +74,49 @@ async function handleIncomeList(req: Request, res: Response, options: { forRepor
     .populate(incomeListPopulate[1])
     .sort({ createdAt: -1 });
 
-  if (!options.forReports) {
+  const hasDateFilter = Object.keys(createdAtFilter).length > 0;
+  if (!hasDateFilter && !options.forReports) {
     incomeQuery = incomeQuery.limit(100);
+  } else {
+    incomeQuery = incomeQuery.limit(500);
   }
 
-  const [incomes, summary, totalRecords] = await Promise.all([
+  const [incomes, summary, totalRecords, periodEarnedAgg] = await Promise.all([
     incomeQuery.lean(),
     getReferralWithdrawalSummary(ctx.userId),
-    IncomeModel.countDocuments({ toUser: ctx.userId }),
+    IncomeModel.countDocuments(incomeFilter),
+    periodParam
+      ? IncomeModel.aggregate<{ _id: null; total: number }>([
+          { $match: incomeFilter },
+          { $group: { _id: null, total: { $sum: { $ifNull: ["$amount", 0] } } } },
+        ])
+      : Promise.resolve([]),
   ]);
 
-  return res.json({ incomes, summary, totalRecords });
+  const periodSummary = periodParam
+    ? {
+        totalEarnedInPeriod: Number(periodEarnedAgg[0]?.total ?? 0) || 0,
+        recordCount: totalRecords,
+      }
+    : undefined;
+
+  return res.json({ incomes, summary, totalRecords, period, periodSummary });
 }
 
 // Full income list for reports (no row cap) — also available as GET /?forReports=1
+function incomeErrorStatus(msg: string): number {
+  return msg.includes("permission") || msg.includes("log in") || msg.includes("Authentication")
+    ? 401
+    : 400;
+}
+
 router.get("/reports", async (req, res) => {
   try {
     return await handleIncomeList(req, res, { forReports: true });
   } catch (err: unknown) {
     console.error("Error fetching income reports:", err);
     const msg = err instanceof Error ? err.message : "Unable to load income reports";
-    const status =
-      msg.includes("permission") || msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
-    return res.status(status).json({ error: msg });
+    return res.status(incomeErrorStatus(msg)).json({ error: msg });
   }
 });
 
@@ -85,8 +128,7 @@ router.get("/", async (req, res) => {
   } catch (err: unknown) {
     console.error("Error fetching income:", err);
     const msg = err instanceof Error ? err.message : "Unable to load income information";
-    const status = msg.includes("permission") || msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
-    return res.status(status).json({ error: msg });
+    return res.status(incomeErrorStatus(msg)).json({ error: msg });
   }
 });
 

@@ -242,12 +242,18 @@ export default function PaymentTransactionsPage() {
         body: JSON.stringify({ amount: Number(withdrawAmount) }),
       });
       const body = await readApiBody(res);
-      const data = body.json as { error?: string; summary?: WithdrawalSummary };
+      const data = body.json as {
+        error?: string | { formErrors?: string[] };
+        summary?: WithdrawalSummary;
+      };
       if (!res.ok) {
+        const err = data?.error;
         const errMsg =
-          typeof data?.error === "string"
-            ? data.error
-            : (data?.error as { formErrors?: string[] })?.formErrors?.[0] ?? "Request failed";
+          typeof err === "string"
+            ? err
+            : err && typeof err === "object" && Array.isArray(err.formErrors)
+              ? err.formErrors[0] ?? "Request failed"
+              : "Request failed";
         throw new Error(errMsg);
       }
       if (data.summary) setSummary(data.summary);

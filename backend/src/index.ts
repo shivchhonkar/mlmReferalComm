@@ -7,7 +7,7 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
-import moduleAlias from "module-alias";
+import * as moduleAlias from "module-alias";
 
 // tsx runs from src/; production runs from dist/ — keep @ aligned with the entry folder.
 moduleAlias.addAlias("@", path.resolve(__dirname));

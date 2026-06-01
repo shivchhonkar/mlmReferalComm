@@ -217,7 +217,9 @@ router.get("/", async (req, res) => {
         const s = String(raw)
         return mongoose.Types.ObjectId.isValid(s) ? new mongoose.Types.ObjectId(s) : null
       })
-      .filter((id): id is mongoose.Types.ObjectId => id !== null)
+      .filter(
+        (id: mongoose.Types.ObjectId | null): id is mongoose.Types.ObjectId => id !== null,
+      )
 
     const earningsByUserId = includesEarnings
       ? await getReferralWithdrawalSummariesBatch(downlineUserIds)

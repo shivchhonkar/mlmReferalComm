@@ -27,7 +27,7 @@ function mapUserBrief(u: {
   _id?: mongoose.Types.ObjectId;
   fullName?: string;
   name?: string;
-  email?: string;
+  email?: string | null;
   mobile?: string;
   referralCode?: string;
   role?: string;
@@ -35,7 +35,7 @@ function mapUserBrief(u: {
   return {
     id: String(u._id),
     name: String(u.fullName || u.name || "User"),
-    email: u.email || "",
+    email: u.email ?? "",
     mobile: u.mobile || "",
     referralCode: u.referralCode || "",
     role: u.role || "user",
@@ -201,6 +201,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
                 name?: string;
                 email?: string;
                 mobile?: string;
+                upiLink?: string;
               }
             | undefined;
           const userId = String(user?._id ?? w.user ?? "");

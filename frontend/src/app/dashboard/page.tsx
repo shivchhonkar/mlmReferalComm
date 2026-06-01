@@ -309,12 +309,18 @@ export default function DashboardPage() {
         body: JSON.stringify({ amount: amt }),
       });
       const body = await readApiBody(res);
-      const data = body.json as { error?: string; summary?: IncomeSummary };
+      const data = body.json as {
+        error?: string | { formErrors?: string[] };
+        summary?: IncomeSummary;
+      };
       if (!res.ok) {
+        const err = data?.error;
         const errMsg =
-          typeof data?.error === "string"
-            ? data.error
-            : (data?.error as { formErrors?: string[] })?.formErrors?.[0] ?? "Request failed";
+          typeof err === "string"
+            ? err
+            : err && typeof err === "object" && Array.isArray(err.formErrors)
+              ? err.formErrors[0] ?? "Request failed"
+              : "Request failed";
         throw new Error(errMsg);
       }
       if (data.summary) setIncomeSummary(data.summary);
