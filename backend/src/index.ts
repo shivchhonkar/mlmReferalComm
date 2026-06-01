@@ -25,8 +25,6 @@ const app = express();
 // Trust proxy for rate limiting when behind reverse proxy/load balancer
 app.set('trust proxy', 1);
 
-CORS_ORIGIN=http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com
-
 const port = Number(process.env.PORT ?? 4001);
 const corsOrigin = process.env.CORS_ORIGIN ?? "http://localhost:4000,http://localhost:3000,https://sambhariyamarketing.com,https://www.sambhariyamarketing.com";
 
