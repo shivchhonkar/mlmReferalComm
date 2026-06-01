@@ -4,19 +4,25 @@ import { IncomeModel } from "@/models/Income";
 import { WithdrawalModel } from "@/models/Withdrawal";
 import { UserModel } from "@/models/User";
 import { isReferralStaffRole } from "@/lib/referralStaffRoles";
+import {
+  aggregateLegEarningsForEarner,
+  computeMaxCumulativeWithdrawalFromLegTotals,
+  loadParentChainMap,
+  type IncomeLegLine,
+} from "@/lib/referralLegRoot";
 
 /**
- * Lifetime referral withdrawal cap for end users: first non-cancelled own order total.
+ * Per-leg withdrawal cap for end users: first non-cancelled own order total (applied to each direct-referral leg).
  * Admins / moderators: no cap (null).
  */
 export async function getFirstOrderWithdrawalCap(
   userObjectId: mongoose.Types.ObjectId,
-  session?: mongoose.ClientSession | null
+  session?: mongoose.ClientSession | null,
 ): Promise<number | null> {
   const userQuery = UserModel.findById(userObjectId).select("role");
   if (session) userQuery.session(session);
   const user = await userQuery.lean();
-  const role = String((user as any)?.role ?? "user");
+  const role = String((user as { role?: string })?.role ?? "user");
   if (isReferralStaffRole(role)) return null;
 
   const q = OrderModel.findOne({
@@ -27,47 +33,54 @@ export async function getFirstOrderWithdrawalCap(
     .select("totals.totalAmount");
   if (session) q.session(session);
   const first = await q.lean();
-  const raw = Number((first as any)?.totals?.totalAmount ?? 0);
+  const raw = Number((first as { totals?: { totalAmount?: number } })?.totals?.totalAmount ?? 0);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
   return raw;
 }
+
+export type LegWithdrawalBreakdown = {
+  legRootUserId: string;
+  legEarnings: number;
+  legWithdrawableCap: number;
+};
 
 export type ReferralWithdrawalSummary = {
   /** Sum of referral `Income.amount` (full credited earnings; never reduced by the plan cap). */
   totalEarnedAmount: number;
   /**
-   * Balance available to withdraw right now: `min(earned, lifetime cap) − completed − pending`.
-   * End users are capped by their first own order total; staff roles have no cap (`lifetimeWithdrawalCap` is null).
+   * Balance available to withdraw now: `Σ min(leg earnings, per-leg cap) − completed − pending`.
+   * Staff: no per-leg cap (`lifetimeWithdrawalCap` is null).
    */
   withdrawalAmount: number;
-  /** First-order cap for end users; null means unlimited (admin roles). */
+  /** Per-leg cap amount (first order total) for end users; null means unlimited (staff). */
   lifetimeWithdrawalCap: number | null;
-  /** Maximum total referral income that can ever be withdrawn (min(earned, cap) for users). */
+  /** Maximum total referral income that can ever be withdrawn under per-leg caps. */
   maxCumulativeWithdrawalAllowed: number;
   /** Sum of completed withdrawal payouts. */
   totalWithdrawn: number;
   /** Sum of pending withdrawal requests (counts against availability). */
   totalPendingWithdrawals: number;
-  /** Earnings that cannot be withdrawn under the cap (max(0, earned - cap)); 0 for admins. */
+  /** Earnings that cannot be withdrawn under per-leg caps. */
   nonWithdrawableEarnings: number;
+  /** Per direct-referral leg breakdown (optional detail for UI). */
+  legBreakdown?: LegWithdrawalBreakdown[];
 };
 
 function buildReferralWithdrawalSummary(
   totalEarnedAmount: number,
   lifetimeWithdrawalCap: number | null,
+  maxCumulativeWithdrawalAllowed: number,
   totalWithdrawn: number,
   totalPendingWithdrawals: number,
+  legBreakdown?: LegWithdrawalBreakdown[],
 ): ReferralWithdrawalSummary {
-  const maxCumulativeWithdrawalAllowed =
-    lifetimeWithdrawalCap === null
-      ? totalEarnedAmount
-      : Math.min(totalEarnedAmount, Math.max(0, lifetimeWithdrawalCap));
-
   const reserved = totalWithdrawn + totalPendingWithdrawals;
   const withdrawalAmount = Math.max(0, maxCumulativeWithdrawalAllowed - reserved);
 
   const nonWithdrawableEarnings =
-    lifetimeWithdrawalCap === null ? 0 : Math.max(0, totalEarnedAmount - maxCumulativeWithdrawalAllowed);
+    lifetimeWithdrawalCap === null
+      ? 0
+      : Math.max(0, totalEarnedAmount - maxCumulativeWithdrawalAllowed);
 
   return {
     totalEarnedAmount,
@@ -77,7 +90,58 @@ function buildReferralWithdrawalSummary(
     totalWithdrawn,
     totalPendingWithdrawals,
     nonWithdrawableEarnings,
+    ...(legBreakdown?.length ? { legBreakdown } : {}),
   };
+}
+
+function legBreakdownFromMap(
+  legEarnings: Map<string, number>,
+  perLegCap: number | null,
+): LegWithdrawalBreakdown[] {
+  if (perLegCap === null) return [];
+  const cap = Math.max(0, perLegCap);
+  return [...legEarnings.entries()]
+    .map(([legRootUserId, legEarningsTotal]) => ({
+      legRootUserId,
+      legEarnings: legEarningsTotal,
+      legWithdrawableCap: Math.min(legEarningsTotal, cap),
+    }))
+    .sort((a, b) => b.legEarnings - a.legEarnings);
+}
+
+async function loadLegEarningsForEarner(
+  earnerObjectId: mongoose.Types.ObjectId,
+  session?: mongoose.ClientSession | null,
+): Promise<{ totalEarnedAmount: number; legEarnings: Map<string, number> }> {
+  const incomeQuery = IncomeModel.find({ toUser: earnerObjectId })
+    .select("amount fromUser legRootUserId")
+    .lean();
+  if (session) incomeQuery.session(session);
+  const incomes = await incomeQuery;
+
+  const totalEarnedAmount = incomes.reduce(
+    (sum, row) => sum + (Number((row as { amount?: number }).amount) || 0),
+    0,
+  );
+
+  const buyerIds = [
+    ...new Set(
+      incomes
+        .map((row) => String((row as { fromUser?: unknown }).fromUser ?? ""))
+        .filter((id) => mongoose.Types.ObjectId.isValid(id)),
+    ),
+  ].map((id) => new mongoose.Types.ObjectId(id));
+
+  const parentByUserId = await loadParentChainMap(buyerIds, session);
+  const earnerId = earnerObjectId.toString();
+  const lines: IncomeLegLine[] = incomes.map((row) => ({
+    amount: Number((row as { amount?: number }).amount) || 0,
+    fromUser: (row as { fromUser: mongoose.Types.ObjectId }).fromUser,
+    legRootUserId: (row as { legRootUserId?: mongoose.Types.ObjectId | null }).legRootUserId,
+  }));
+
+  const legEarnings = aggregateLegEarningsForEarner(earnerId, lines, parentByUserId);
+  return { totalEarnedAmount, legEarnings };
 }
 
 export type ReferralEarningsListFields = Pick<
@@ -95,9 +159,7 @@ export async function getReferralWithdrawalSummariesBatch(
   const out = new Map<string, ReferralEarningsListFields>();
   if (!userIds.length) return out;
 
-  const uniqueIds = [
-    ...new Map(userIds.map((id) => [id.toString(), id])).values(),
-  ];
+  const uniqueIds = [...new Map(userIds.map((id) => [id.toString(), id])).values()];
 
   const users = await UserModel.find({ _id: { $in: uniqueIds } })
     .select("_id role")
@@ -106,11 +168,10 @@ export async function getReferralWithdrawalSummariesBatch(
     users.map((u) => [String(u._id), String((u as { role?: string }).role ?? "user")]),
   );
 
-  const [earnedAgg, completedAgg, pendingAgg, firstOrders] = await Promise.all([
-    IncomeModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
-      { $match: { toUser: { $in: uniqueIds } } },
-      { $group: { _id: "$toUser", total: { $sum: { $ifNull: ["$amount", 0] } } } },
-    ]),
+  const [incomes, completedAgg, pendingAgg, firstOrders] = await Promise.all([
+    IncomeModel.find({ toUser: { $in: uniqueIds } })
+      .select("toUser amount fromUser legRootUserId")
+      .lean(),
     WithdrawalModel.aggregate<{ _id: mongoose.Types.ObjectId; total: number }>([
       { $match: { user: { $in: uniqueIds }, status: "completed" } },
       { $group: { _id: "$user", total: { $sum: { $ifNull: ["$amount", 0] } } } },
@@ -125,13 +186,12 @@ export async function getReferralWithdrawalSummariesBatch(
       {
         $group: {
           _id: "$user",
-          totalAmount: { $first: "$totals.totalAmount" },
+          totalAmount: { $first: { $ifNull: ["$totals.totalAmount", 0] } },
         },
       },
     ]),
   ]);
 
-  const earnedById = new Map(earnedAgg.map((r) => [String(r._id), Number(r.total) || 0]));
   const withdrawnById = new Map(completedAgg.map((r) => [String(r._id), Number(r.total) || 0]));
   const pendingById = new Map(pendingAgg.map((r) => [String(r._id), Number(r.total) || 0]));
   const firstOrderById = new Map(
@@ -142,17 +202,47 @@ export async function getReferralWithdrawalSummariesBatch(
     }),
   );
 
+  const incomesByEarner = new Map<string, IncomeLegLine[]>();
+  const allBuyerIds = new Set<string>();
+
+  for (const row of incomes) {
+    const earnerKey = String((row as { toUser?: unknown }).toUser ?? "");
+    if (!earnerKey) continue;
+    const line: IncomeLegLine = {
+      amount: Number((row as { amount?: number }).amount) || 0,
+      fromUser: (row as { fromUser: mongoose.Types.ObjectId }).fromUser,
+      legRootUserId: (row as { legRootUserId?: mongoose.Types.ObjectId | null }).legRootUserId,
+    };
+    const list = incomesByEarner.get(earnerKey) ?? [];
+    list.push(line);
+    incomesByEarner.set(earnerKey, list);
+
+    const buyerKey = String(line.fromUser ?? "");
+    if (mongoose.Types.ObjectId.isValid(buyerKey)) allBuyerIds.add(buyerKey);
+  }
+
+  const parentByUserId = await loadParentChainMap(
+    [...allBuyerIds].map((id) => new mongoose.Types.ObjectId(id)),
+  );
+
   for (const id of uniqueIds) {
     const key = id.toString();
     const role = roleById.get(key) ?? "user";
-    const totalEarnedAmount = earnedById.get(key) ?? 0;
-    const lifetimeWithdrawalCap = isReferralStaffRole(role)
-      ? null
-      : (firstOrderById.get(key) ?? 0);
+    const lines = incomesByEarner.get(key) ?? [];
+    const totalEarnedAmount = lines.reduce((sum, l) => sum + (Number(l.amount) || 0), 0);
+    const lifetimeWithdrawalCap = isReferralStaffRole(role) ? null : (firstOrderById.get(key) ?? 0);
+
+    const legEarnings = aggregateLegEarningsForEarner(key, lines, parentByUserId);
+    const maxCumulativeWithdrawalAllowed = computeMaxCumulativeWithdrawalFromLegTotals(
+      legEarnings,
+      lifetimeWithdrawalCap,
+      totalEarnedAmount,
+    );
 
     const summary = buildReferralWithdrawalSummary(
       totalEarnedAmount,
       lifetimeWithdrawalCap,
+      maxCumulativeWithdrawalAllowed,
       withdrawnById.get(key) ?? 0,
       pendingById.get(key) ?? 0,
     );
@@ -169,20 +259,22 @@ export async function getReferralWithdrawalSummariesBatch(
 
 export async function getReferralWithdrawalSummary(
   userId: string,
-  session?: mongoose.ClientSession | null
+  session?: mongoose.ClientSession | null,
 ): Promise<ReferralWithdrawalSummary> {
   const userObjectId = new mongoose.Types.ObjectId(userId);
 
-  const earnedPipe = [
-    { $match: { toUser: userObjectId } },
-    { $group: { _id: null, total: { $sum: { $ifNull: ["$amount", 0] } } } },
-  ];
-  const earnedAggQ = IncomeModel.aggregate<{ _id: null; total: number }>(earnedPipe);
-  if (session) earnedAggQ.session(session);
-  const earnedAgg = await earnedAggQ;
-  const totalEarnedAmount = Number(earnedAgg[0]?.total ?? 0) || 0;
-
   const lifetimeWithdrawalCap = await getFirstOrderWithdrawalCap(userObjectId, session);
+
+  const { totalEarnedAmount, legEarnings } = await loadLegEarningsForEarner(
+    userObjectId,
+    session,
+  );
+
+  const maxCumulativeWithdrawalAllowed = computeMaxCumulativeWithdrawalFromLegTotals(
+    legEarnings,
+    lifetimeWithdrawalCap,
+    totalEarnedAmount,
+  );
 
   const completedPipe = [
     { $match: { user: userObjectId, status: "completed" } },
@@ -202,10 +294,14 @@ export async function getReferralWithdrawalSummary(
   const pendingAgg = await pendingAggQ;
   const totalPendingWithdrawals = Number(pendingAgg[0]?.total ?? 0) || 0;
 
+  const legBreakdown = legBreakdownFromMap(legEarnings, lifetimeWithdrawalCap);
+
   return buildReferralWithdrawalSummary(
     totalEarnedAmount,
     lifetimeWithdrawalCap,
+    maxCumulativeWithdrawalAllowed,
     totalWithdrawn,
     totalPendingWithdrawals,
+    legBreakdown,
   );
 }

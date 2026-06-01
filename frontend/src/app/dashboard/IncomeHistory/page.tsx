@@ -225,7 +225,7 @@ export default function IncomeHistoryPage() {
       );
       if (summary.lifetimeWithdrawalCap != null) {
         meta.push({
-          label: "Withdrawal plan limit",
+          label: "Per-leg cap (first order)",
           value: summary.lifetimeWithdrawalCap.toFixed(2),
         });
       }
@@ -403,7 +403,7 @@ export default function IncomeHistoryPage() {
           <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Total earned (lifetime)</p>
             <p className="text-lg font-semibold text-emerald-900">{formatINRPrecise(totalEarnedLifetime)}</p>
-            <p className="mt-1 text-xs text-emerald-800/70">Full referral credits (not reduced by plan cap)</p>
+            <p className="mt-1 text-xs text-emerald-800/70">Full referral credits (withdrawal capped per leg)</p>
           </div>
           <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
             <p className="text-xs font-medium uppercase tracking-wide text-sky-800/80">Withdrawal amount</p>
@@ -412,8 +412,8 @@ export default function IncomeHistoryPage() {
               {summary.lifetimeWithdrawalCap == null
                 ? "Staff role: no withdrawal cap."
                 : summary.nonWithdrawableEarnings > 0
-                  ? `${formatINRPrecise(summary.nonWithdrawableEarnings)} earned above your withdrawable limit stays on record.`
-                  : "Amount you can request to withdraw now (after plan limit and pending requests)."}
+                  ? `${formatINRPrecise(summary.nonWithdrawableEarnings)} earned above per-leg withdrawable limits stays on record.`
+                  : "Amount you can request now (per-leg caps and pending requests applied)."}
             </p>
           </div>
         </div>

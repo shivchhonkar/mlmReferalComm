@@ -14,6 +14,8 @@ const incomeSchema = new Schema(
     amount: { type: Number, required: true, min: 0 },
     // Per-line gross credited the same as `amount`. Cumulative withdrawable balance is computed in `getReferralWithdrawalSummary` (not summed from this field).
     withdrawableAmount: { type: Number, required: true, min: 0, default: 0 },
+    /** Direct-referral leg root for per-leg withdrawal cap (earner's child on path from buyer). */
+    legRootUserId: { type: Schema.Types.ObjectId, ref: "User", default: null, index: true },
   },
   { timestamps: true }
 );

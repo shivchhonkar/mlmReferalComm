@@ -6,7 +6,9 @@
     "dev": "nodemon --watch src --ext ts,json --exec \"tsx\" src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "create-super-admin": "tsx scripts/create-super-admin.ts"
+    "create-super-admin": "tsx scripts/create-super-admin.ts",
+    "backfill-income-leg-root": "tsx scripts/backfill-income-leg-root.ts",
+    "test:leg-cap": "tsx --test src/lib/__tests__/referralLegRoot.test.ts"
   },
   "dependencies": {
     "@paralleldrive/cuid2": "^3.0.6",

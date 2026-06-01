@@ -100,10 +100,13 @@ async function distributeBusinessVolumeInSession(options: {
     bv: number;
     amount: number;
     withdrawableAmount: number;
+    legRootUserId: mongoose.Types.ObjectId;
   }> = [];
 
   // Guardrail for corrupt graphs (should be impossible with correct parent assignment).
   const MAX_LEVELS = 50_000;
+  /** Node on buyer → upline path; parent of this node is current recipient (leg root for this level). */
+  let pathNodeFromBuyer: mongoose.Types.ObjectId = userObjectId;
 
   while (parentId) {
     const parentKey = parentId.toString();
@@ -141,6 +144,7 @@ async function distributeBusinessVolumeInSession(options: {
           bv,
           amount: incomeAmount,
           withdrawableAmount: incomeAmount,
+          legRootUserId: pathNodeFromBuyer,
         });
       }
     }
@@ -149,6 +153,7 @@ async function distributeBusinessVolumeInSession(options: {
       throw new Error("Referral chain too deep or corrupt");
     }
 
+    pathNodeFromBuyer = parentId;
     parentId = (recipient as any)?.parent ? new mongoose.Types.ObjectId((recipient as any).parent) : null;
 
     level += 1;

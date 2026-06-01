@@ -607,9 +607,9 @@ export default function PaymentTransactionsPage() {
       {summary && summary.lifetimeWithdrawalCap != null ? (
         <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600 shadow-sm">
           <p>
-            <span className="font-medium text-zinc-800">Withdrawal plan limit:</span>{" "}
-            {formatINRPrecise(summary.lifetimeWithdrawalCap)} (based on your first order).{" "}
-            <span className="font-medium text-zinc-800">Max you can ever withdraw:</span>{" "}
+            <span className="font-medium text-zinc-800">Per-leg cap:</span>{" "}
+            {formatINRPrecise(summary.lifetimeWithdrawalCap)} per direct referral leg (from your first order).{" "}
+            <span className="font-medium text-zinc-800">Max you can withdraw:</span>{" "}
             {formatINRPrecise(summary.maxCumulativeWithdrawalAllowed)}.
             {summary.nonWithdrawableEarnings > 0 ? (
               <>

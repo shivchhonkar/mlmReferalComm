@@ -34,7 +34,10 @@ import { ServiceActionLogModel } from "@/models/ServiceActionLog";
 import { OrderModel } from "@/models/Order";
 import { IncomeModel } from "@/models/Income";
 import { WithdrawalModel } from "@/models/Withdrawal";
-import { getReferralWithdrawalSummary } from "@/lib/referralWithdrawalSummary";
+import {
+  getReferralWithdrawalSummary,
+  getReferralWithdrawalSummariesBatch,
+} from "@/lib/referralWithdrawalSummary";
 import { sendEmail } from "@/lib/email";
 import mongoose from "mongoose";
 
@@ -436,11 +439,14 @@ export function registerAdminRoutes(app: Express) {
         });
       }
 
+      const withdrawalSummaries = await getReferralWithdrawalSummariesBatch(userIds);
+
       users = users.map((u: any) => {
         const id = String(u?._id || "");
         const capAmount = capMap.get(id) ?? 0;
         const earnedSoFar = earnedMap.get(id) ?? 0;
-        const remainingCap = Math.max(capAmount - earnedSoFar, 0);
+        const wSummary = withdrawalSummaries.get(id);
+        const remainingCap = wSummary?.withdrawalAmount ?? 0;
         return {
           ...u,
           commissionCapAmount: capAmount,

@@ -344,7 +344,7 @@ export default function ServiceIncomeReportsPage() {
             <p className="text-xs font-medium uppercase tracking-wide text-sky-800/80">Withdrawal amount</p>
             <p className="text-lg font-semibold text-sky-900">{formatINRPrecise(summary.withdrawalAmount)}</p>
             <p className="mt-1 text-xs text-sky-800/70">
-              {summary.lifetimeWithdrawalCap == null ? "No cap for staff roles." : "Available to request after plan cap."}
+              {summary.lifetimeWithdrawalCap == null ? "No cap for staff roles." : "Available after per-leg caps (first order amount per leg)."}
             </p>
           </div>
         </div>

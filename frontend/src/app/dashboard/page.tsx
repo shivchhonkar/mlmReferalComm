@@ -697,7 +697,7 @@ export default function DashboardPage() {
                   </p>
                   {incomeSummary != null && incomeSummary.nonWithdrawableEarnings > 0 ? (
                     <p className="text-[11px] text-zinc-500 mb-3">
-                      {formatINRPrecise(incomeSummary.nonWithdrawableEarnings)} is not withdrawable under your plan cap
+                      {formatINRPrecise(incomeSummary.nonWithdrawableEarnings)} is not withdrawable under per-leg caps
                       but remains recorded as earned.
                     </p>
                   ) : (
