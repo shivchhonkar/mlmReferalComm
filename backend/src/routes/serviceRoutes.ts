@@ -34,6 +34,7 @@ router.get("/", async (_req, res) => {
       image: service.image || '/images/default-service.jpg',
       price: service.price || 0,
       businessVolume: service.businessVolume || 0,
+      bvPercentage: (service as { bvPercentage?: number }).bvPercentage,
       paymentType: (service as any).paymentType || 'fixed_upi',
       fixedUpiId: (service as any).fixedUpiId || undefined,
       requiresAdminPricing: Boolean((service as any).requiresAdminPricing),

@@ -22,13 +22,21 @@ import {
   CheckCircle2,
   Link2,
   ExternalLink,
+  Copy,
+  Check,
+  ImagePlus,
+  Loader2,
 } from "lucide-react";
+import { buildUpiPayUrl, upiQrImageUrl } from "@/lib/upiPayment";
 import {
   canMarkDynamicPaid,
   canMarkDynamicPaymentReceived,
   DYNAMIC_PAYMENT_STEP_LABELS,
+  dynamicOrderHasPaymentProof,
+  dynamicPaymentProofVerified,
   dynamicPaymentStep,
   isPaymentLinkSharedStatus,
+  orderHasAdminPricingSet,
   servicePaymentStatusLabel,
 } from "@/lib/servicePayment";
 
@@ -150,7 +158,7 @@ function safeNum(n: unknown, fallback = 0) {
 
 const ORDER_ROW_GAP = 16;
 const ORDER_ROW_COLLAPSED_HEIGHT = 96;
-const ORDER_ROW_EXPANDED_ESTIMATE = 640;
+const ORDER_ROW_EXPANDED_ESTIMATE = 880;
 
 /* -------------------- DYNAMIC PAYMENT ADMIN WORKFLOW -------------------- */
 
@@ -191,47 +199,83 @@ function DynamicPaymentStepper({ currentStep }: { currentStep: number }) {
   );
 }
 
+type DynamicOrderLine = {
+  serviceId: string;
+  name: string;
+  quantity: number;
+  price: number;
+  bv?: number;
+};
+
 type DynamicPaymentAdminProps = {
   order: UiOrder;
+  lines: DynamicOrderLine[];
+  priceDraft: Record<string, string>;
+  onPriceChange: (serviceId: string, value: string) => void;
+  onSavePricing: () => void;
   paymentLinkDraft: string;
   onPaymentLinkChange: (value: string) => void;
   onConfirm: () => void;
   onCancel: () => void;
   onShareLink: () => void;
-  onPaymentReceived: () => void;
+  onSendUpiPaymentRequest: () => void;
+  onApproveProof: () => void;
   onMarkPaid: () => void;
+  platformUpi: string;
   confirming: boolean;
   cancelling: boolean;
   saving: boolean;
+  savingPricing: boolean;
+  reviewingProof: boolean;
 };
 
 function DynamicPaymentAdminPanel({
   order,
+  lines,
+  priceDraft,
+  onPriceChange,
+  onSavePricing,
   paymentLinkDraft,
   onPaymentLinkChange,
   onConfirm,
   onCancel,
   onShareLink,
-  onPaymentReceived,
+  onSendUpiPaymentRequest,
+  onApproveProof,
   onMarkPaid,
+  platformUpi,
   confirming,
   cancelling,
   saving,
+  savingPricing,
+  reviewingProof,
 }: DynamicPaymentAdminProps) {
-  const step = dynamicPaymentStep(order.status, order.servicePaymentStatus);
+  const step = dynamicPaymentStep(order.status, order.servicePaymentStatus, order.total);
   const linkValue = paymentLinkDraft || order.paymentLink || "";
   const linkShared = isPaymentLinkSharedStatus(order.servicePaymentStatus);
   const paymentReceived = order.servicePaymentStatus === "payment_received";
   const isPaid = order.servicePaymentStatus === "paid" || order.paymentStatus === "PAID";
+  const pricingSet = orderHasAdminPricingSet(order.total);
+  const hasProof = dynamicOrderHasPaymentProof({
+    paymentProofUrl: order.paymentProofUrl,
+  });
+  const proofVerified = dynamicPaymentProofVerified({
+    paymentReviewStatus: order.paymentReviewStatus,
+  });
+  const draftTotal = lines.reduce((sum, line) => {
+    const p = Number(priceDraft[line.serviceId] ?? line.price);
+    return sum + (Number.isFinite(p) ? p : 0) * line.quantity;
+  }, 0);
 
   return (
     <div className="mt-4 rounded-lg border border-sky-200 bg-gradient-to-b from-sky-50/80 to-white p-4">
       <p className="text-sm font-semibold text-slate-900">Dynamic payment — admin workflow</p>
       <p className="mt-1 text-xs text-slate-600">
-        Complete each step in order. BV and commission run only after step 4 (Mark paid).
+        Set the customer-specific price, then share the payment link. BV and commission run only after
+        step 5 (Mark paid).
       </p>
       <div className="mt-4">
-        <DynamicPaymentStepper currentStep={isPaid ? 5 : step} />
+        <DynamicPaymentStepper currentStep={isPaid ? 6 : step} />
       </div>
 
       {order.status === "PENDING" && (
@@ -259,62 +303,152 @@ function DynamicPaymentAdminPanel({
         (order.status === "CONFIRMED" || order.status === "COMPLETED") &&
         !isPaid && (
         <div className="mt-4 space-y-4">
-          <div>
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Payment link (step 2)
+          <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-amber-900">
+              Customer price (step 2)
             </label>
-            <input
-              type="url"
-              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:bg-slate-50"
-              placeholder="https://payment-link..."
-              value={linkValue}
-              onChange={(e) => onPaymentLinkChange(e.target.value)}
-              disabled={paymentReceived || saving}
-            />
-            {linkShared && order.paymentLink ? (
-              <a
-                href={order.paymentLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:underline"
+            <p className="mt-1 text-xs text-amber-800">
+              Enter the final amount for this order. BV is calculated from this price when you mark
+              paid.
+            </p>
+            <ul className="mt-3 space-y-2">
+              {lines.map((line) => (
+                <li
+                  key={line.serviceId}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-100 bg-white px-3 py-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-slate-900">{line.name}</p>
+                    <p className="text-xs text-slate-500">Qty ×{line.quantity}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-slate-600">₹</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:bg-slate-50"
+                      value={priceDraft[line.serviceId] ?? ""}
+                      onChange={(e) => onPriceChange(line.serviceId, e.target.value)}
+                      disabled={paymentReceived || saving || savingPricing || isPaid}
+                      placeholder="0"
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-slate-700">
+                Draft total: <strong>{formatINR(draftTotal)}</strong>
+                {pricingSet ? (
+                  <span className="ml-2 text-emerald-700">(saved: {formatINR(order.total)})</span>
+                ) : null}
+              </span>
+              <button
+                type="button"
+                onClick={onSavePricing}
+                disabled={
+                  savingPricing ||
+                  saving ||
+                  paymentReceived ||
+                  isPaid ||
+                  !lines.every((l) => {
+                    const p = Number(priceDraft[l.serviceId]);
+                    return Number.isFinite(p) && p > 0;
+                  })
+                }
+                className="inline-flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-100 px-4 py-2 text-sm font-medium text-amber-950 hover:bg-amber-200 disabled:opacity-50"
               >
-                <ExternalLink className="h-3.5 w-3.5" />
-                Open saved link
-              </a>
+                {savingPricing ? "Saving…" : pricingSet ? "Update price" : "Save order price"}
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-sky-200 bg-sky-50/50 p-3">
+            <label className="text-xs font-semibold uppercase tracking-wide text-sky-900">
+              Send payment request (step 3)
+            </label>
+            <p className="mt-1 text-xs text-sky-800">
+              Customer pays via UPI on their Orders page (Scan &amp; Pay for{" "}
+              <strong>{formatINR(order.total)}</strong>
+              {platformUpi ? (
+                <>
+                  {" "}
+                  to <strong>{platformUpi}</strong>
+                </>
+              ) : (
+                <> — configure UPI in Admin → Payment Settings</>
+              )}
+              ).
+            </p>
+            {linkShared ? (
+              <p className="mt-2 text-xs font-medium text-emerald-700">
+                Payment request sent — customer can pay from My Orders.
+              </p>
             ) : null}
+            <div className="mt-3">
+              <label className="text-xs text-slate-600">Optional: custom payment URL</label>
+              <input
+                type="url"
+                className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm disabled:bg-slate-50"
+                placeholder="https://razorpay.me/... (leave blank to use platform UPI)"
+                value={linkValue}
+                onChange={(e) => onPaymentLinkChange(e.target.value)}
+                disabled={paymentReceived || saving || !pricingSet}
+              />
+            </div>
           </div>
 
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
+              onClick={onSendUpiPaymentRequest}
+              disabled={saving || !pricingSet || !platformUpi.trim() || paymentReceived || linkShared}
+              className="inline-flex items-center gap-2 rounded-xl bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700 disabled:opacity-50"
+            >
+              {saving ? "Sending…" : "3. Send UPI payment request"}
+            </button>
+            <button
+              type="button"
               onClick={onShareLink}
               disabled={
                 saving ||
+                !pricingSet ||
                 !linkValue.trim() ||
                 paymentReceived ||
                 (linkShared && linkValue.trim() === (order.paymentLink ?? "").trim())
               }
               className="inline-flex items-center gap-2 rounded-xl border border-sky-300 bg-sky-100 px-4 py-2 text-sm font-medium text-sky-900 hover:bg-sky-200 disabled:opacity-50"
             >
-              {saving ? "Saving…" : linkShared ? "Update link" : "2. Payment link shared"}
+              {saving ? "Saving…" : linkShared ? "Update custom link" : "Use custom link instead"}
             </button>
 
             <button
               type="button"
-              onClick={onPaymentReceived}
-              disabled={saving || !canMarkDynamicPaymentReceived(order.servicePaymentStatus)}
+              onClick={onApproveProof}
+              disabled={
+                saving ||
+                reviewingProof ||
+                !linkShared ||
+                proofVerified ||
+                !hasProof
+              }
               className="inline-flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 px-4 py-2 text-sm font-medium text-violet-900 hover:bg-violet-100 disabled:opacity-50"
             >
-              3. Payment received
+              {reviewingProof ? "Verifying…" : "4. Verify payment proof"}
             </button>
 
             <button
               type="button"
               onClick={onMarkPaid}
-              disabled={saving || !canMarkDynamicPaid(order.servicePaymentStatus)}
+              disabled={
+                saving ||
+                !canMarkDynamicPaid(order.servicePaymentStatus) ||
+                !proofVerified
+              }
               className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
             >
-              4. Mark paid
+              5. Mark paid
             </button>
 
             {order.status === "CONFIRMED" && (
@@ -329,20 +463,52 @@ function DynamicPaymentAdminPanel({
             )}
           </div>
 
-          {!linkShared && (
+          {!pricingSet && (
             <p className="text-xs text-amber-700">
-              Save the payment link and mark it shared before recording payment received.
+              Save the order price before sharing a payment link with the customer.
             </p>
           )}
-          {linkShared && !paymentReceived && (
+          {pricingSet && !linkShared && (
+            <p className="text-xs text-sky-700">
+              Price saved ({formatINR(order.total)}). Add the payment link and mark it shared.
+            </p>
+          )}
+          {linkShared && !hasProof && !paymentReceived && (
             <p className="text-xs text-violet-700">
-              After the customer pays via the link, click &quot;Payment received&quot;.
+              Waiting for the customer to pay and upload payment proof.
             </p>
           )}
-          {paymentReceived && (
-            <p className="text-xs text-emerald-700">
-              Payment received — click &quot;Mark paid&quot; to confirm and distribute BV.
+          {linkShared && hasProof && !proofVerified && (
+            <p className="text-xs text-violet-700">
+              Payment proof uploaded — review the screenshot below, then verify.
             </p>
+          )}
+          {paymentReceived && proofVerified && (
+            <p className="text-xs text-emerald-700">
+              Payment verified — click &quot;Mark paid&quot; to confirm and distribute BV.
+            </p>
+          )}
+
+          {hasProof && (
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Customer payment proof
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  const url = getProofImageUrl(order.paymentProofUrl);
+                  if (url) window.open(url, "_blank", "noopener,noreferrer");
+                }}
+                className="mt-2 block text-left"
+              >
+                <img
+                  src={getProofImageUrl(order.paymentProofUrl)}
+                  alt="Payment proof"
+                  className="max-h-40 rounded-lg border border-slate-200 object-contain"
+                />
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -350,6 +516,234 @@ function DynamicPaymentAdminPanel({
       {isPaid && (
         <p className="mt-3 text-sm font-medium text-emerald-700">This order is fully paid and fulfilled.</p>
       )}
+    </div>
+  );
+}
+
+type CustomerDynamicPaymentProps = {
+  order: UiOrder;
+  platformUpi: string;
+  onReload: () => void;
+};
+
+function CustomerDynamicPaymentPanel({
+  order,
+  platformUpi,
+  onReload,
+}: CustomerDynamicPaymentProps) {
+  const [proofUploading, setProofUploading] = useState(false);
+  const [copiedField, setCopiedField] = useState<"upi" | "link" | null>(null);
+
+  const linkShared = isPaymentLinkSharedStatus(order.servicePaymentStatus);
+  const isPaid = order.servicePaymentStatus === "paid" || order.paymentStatus === "PAID";
+  const proofVerified = dynamicPaymentProofVerified({
+    paymentReviewStatus: order.paymentReviewStatus,
+  });
+  const hasProof = dynamicOrderHasPaymentProof({ paymentProofUrl: order.paymentProofUrl });
+  const canPay =
+    linkShared &&
+    !isPaid &&
+    orderHasAdminPricingSet(order.total) &&
+    (order.status === "CONFIRMED" || order.status === "COMPLETED");
+
+  const globalUpi = (process.env.NEXT_PUBLIC_UPI_ID ?? "").trim();
+  const effectiveUpi = (platformUpi || globalUpi).trim();
+  const payAmount = order.total;
+  const upiPayLink = useMemo(() => {
+    if (order.paymentLink?.startsWith("upi://")) return order.paymentLink;
+    return buildUpiPayUrl({
+      vpa: effectiveUpi,
+      amount: payAmount,
+      note: `Order ${order.orderNumber}`,
+    });
+  }, [order.paymentLink, order.orderNumber, effectiveUpi, payAmount]);
+
+  const qrUrl = useMemo(() => upiQrImageUrl(upiPayLink), [upiPayLink]);
+
+  async function copyText(value: string, field: "upi" | "link") {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+      showSuccessToast(field === "upi" ? "UPI ID copied" : "Payment link copied");
+    } catch {
+      showErrorToast("Unable to copy. Please copy manually.");
+    }
+  }
+
+  async function handleProofUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      showErrorToast("Please select an image file (JPG, PNG, GIF, or WebP)");
+      return;
+    }
+    setProofUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      const uploadRes = await apiFetch("/api/upload/payment-proof", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      });
+      const uploadBody = await readApiBody(uploadRes);
+      const uploadData = uploadBody.json as { imageUrl?: string; error?: string };
+      if (!uploadRes.ok) throw new Error(uploadData?.error || "Upload failed");
+
+      const proofUrl = uploadData.imageUrl || "";
+      const res = await apiFetch(`/api/orders/${order.id}/payment-proof`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentProofUrl: proofUrl }),
+      });
+      const data = (await readApiBody(res)).json as { message?: string; error?: string };
+      if (!res.ok) throw new Error(data?.message || data?.error || "Failed to submit proof");
+      showSuccessToast(data?.message || "Payment proof submitted.");
+      onReload();
+    } catch (err: unknown) {
+      showErrorToast(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setProofUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  if (!order.isDynamicPayment) return null;
+
+  if (order.status === "PENDING") {
+    return (
+      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+        Your order is being reviewed. You will be able to pay via UPI after admin confirms and sends a
+        payment request.
+      </div>
+    );
+  }
+
+  if (
+    order.servicePaymentStatus === "awaiting_payment_link" ||
+    order.servicePaymentStatus === "pending"
+  ) {
+    return (
+      <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-900">
+        Order confirmed. Admin will set your price and send a UPI payment request shortly.
+      </div>
+    );
+  }
+
+  if (isPaid) {
+    return (
+      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800">
+        Payment complete. Thank you!
+      </div>
+    );
+  }
+
+  if (!canPay) return null;
+
+  return (
+    <div className="mt-4 rounded-lg border border-emerald-200 bg-gradient-to-b from-emerald-50/90 to-white p-4">
+      <p className="text-sm font-semibold text-slate-900">Pay via UPI</p>
+      <p className="mt-1 text-xs text-slate-600">
+        Pay exactly <strong>{formatINR(payAmount)}</strong>, then upload your payment screenshot.
+      </p>
+
+      {effectiveUpi && upiPayLink ? (
+        <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-3">
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
+            {qrUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrUrl}
+                alt="UPI QR code"
+                className="h-36 w-36 rounded-lg border border-slate-200 bg-white object-contain"
+              />
+            ) : null}
+            <div className="w-full min-w-0 space-y-2">
+              <div className="rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                UPI ID: <span className="font-semibold text-slate-900">{effectiveUpi}</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyText(effectiveUpi, "upi")}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                >
+                  {copiedField === "upi" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copiedField === "upi" ? "Copied" : "Copy UPI ID"}
+                </button>
+                <a
+                  href={upiPayLink}
+                  className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+                >
+                  <Wallet className="h-3.5 w-3.5" />
+                  Open in UPI app
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-amber-800">UPI details are not available. Contact support.</p>
+      )}
+
+      {order.paymentLink && !order.paymentLink.startsWith("upi://") ? (
+        <a
+          href={order.paymentLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Alternate payment link
+        </a>
+      ) : null}
+
+      <div className="mt-4 border-t border-emerald-100 pt-4">
+        <label className="text-sm font-semibold text-slate-900">Payment screenshot *</label>
+        <p className="mt-1 text-xs text-slate-600">
+          Upload proof after paying. Admin will verify before your order is marked paid.
+        </p>
+        {hasProof ? (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-emerald-700">✓ Proof submitted</p>
+            <button
+              type="button"
+              onClick={() => {
+                const url = getProofImageUrl(order.paymentProofUrl);
+                if (url) window.open(url, "_blank", "noopener,noreferrer");
+              }}
+              className="mt-2 block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={getProofImageUrl(order.paymentProofUrl)}
+                alt="Your payment proof"
+                className="max-h-32 rounded-lg border border-slate-200 object-contain"
+              />
+            </button>
+            {proofVerified ? (
+              <p className="mt-2 text-xs text-violet-700">Verified by admin — awaiting final confirmation.</p>
+            ) : (
+              <p className="mt-2 text-xs text-amber-700">Awaiting admin verification.</p>
+            )}
+          </div>
+        ) : (
+          <div className="mt-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-300 bg-white px-4 py-2 text-sm font-medium text-emerald-900 hover:bg-emerald-50 disabled:opacity-60">
+              {proofUploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImagePlus className="h-4 w-4" />}
+              {proofUploading ? "Uploading…" : "Upload payment screenshot"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={proofUploading}
+                onChange={handleProofUpload}
+              />
+            </label>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -457,7 +851,10 @@ export default function OrdersPage() {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [paymentLinkDraft, setPaymentLinkDraft] = useState<Record<string, string>>({});
+  const [priceDraft, setPriceDraft] = useState<Record<string, Record<string, string>>>({});
   const [savingPaymentId, setSavingPaymentId] = useState<string | null>(null);
+  const [savingPricingId, setSavingPricingId] = useState<string | null>(null);
+  const [platformUpi, setPlatformUpi] = useState("");
   const [query, setQuery] = useState("");
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
   const listScrollRef = useRef<HTMLDivElement>(null);
@@ -586,9 +983,67 @@ export default function OrdersPage() {
     updateOrderStatus(orderId, "CONFIRMED");
   }
 
+  function buildDynamicOrderLines(order: UiOrder): DynamicOrderLine[] {
+    const rawItems = order.raw?.items ?? [];
+    return rawItems.map((it) => {
+      const serviceId = String(it.service ?? it.id ?? "").trim();
+      return {
+        serviceId,
+        name: String(it.name ?? "Service"),
+        quantity: safeNum(it.quantity, 1),
+        price: safeNum(it.price, 0),
+        bv: typeof it.bv === "number" ? it.bv : undefined,
+      };
+    }).filter((l) => l.serviceId);
+  }
+
+  function ensurePriceDraft(order: UiOrder) {
+    const lines = buildDynamicOrderLines(order);
+    setPriceDraft((prev) => {
+      if (prev[order.id]) return prev;
+      const next: Record<string, string> = {};
+      for (const line of lines) {
+        next[line.serviceId] =
+          line.price > 0 ? String(line.price) : "";
+      }
+      return { ...prev, [order.id]: next };
+    });
+  }
+
+  async function saveOrderPricing(order: UiOrder) {
+    const lines = buildDynamicOrderLines(order);
+    const draft = priceDraft[order.id] ?? {};
+    const items = lines.map((line) => {
+      const price = Number(draft[line.serviceId]);
+      return { serviceId: line.serviceId, price };
+    });
+
+    setSavingPricingId(order.id);
+    try {
+      const res = await apiFetch(`/api/orders/${order.id}/pricing`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = (await readApiBody(res)).json as { message?: string; error?: string };
+      if (!res.ok) throw new Error(data?.message || data?.error || "Failed to save price");
+      showSuccessToast(data?.message || "Order price saved.");
+      await loadOrders();
+    } catch (err: unknown) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to save price");
+    } finally {
+      setSavingPricingId(null);
+    }
+  }
+
   async function saveServicePayment(
     orderId: string,
-    opts: { paymentLink?: string; action?: "payment_received"; markPaid?: boolean },
+    opts: {
+      paymentLink?: string;
+      usePlatformUpi?: boolean;
+      action?: "payment_received";
+      markPaid?: boolean;
+    },
   ) {
     setSavingPaymentId(orderId);
     try {
@@ -597,6 +1052,7 @@ export default function OrdersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(opts.paymentLink !== undefined ? { paymentLink: opts.paymentLink } : {}),
+          ...(opts.usePlatformUpi ? { usePlatformUpi: true } : {}),
           ...(opts.action ? { action: opts.action } : {}),
           ...(opts.markPaid ? { markPaid: true } : {}),
         }),
@@ -609,7 +1065,9 @@ export default function OrdersPage() {
           ? "Payment marked paid. BV distributed."
           : opts.action === "payment_received"
             ? "Payment marked as received."
-            : "Payment link saved.");
+            : opts.usePlatformUpi
+              ? "UPI payment request sent to customer."
+              : "Payment link saved.");
       showSuccessToast(msg);
       await loadOrders();
     } catch (err: any) {
@@ -629,7 +1087,16 @@ export default function OrdersPage() {
       });
       const data = (await readApiBody(res)).json as any;
       if (!res.ok) throw new Error(data?.message || data?.error || "Failed");
-      showSuccessToast(action === "approve" ? "Payment approved. Order confirmed." : "Payment rejected.");
+      const orderRow = orders.find((o) => o.id === orderId);
+      const dynamicApprove =
+        action === "approve" && orderRow?.isDynamicPayment;
+      showSuccessToast(
+        dynamicApprove
+          ? "Payment proof verified. You can mark the order as paid."
+          : action === "approve"
+            ? "Payment approved. Order confirmed."
+            : "Payment rejected.",
+      );
       await loadOrders();
       setExpandedId(null);
     } catch (err: any) {
@@ -639,9 +1106,21 @@ export default function OrdersPage() {
     }
   }
 
+  async function loadCheckoutUpi() {
+    try {
+      const res = await apiFetch("/api/orders/checkout-upi");
+      const data = (await readApiBody(res)).json as { upiLink?: string };
+      if (res.ok && data?.upiLink) setPlatformUpi(String(data.upiLink).trim());
+    } catch {
+      setPlatformUpi("");
+    }
+  }
+
   useEffect(() => {
-    if (user) loadOrders();
-    else {
+    if (user) {
+      loadOrders();
+      loadCheckoutUpi();
+    } else {
       setOrders([]);
       setLoading(false);
     }
@@ -919,7 +1398,11 @@ export default function OrdersPage() {
                   {/* Summary row - always visible */}
                   <div
                     className="flex cursor-pointer flex-wrap items-center gap-4 p-5 sm:p-6"
-                    onClick={() => setExpandedId(isExpanded ? null : order.id)}
+                    onClick={() => {
+                      const next = isExpanded ? null : order.id;
+                      if (next && order.isDynamicPayment) ensurePriceDraft(order);
+                      setExpandedId(next);
+                    }}
                   >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100">
                       <Receipt className="h-5 w-5 text-slate-600" />
@@ -961,13 +1444,17 @@ export default function OrdersPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-sm font-medium text-emerald-700">
-                        {formatINR(order.total)}
+                        {order.isDynamicPayment && !orderHasAdminPricingSet(order.total)
+                          ? "Price pending"
+                          : formatINR(order.total)}
                       </span>
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setExpandedId(isExpanded ? null : order.id);
+                          const next = isExpanded ? null : order.id;
+                          if (next && order.isDynamicPayment) ensurePriceDraft(order);
+                          setExpandedId(next);
                         }}
                         className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 hover:cursor-pointer"
                         aria-label={isExpanded ? "Collapse details" : "View details"}
@@ -1094,40 +1581,13 @@ export default function OrdersPage() {
                                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Awaiting review</span>
                               )}
                             </div>
-                            {order.isDynamicPayment && (
-                              <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm">
-                                {order.status === "PENDING" ? (
-                                  <p className="text-sm text-amber-800">
-                                    Order is being reviewed. You will get a payment link after it is confirmed.
-                                  </p>
-                                ) : order.servicePaymentStatus === "awaiting_payment_link" ||
-                                  order.servicePaymentStatus === "pending" ? (
-                                  <p className="text-sm text-amber-800">
-                                    Order confirmed — payment link will be shared shortly.
-                                  </p>
-                                ) : isPaymentLinkSharedStatus(order.servicePaymentStatus) ? (
-                                  <p className="text-sm text-sky-800">
-                                    Payment link is ready. Please complete payment using the link below.
-                                  </p>
-                                ) : order.servicePaymentStatus === "payment_received" ? (
-                                  <p className="text-sm text-violet-800">
-                                    Payment recorded — awaiting final confirmation.
-                                  </p>
-                                ) : order.paymentLink ? (
-                                  <a
-                                    href={order.paymentLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:underline"
-                                  >
-                                    <Link2 className="h-4 w-4" />
-                                    Pay now
-                                  </a>
-                                ) : (
-                                  <p className="text-xs text-slate-600">Payment link not available yet.</p>
-                                )}
-                              </div>
-                            )}
+                            {!isAdmin && order.isDynamicPayment ? (
+                              <CustomerDynamicPaymentPanel
+                                order={order}
+                                platformUpi={platformUpi}
+                                onReload={loadOrders}
+                              />
+                            ) : null}
                             {order.paymentMode === "UPI" && order.paymentProofUrl && (
                               <div className="mt-3">
                                 <p className="text-xs font-medium text-slate-600">Your payment screenshot</p>
@@ -1170,14 +1630,20 @@ export default function OrdersPage() {
                                 </span>
                               </div>
                               <span className="text-xs font-semibold text-slate-900">
-                                {formatINR(safeNum(it.price, 0) * safeNum(it.quantity, 1))}
+                                {order.isDynamicPayment && safeNum(it.price, 0) <= 0
+                                  ? "—"
+                                  : formatINR(safeNum(it.price, 0) * safeNum(it.quantity, 1))}
                               </span>
                             </li>
                           ))}
                         </ul>
                         <div className="mt-3 flex justify-between border-t border-slate-200 pt-3 text-sm font-semibold text-slate-900">
                           <span>Total</span>
-                          <span>{formatINR(order.total)}</span>
+                          <span>
+                            {order.isDynamicPayment && !orderHasAdminPricingSet(order.total)
+                              ? "Price pending"
+                              : formatINR(order.total)}
+                          </span>
                         </div>
                       </div>
 
@@ -1186,25 +1652,42 @@ export default function OrdersPage() {
                         order.status !== "CANCELLED" && (
                           <DynamicPaymentAdminPanel
                             order={order}
+                            lines={buildDynamicOrderLines(order)}
+                            priceDraft={priceDraft[order.id] ?? {}}
+                            onPriceChange={(serviceId, value) => {
+                              ensurePriceDraft(order);
+                              setPriceDraft((prev) => ({
+                                ...prev,
+                                [order.id]: {
+                                  ...(prev[order.id] ?? {}),
+                                  [serviceId]: value,
+                                },
+                              }));
+                            }}
+                            onSavePricing={() => saveOrderPricing(order)}
                             paymentLinkDraft={paymentLinkDraft[order.id] ?? ""}
                             onPaymentLinkChange={(value) =>
                               setPaymentLinkDraft((prev) => ({ ...prev, [order.id]: value }))
                             }
                             onConfirm={() => confirmOrder(order.id)}
                             onCancel={() => cancelOrder(order.id)}
+                            onSendUpiPaymentRequest={() =>
+                              saveServicePayment(order.id, { usePlatformUpi: true })
+                            }
                             onShareLink={() =>
                               saveServicePayment(order.id, {
                                 paymentLink:
                                   paymentLinkDraft[order.id] ?? order.paymentLink ?? "",
                               })
                             }
-                            onPaymentReceived={() =>
-                              saveServicePayment(order.id, { action: "payment_received" })
-                            }
+                            platformUpi={platformUpi}
+                            onApproveProof={() => reviewPayment(order.id, "approve")}
                             onMarkPaid={() => saveServicePayment(order.id, { markPaid: true })}
                             confirming={confirmingId === order.id}
                             cancelling={cancellingId === order.id}
                             saving={savingPaymentId === order.id}
+                            savingPricing={savingPricingId === order.id}
+                            reviewingProof={reviewingId === order.id}
                           />
                         )}
 

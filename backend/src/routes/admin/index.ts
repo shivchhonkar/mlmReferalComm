@@ -11,6 +11,7 @@ import {
   isDynamicLinkService,
   resolveCatalogPrice,
 } from "@/lib/servicePayment";
+import { parseServiceBvFields, serviceBvZodRefine } from "@/lib/serviceBvFields";
 import { processBulkCategoryUpload, generateCategoryImportTemplate } from "@/lib/bulkCategoryImport";
 import { requireAuth, requireRole, requireAdminRole, requireSuperAdminOrAdmin } from "@/middleware/auth";
 
@@ -950,7 +951,8 @@ export function registerAdminRoutes(app: Express) {
       originalPrice: z.number().min(0).optional(),
       currency: z.enum(["INR", "USD"]).default("INR"),
       discountPercent: z.number().min(0).max(100).optional(),
-      businessVolume: z.number().min(0),
+      businessVolume: z.number().min(0).optional(),
+      bvPercentage: z.number().min(0).max(100).optional(),
       paymentType: z.enum(["fixed_upi", "dynamic_link"]).default("fixed_upi"),
       fixedUpiId: z.string().optional(),
       requiresAdminPricing: z.boolean().optional(),
@@ -969,6 +971,7 @@ export function registerAdminRoutes(app: Express) {
           path: ["price"],
         });
       }
+      serviceBvZodRefine(data, ctx);
     });
 
     try {
@@ -989,6 +992,11 @@ export function registerAdminRoutes(app: Express) {
       }
 
       const paymentType = body.paymentType ?? "fixed_upi";
+      const bvFields = parseServiceBvFields({
+        paymentType,
+        businessVolume: body.businessVolume,
+        bvPercentage: body.bvPercentage,
+      });
       const service = await ServiceModel.create({
         sellerId: ctx.userId,
         name: body.name,
@@ -999,7 +1007,8 @@ export function registerAdminRoutes(app: Express) {
         originalPrice: isDynamicLinkService(paymentType) ? undefined : body.originalPrice,
         currency: body.currency,
         discountPercent: body.discountPercent,
-        businessVolume: body.businessVolume,
+        businessVolume: bvFields.businessVolume,
+        ...(bvFields.bvPercentage !== undefined && { bvPercentage: bvFields.bvPercentage }),
         paymentType,
         fixedUpiId: body.fixedUpiId?.trim() || undefined,
         requiresAdminPricing:
@@ -1033,6 +1042,7 @@ export function registerAdminRoutes(app: Express) {
         currency: z.enum(["INR", "USD"]).optional(),
         discountPercent: z.number().min(0).max(100).optional(),
         businessVolume: z.number().min(0).optional(),
+        bvPercentage: z.number().min(0).max(100).optional(),
         paymentType: z.enum(["fixed_upi", "dynamic_link"]).optional(),
         fixedUpiId: z.string().optional(),
         requiresAdminPricing: z.boolean().optional(),
@@ -1068,6 +1078,25 @@ export function registerAdminRoutes(app: Express) {
         // keep existing price when not sent
       } else if (catalogPriceRequired(effectivePaymentType) && body.price !== undefined) {
         updatePayload.price = resolveCatalogPrice(effectivePaymentType, body.price);
+      }
+
+      if (
+        body.paymentType !== undefined ||
+        body.businessVolume !== undefined ||
+        body.bvPercentage !== undefined
+      ) {
+        const merged = {
+          paymentType: effectivePaymentType,
+          businessVolume: body.businessVolume ?? (existing as { businessVolume?: number }).businessVolume,
+          bvPercentage: body.bvPercentage ?? (existing as { bvPercentage?: number }).bvPercentage,
+        };
+        const bvFields = parseServiceBvFields(merged);
+        updatePayload.businessVolume = bvFields.businessVolume;
+        if (bvFields.bvPercentage !== undefined) {
+          updatePayload.bvPercentage = bvFields.bvPercentage;
+        } else {
+          delete updatePayload.bvPercentage;
+        }
       }
 
       // Service model uses CUID (string) for _id; support ObjectId for legacy data

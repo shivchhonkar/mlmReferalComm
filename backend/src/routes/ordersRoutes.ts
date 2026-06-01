@@ -22,9 +22,17 @@ import {
 import {
   canMarkDynamicPaid,
   canMarkDynamicPaymentReceived,
+  dynamicOrderHasPaymentProof,
+  dynamicPaymentProofVerified,
   isDynamicLinkService,
 } from "@/lib/servicePayment";
 import { markOrderPaidAndFulfilled } from "@/lib/orderFulfillment";
+import { buildUpiPayUrl } from "@/lib/upiPayment";
+import {
+  applyDynamicBvToOrderItems,
+  computeOrderTotals,
+  orderHasAdminPricingSet,
+} from "@/lib/orderDynamicBv";
 
 const router = express.Router();
 
@@ -88,6 +96,34 @@ async function syncUserStatusAndAncestorActivity(userId: mongoose.Types.ObjectId
     cursor = currentUser?.parent ? new mongoose.Types.ObjectId(currentUser.parent) : null;
   }
 }
+
+/**
+ * GET /api/orders/checkout-upi
+ * Platform UPI ID for dynamic order payments (from admin payment settings or env).
+ */
+router.get("/checkout-upi", async (req, res) => {
+  try {
+    await requireAuth(req);
+    await connectToDatabase();
+
+    const adminUser = await UserModel.findOne({ role: { $in: ["admin", "super_admin"] } })
+      .select("paymentLinkEnabled upiLink")
+      .lean();
+
+    const envUpi = String(process.env.PLATFORM_UPI_ID ?? process.env.UPI_ID ?? "").trim();
+    const upiLink = String((adminUser as { upiLink?: string })?.upiLink ?? "").trim() || envUpi;
+
+    return res.json({
+      upiLink,
+      paymentLinkEnabled: Boolean((adminUser as { paymentLinkEnabled?: boolean })?.paymentLinkEnabled),
+      configured: upiLink.length > 0,
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unauthorized";
+    const status = msg.toLowerCase().includes("unauthorized") ? 401 : 500;
+    return res.status(status).json({ error: msg });
+  }
+});
 
 /**
  * ✅ GET /api/orders
@@ -227,15 +263,23 @@ router.post("/", async (req, res) => {
       const svc: any = serviceMap.get(serviceId);
 
       const qty = Number(it.quantity);
+      const isDynamicItem = svc && isDynamicLinkService(svc.paymentType);
+
+      if (isDynamicItem) {
+        return {
+          service: serviceId,
+          name: String(it.name ?? svc?.name ?? "Service"),
+          price: 0,
+          quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
+          bv: 0,
+        };
+      }
+
       const price = Number(it.price);
       const bv = Number(it.businessVolume ?? it.bv ?? 0);
 
-      // if you want server-truth values, uncomment these and use them instead
-      // const finalPrice = Number(svc?.price ?? 0);
-      // const finalBv = Number(svc?.businessVolume ?? 0);
-
       return {
-        service: serviceId, // ✅ string id
+        service: serviceId,
         name: String(it.name ?? svc?.name ?? "Service"),
         price: Number.isFinite(price) ? price : Number(svc?.price ?? 0),
         quantity: Number.isFinite(qty) && qty > 0 ? qty : 1,
@@ -403,9 +447,175 @@ router.post("/", async (req, res) => {
 });
 
 /**
+ * PATCH /api/orders/:id/pricing
+ * Admin: set customer-specific price on dynamic_link order lines (BV recalculated on mark paid).
+ * Body: { items: [{ serviceId: string, price: number }] }
+ */
+router.patch("/:id/pricing", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order id" });
+    }
+
+    const user = await UserModel.findById(ctx.userId).select("role").lean();
+    if (!user) return res.status(401).json({ error: "Unauthorized" });
+    if (!isAdminRole((user as any).role)) {
+      return res.status(403).json({ message: "Only admin or super_admin can set order pricing." });
+    }
+
+    const { items: priceItems } = req.body ?? {};
+    if (!Array.isArray(priceItems) || priceItems.length === 0) {
+      return res.status(400).json({ message: "items array with serviceId and price is required." });
+    }
+
+    const order = await OrderModel.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+
+    const isDynamic = await orderIsDynamicPaymentOrder({
+      items: order.items as Array<{ service?: string }>,
+      payment: order.payment as { mode?: string },
+      servicePaymentStatus: order.servicePaymentStatus as string | undefined,
+    });
+    if (!isDynamic) {
+      return res.status(400).json({ message: "Order pricing can only be set for dynamic payment link orders." });
+    }
+    if (String(order.status) === "CANCELLED") {
+      return res.status(400).json({ message: "Cannot price a cancelled order." });
+    }
+    if (order.servicePaymentStatus === "paid") {
+      return res.status(400).json({ message: "Order is already paid." });
+    }
+
+    const priceByService = new Map<string, number>();
+    for (const row of priceItems) {
+      const serviceId = String(row?.serviceId ?? row?.service ?? "").trim();
+      const price = Number(row?.price);
+      if (!serviceId) {
+        return res.status(400).json({ message: "Each item must include serviceId." });
+      }
+      if (!Number.isFinite(price) || price <= 0) {
+        return res.status(400).json({ message: `Invalid price for service ${serviceId}.` });
+      }
+      priceByService.set(serviceId, price);
+    }
+
+    const orderLines = (order.items ?? []).map((it: any) => {
+      const serviceId = String(it.service);
+      const nextPrice = priceByService.get(serviceId);
+      return {
+        service: serviceId,
+        name: String(it.name),
+        price: nextPrice !== undefined ? nextPrice : Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1,
+        bv: Number(it.bv) || 0,
+      };
+    });
+
+    for (const line of orderLines) {
+      if (priceByService.has(line.service) && !Number.isFinite(line.price)) {
+        return res.status(400).json({ message: `Missing price for line ${line.service}.` });
+      }
+    }
+
+    const withBv = await applyDynamicBvToOrderItems(orderLines);
+    const totals = computeOrderTotals(withBv);
+
+    await OrderModel.updateOne(
+      { _id: orderId },
+      {
+        $set: {
+          items: withBv,
+          totals,
+        },
+      },
+    );
+
+    const updated = await OrderModel.findById(orderId).lean();
+    return res.json({ message: "Order pricing updated.", order: updated });
+  } catch (err: any) {
+    if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("orders PATCH pricing error:", err);
+    return res.status(500).json({ message: err?.message || "Internal server error" });
+  }
+});
+
+/**
+ * PATCH /api/orders/:id/payment-proof
+ * Customer: attach payment screenshot for dynamic_link orders after payment link is shared.
+ * Body: { paymentProofUrl: string }
+ */
+router.patch("/:id/payment-proof", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const orderId = req.params.id;
+    if (!mongoose.Types.ObjectId.isValid(orderId)) {
+      return res.status(400).json({ message: "Invalid order id" });
+    }
+
+    const { paymentProofUrl } = req.body ?? {};
+    if (!paymentProofUrl || typeof paymentProofUrl !== "string" || !paymentProofUrl.trim()) {
+      return res.status(400).json({ message: "paymentProofUrl is required." });
+    }
+
+    const order = await OrderModel.findById(orderId);
+    if (!order) return res.status(404).json({ message: "Order not found" });
+    if (String(order.user) !== String(ctx.userId)) {
+      return res.status(403).json({ message: "You can only upload proof for your own orders." });
+    }
+
+    const isDynamic = await orderIsDynamicPaymentOrder({
+      items: order.items as Array<{ service?: string }>,
+      payment: order.payment as { mode?: string },
+      servicePaymentStatus: order.servicePaymentStatus as string | undefined,
+    });
+    if (!isDynamic) {
+      return res.status(400).json({ message: "Payment proof upload applies only to dynamic payment orders." });
+    }
+
+    const payStatus = order.servicePaymentStatus as string | undefined;
+    if (!canMarkDynamicPaymentReceived(payStatus) && payStatus !== "payment_received") {
+      return res.status(400).json({
+        message: "Payment proof can be uploaded after the admin shares a payment link.",
+      });
+    }
+    if (payStatus === "paid") {
+      return res.status(400).json({ message: "Order is already paid." });
+    }
+
+    await OrderModel.updateOne(
+      { _id: orderId },
+      {
+        $set: {
+          "payment.paymentProofUrl": paymentProofUrl.trim(),
+          "payment.paymentReviewStatus": "PENDING_REVIEW",
+          "payment.paymentRejectionReason": undefined,
+        },
+      },
+    );
+
+    const updated = await OrderModel.findById(orderId).lean();
+    return res.json({ message: "Payment proof submitted for review.", order: updated });
+  } catch (err: any) {
+    if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    console.error("orders PATCH payment-proof error:", err);
+    return res.status(500).json({ message: err?.message || "Internal server error" });
+  }
+});
+
+/**
  * PATCH /api/orders/:id/service-payment
  * Admin: add/update payment link and service payment status for dynamic_link orders.
- * Body: { paymentLink?: string, servicePaymentStatus?: "payment_link_added" | "paid", markPaid?: boolean }
+ * Body: { paymentLink?: string, action?: "payment_received", markPaid?: boolean }
  */
 router.patch("/:id/service-payment", async (req, res) => {
   try {
@@ -423,7 +633,7 @@ router.patch("/:id/service-payment", async (req, res) => {
       return res.status(403).json({ message: "Only admin or super_admin can update service payment." });
     }
 
-    const { paymentLink, action, markPaid } = req.body ?? {};
+    const { paymentLink, action, markPaid, usePlatformUpi } = req.body ?? {};
     const order = await OrderModel.findById(orderId);
     if (!order) return res.status(404).json({ message: "Order not found" });
 
@@ -457,7 +667,39 @@ router.patch("/:id/service-payment", async (req, res) => {
     const payStatus = order.servicePaymentStatus as string | undefined;
     const update: Record<string, unknown> = {};
 
-    if (typeof paymentLink === "string" && paymentLink.trim()) {
+    let resolvedPaymentLink =
+      typeof paymentLink === "string" ? paymentLink.trim() : "";
+
+    if (usePlatformUpi === true) {
+      if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
+        return res.status(400).json({ message: "Confirm the order before sending a payment request." });
+      }
+      if (!orderHasAdminPricingSet({ items: order.items, totals: order.totals ?? undefined })) {
+        return res.status(400).json({
+          message: "Set the customer-specific order price before sending a payment request.",
+        });
+      }
+      const totalAmount = Number((order.totals as { totalAmount?: number })?.totalAmount) || 0;
+      const adminUser = await UserModel.findOne({ role: { $in: ["admin", "super_admin"] } })
+        .select("upiLink")
+        .lean();
+      const envUpi = String(process.env.PLATFORM_UPI_ID ?? process.env.UPI_ID ?? "").trim();
+      const vpa =
+        String((adminUser as { upiLink?: string })?.upiLink ?? "").trim() || envUpi;
+      if (!vpa) {
+        return res.status(400).json({
+          message:
+            "Platform UPI is not configured. Set UPI in Admin → Payment Settings or PLATFORM_UPI_ID env.",
+        });
+      }
+      resolvedPaymentLink = buildUpiPayUrl({
+        vpa,
+        amount: totalAmount,
+        note: `Order ${orderId}`,
+      });
+    }
+
+    if (resolvedPaymentLink) {
       if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
         return res.status(400).json({
           message: "Confirm the order before sharing a payment link.",
@@ -466,8 +708,14 @@ router.patch("/:id/service-payment", async (req, res) => {
       if (payStatus === "paid") {
         return res.status(400).json({ message: "Order is already marked paid." });
       }
-      update.paymentLink = paymentLink.trim();
+      if (!orderHasAdminPricingSet({ items: order.items, totals: order.totals ?? undefined })) {
+        return res.status(400).json({
+          message: "Set the customer-specific order price before sending a payment request.",
+        });
+      }
+      update.paymentLink = resolvedPaymentLink;
       update.servicePaymentStatus = "payment_link_shared";
+      update.paymentRequestedAt = new Date();
     }
 
     if (action === "payment_received") {
@@ -479,7 +727,15 @@ router.patch("/:id/service-payment", async (req, res) => {
       if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
         return res.status(400).json({ message: "Confirm the order first." });
       }
+      if (!dynamicOrderHasPaymentProof(order.payment as { paymentProofUrl?: string })) {
+        return res.status(400).json({
+          message: "Customer must upload payment proof before payment can be marked received.",
+        });
+      }
       update.servicePaymentStatus = "payment_received";
+      update["payment.paymentReviewStatus"] = "APPROVED";
+      update["payment.paymentReviewedAt"] = new Date();
+      update["payment.paymentReviewedBy"] = ctx.userId;
     }
 
     if (markPaid === true) {
@@ -487,7 +743,23 @@ router.patch("/:id/service-payment", async (req, res) => {
         (update.servicePaymentStatus as string | undefined) ?? payStatus;
       if (!canMarkDynamicPaid(effectivePayStatus)) {
         return res.status(400).json({
-          message: "Mark payment as received before marking the order paid.",
+          message: "Verify payment proof and mark payment as received before marking the order paid.",
+        });
+      }
+      const effectivePayment = {
+        ...(order.payment as object),
+        ...(update["payment.paymentReviewStatus"]
+          ? { paymentReviewStatus: update["payment.paymentReviewStatus"] }
+          : {}),
+      } as { paymentReviewStatus?: string; paymentProofUrl?: string };
+      if (!dynamicPaymentProofVerified(effectivePayment)) {
+        return res.status(400).json({
+          message: "Payment proof must be verified before marking the order paid.",
+        });
+      }
+      if (!orderHasAdminPricingSet({ items: order.items, totals: order.totals ?? undefined })) {
+        return res.status(400).json({
+          message: "Order price must be set before marking paid.",
         });
       }
       if (orderStatus !== "CONFIRMED" && orderStatus !== "COMPLETED") {
@@ -524,7 +796,7 @@ router.patch("/:id/service-payment", async (req, res) => {
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({
-        message: "Provide paymentLink, action: payment_received, or markPaid.",
+        message: "Provide paymentLink, usePlatformUpi, action: payment_received, or markPaid.",
       });
     }
 
@@ -579,8 +851,16 @@ router.patch("/:id/payment-review", async (req, res) => {
     if (!order) return res.status(404).json({ message: "Order not found" });
 
     const payment = order.payment as any;
-    if (payment?.mode !== "UPI") {
-      return res.status(400).json({ message: "This order is not a UPI payment. Payment review only applies to UPI orders." });
+    const isDynamic = await orderIsDynamicPaymentOrder({
+      items: order.items as Array<{ service?: string }>,
+      payment: order.payment as { mode?: string },
+      servicePaymentStatus: order.servicePaymentStatus as string | undefined,
+    });
+
+    if (payment?.mode !== "UPI" && !isDynamic) {
+      return res.status(400).json({
+        message: "Payment review applies only to UPI or dynamic payment link orders.",
+      });
     }
     if (payment?.paymentReviewStatus === "APPROVED") {
       return res.status(400).json({ message: "Payment already approved." });
@@ -611,6 +891,38 @@ router.patch("/:id/payment-review", async (req, res) => {
       const query = OrderModel.findById(orderId);
       const orderDoc = session ? await query.session(session).exec() : await query.exec();
       if (!orderDoc) throw new Error("Order not found");
+
+      const orderPayment = orderDoc.payment as { mode?: string; paymentProofUrl?: string };
+      const dynamicOrder = await orderIsDynamicPaymentOrder({
+        items: orderDoc.items as Array<{ service?: string }>,
+        payment: orderPayment,
+        servicePaymentStatus: orderDoc.servicePaymentStatus as string | undefined,
+      });
+
+      if (dynamicOrder) {
+        if (!dynamicOrderHasPaymentProof(orderPayment)) {
+          throw new Error("Customer must upload payment proof before approval.");
+        }
+        if (!canMarkDynamicPaymentReceived(orderDoc.servicePaymentStatus)) {
+          throw new Error("Share the payment link before verifying payment proof.");
+        }
+
+        await OrderModel.updateOne(
+          { _id: orderId },
+          {
+            $set: {
+              "payment.paymentReviewStatus": "APPROVED",
+              "payment.paymentReviewedAt": new Date(),
+              "payment.paymentReviewedBy": ctx.userId,
+              servicePaymentStatus: "payment_received",
+            },
+          },
+          opts,
+        );
+
+        return { purchasesCreated: 0 };
+      }
+
       const items = orderDoc.items || [];
       const normalizedItems = items.map((it: any) => ({
         service: String(it.service),
@@ -652,7 +964,7 @@ router.patch("/:id/payment-review", async (req, res) => {
             "payment.paymentReviewedBy": ctx.userId,
           },
         },
-        opts
+        opts,
       );
 
       await syncUserStatusAndAncestorActivity(orderDoc.user as mongoose.Types.ObjectId, session);
@@ -681,7 +993,17 @@ router.patch("/:id/payment-review", async (req, res) => {
       // Safety re-sync after commit/fallback so buyer status and parent activity are always up-to-date.
       await syncUserStatusAndAncestorActivity(updated.user as mongoose.Types.ObjectId, null);
     }
-    return res.json({ message: "Payment approved. Order confirmed.", order: updated });
+    const isDynamicOrder = await orderIsDynamicPaymentOrder({
+      items: updated?.items as Array<{ service?: string }>,
+      payment: updated?.payment as { mode?: string },
+      servicePaymentStatus: updated?.servicePaymentStatus as string | undefined,
+    });
+    return res.json({
+      message: isDynamicOrder
+        ? "Payment proof verified. You can now mark the order as paid."
+        : "Payment approved. Order confirmed.",
+      order: updated,
+    });
   } catch (err: any) {
     if (err?.status === 401 || err?.message?.toLowerCase?.().includes("unauthorized")) {
       return res.status(401).json({ error: "Unauthorized" });

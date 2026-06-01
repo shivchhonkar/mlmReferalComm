@@ -8,7 +8,9 @@ export async function loadServiceMapForIds(serviceIds: string[]) {
   if (unique.length === 0) return new Map<string, { _id: string; paymentType?: string }>();
 
   const services = await ServiceModel.find({ _id: { $in: unique } })
-    .select("_id name price businessVolume status paymentType fixedUpiId requiresAdminPricing")
+    .select(
+      "_id name price businessVolume bvPercentage status paymentType fixedUpiId requiresAdminPricing",
+    )
     .lean();
 
   return new Map(services.map((s: any) => [String(s._id), s]));

@@ -3,7 +3,9 @@ import { connectToDatabase } from "@/lib/db";
 import { DistributionRuleModel } from "@/models/DistributionRule";
 import { IncomeLogModel } from "@/models/IncomeLog";
 import { IncomeModel } from "@/models/Income";
+import { PurchaseModel } from "@/models/Purchase";
 import { ServiceModel } from "@/models/Service";
+import { isDynamicLinkService } from "@/lib/servicePayment";
 import { UserModel } from "@/models/User";
 import { isReferralStaffRole } from "@/lib/referralStaffRoles";
 
@@ -60,7 +62,9 @@ async function distributeBusinessVolumeInSession(options: {
 
   const rule = await getActiveDistributionRule(session);
 
-  const serviceQuery = ServiceModel.findById(serviceId).select("businessVolume status bv isActive");
+  const serviceQuery = ServiceModel.findById(serviceId).select(
+    "businessVolume bvPercentage paymentType status bv isActive",
+  );
   if (session) serviceQuery.session(session);
   const service = await serviceQuery;
 
@@ -70,7 +74,22 @@ async function distributeBusinessVolumeInSession(options: {
   const status = service.status ?? (legacyService.isActive ? "active" : "inactive");
   if (status !== "active") throw new Error("Service is inactive");
 
-  const bv = (service.businessVolume ?? legacyService.bv) as number;
+  let bv: number;
+  if (purchaseObjectId) {
+    const purchaseQuery = PurchaseModel.findById(purchaseObjectId).select("bv");
+    if (session) purchaseQuery.session(session);
+    const purchase = await purchaseQuery.lean();
+    const purchaseBv = Number((purchase as { bv?: number } | null)?.bv);
+    if (purchase && Number.isFinite(purchaseBv) && purchaseBv >= 0) {
+      bv = purchaseBv;
+    } else if (isDynamicLinkService((service as { paymentType?: string }).paymentType)) {
+      throw new Error("Purchase has invalid BV for dynamic service");
+    } else {
+      bv = (service.businessVolume ?? legacyService.bv) as number;
+    }
+  } else {
+    bv = (service.businessVolume ?? legacyService.bv) as number;
+  }
   if (!Number.isFinite(bv) || bv < 0) throw new Error("Service has invalid BV");
 
   const buyerQuery = UserModel.findById(userObjectId).select("parent");

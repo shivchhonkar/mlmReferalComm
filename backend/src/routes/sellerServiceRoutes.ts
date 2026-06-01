@@ -9,6 +9,7 @@ import {
   isDynamicLinkService,
   resolveCatalogPrice,
 } from "@/lib/servicePayment";
+import { parseServiceBvFields, serviceBvZodRefine } from "@/lib/serviceBvFields";
 
 /**
  * Seller service routes
@@ -47,7 +48,8 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
       originalPrice: z.number().min(0).optional(),
       currency: z.enum(["INR", "USD"]).default("INR"),
       discountPercent: z.number().min(0).max(100).optional(),
-      businessVolume: z.number().min(0),
+      businessVolume: z.number().min(0).optional(),
+      bvPercentage: z.number().min(0).max(100).optional(),
       paymentType: z.enum(["fixed_upi", "dynamic_link"]).default("fixed_upi"),
       fixedUpiId: z.string().optional(),
       requiresAdminPricing: z.boolean().optional(),
@@ -64,6 +66,7 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
           path: ["price"],
         });
       }
+      serviceBvZodRefine(data, ctx);
     });
 
     try {
@@ -85,6 +88,11 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
       }
 
       const paymentType = body.paymentType ?? "fixed_upi";
+      const bvFields = parseServiceBvFields({
+        paymentType,
+        businessVolume: body.businessVolume,
+        bvPercentage: body.bvPercentage,
+      });
       const service = await ServiceModel.create({
         sellerId: ctx.userId,
         name: body.name,
@@ -95,7 +103,8 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         originalPrice: isDynamicLinkService(paymentType) ? undefined : body.originalPrice,
         currency: body.currency,
         discountPercent: body.discountPercent,
-        businessVolume: body.businessVolume,
+        businessVolume: bvFields.businessVolume,
+        ...(bvFields.bvPercentage !== undefined && { bvPercentage: bvFields.bvPercentage }),
         paymentType,
         fixedUpiId: body.fixedUpiId?.trim() || undefined,
         requiresAdminPricing:
@@ -136,6 +145,7 @@ export function registerSellerServiceRoutes(app: import("express").Express) {
         currency: z.enum(["INR", "USD"]).optional(),
         discountPercent: z.number().min(0).max(100).optional(),
         businessVolume: z.number().min(0).optional(),
+        bvPercentage: z.number().min(0).max(100).optional(),
         paymentType: z.enum(["fixed_upi", "dynamic_link"]).optional(),
         fixedUpiId: z.string().optional(),
         requiresAdminPricing: z.boolean().optional(),

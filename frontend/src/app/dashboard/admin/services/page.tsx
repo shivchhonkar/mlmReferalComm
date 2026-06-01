@@ -48,6 +48,7 @@ type Service = {
   price: number;
   originalPrice?: number;
   businessVolume: number;
+  bvPercentage?: number;
   paymentType?: ServicePaymentType;
   fixedUpiId?: string;
   requiresAdminPricing?: boolean;
@@ -241,6 +242,7 @@ export default function AdminServicesPage() {
   const [price, setPrice] = useState<number | "">("");
   const [originalPrice, setOriginalPrice] = useState<number | "">("");
   const [businessVolume, setBusinessVolume] = useState<number | "">("");
+  const [bvPercentage, setBvPercentage] = useState<number | "">("");
   const [image, setImage] = useState("");
   const [shortDescription, setShortDescription] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -258,6 +260,7 @@ export default function AdminServicesPage() {
   const [editPrice, setEditPrice] = useState<number | "">("");
   const [editOriginalPrice, setEditOriginalPrice] = useState<number | "">("");
   const [editBusinessVolume, setEditBusinessVolume] = useState<number | "">("");
+  const [editBvPercentage, setEditBvPercentage] = useState<number | "">("");
   const [editImage, setEditImage] = useState("");
   const [editShortDescription, setEditShortDescription] = useState("");
   const [editCategoryId, setEditCategoryId] = useState("");
@@ -400,6 +403,7 @@ export default function AdminServicesPage() {
     setSlug("");
     setPrice("");
     setBusinessVolume("");
+    setBvPercentage("");
     setImage("");
     setShortDescription("");
     setCategoryId("");
@@ -436,7 +440,9 @@ export default function AdminServicesPage() {
             isDynamicLinkPayment(paymentType) || originalPrice === ""
               ? undefined
               : Number(originalPrice),
-          businessVolume: Number(businessVolume),
+          ...(isDynamicLinkPayment(paymentType)
+            ? { bvPercentage: Number(bvPercentage) }
+            : { businessVolume: Number(businessVolume) }),
           image: image || undefined,
           shortDescription: shortDescription || undefined,
           categoryId: categoryId || undefined,
@@ -474,6 +480,10 @@ export default function AdminServicesPage() {
     setEditPrice(service.price ?? "");
     setEditOriginalPrice(service.originalPrice ?? "");
     setEditBusinessVolume(service.businessVolume ?? "");
+    const pct =
+      service.bvPercentage ??
+      (isDynamicLinkPayment(service.paymentType) ? service.businessVolume : undefined);
+    setEditBvPercentage(pct !== undefined && pct !== null ? pct : "");
     setEditImage(service.image ?? "");
     setEditShortDescription(service.shortDescription ?? "");
     setEditCategoryId(
@@ -532,7 +542,11 @@ export default function AdminServicesPage() {
         if (editPrice !== "") payload.price = Number(editPrice);
         if (editOriginalPrice !== "") payload.originalPrice = Number(editOriginalPrice);
       }
-      if (editBusinessVolume !== "") payload.businessVolume = Number(editBusinessVolume);
+      if (isDynamicLinkPayment(editPaymentType)) {
+        if (editBvPercentage !== "") payload.bvPercentage = Number(editBvPercentage);
+      } else if (editBusinessVolume !== "") {
+        payload.businessVolume = Number(editBusinessVolume);
+      }
       payload.paymentType = editPaymentType;
       payload.fixedUpiId =
         editPaymentType === "fixed_upi" && editFixedUpiId.trim() ? editFixedUpiId.trim() : undefined;
@@ -925,7 +939,9 @@ export default function AdminServicesPage() {
                             </span>
                           )}
                           <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-                            {s.businessVolume} BV
+                            {isDynamicLinkPayment(s.paymentType)
+                              ? `${s.bvPercentage ?? s.businessVolume ?? 0}% BV`
+                              : `${s.businessVolume} BV`}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
@@ -1040,7 +1056,9 @@ export default function AdminServicesPage() {
                 busy ||
                 !canManage ||
                 !name.trim() ||
-                businessVolume === "" ||
+                (isDynamicLinkPayment(paymentType)
+                  ? bvPercentage === ""
+                  : businessVolume === "") ||
                 (isCatalogPriceRequired(paymentType) && price === "")
               }
             >
@@ -1089,6 +1107,9 @@ export default function AdminServicesPage() {
                   setRequiresAdminPricing(true);
                   setPrice("");
                   setOriginalPrice("");
+                  setBusinessVolume("");
+                } else {
+                  setBvPercentage("");
                 }
               }}
               disabled={!canManage}
@@ -1142,17 +1163,30 @@ export default function AdminServicesPage() {
           )}
 
           <div>
-            <label className={formLabelClass}>Business volume (BV) *</label>
+            <label className={formLabelClass}>
+              {isDynamicLinkPayment(paymentType) ? "BV percentage (%) *" : "Business volume (BV) *"}
+            </label>
             <input
               className={formInputClass}
               type="number"
-              value={businessVolume}
-              onChange={(e) => setBusinessVolume(e.target.value === "" ? "" : Number(e.target.value))}
+              value={isDynamicLinkPayment(paymentType) ? bvPercentage : businessVolume}
+              onChange={(e) => {
+                const v = e.target.value === "" ? "" : Number(e.target.value);
+                if (isDynamicLinkPayment(paymentType)) setBvPercentage(v);
+                else setBusinessVolume(v);
+              }}
               min={0}
-              placeholder="0"
+              max={isDynamicLinkPayment(paymentType) ? 100 : undefined}
+              step={isDynamicLinkPayment(paymentType) ? 1 : undefined}
+              placeholder={isDynamicLinkPayment(paymentType) ? "e.g. 30 for 30%" : "0"}
               required
               disabled={!canManage}
             />
+            {isDynamicLinkPayment(paymentType) ? (
+              <p className="mt-1 text-xs text-slate-500">
+                BV is calculated when the order is paid: final price × this percentage.
+              </p>
+            ) : null}
           </div>
 
           {paymentType === "fixed_upi" ? (
@@ -1404,6 +1438,9 @@ export default function AdminServicesPage() {
                   setEditRequiresAdminPricing(true);
                   setEditPrice("");
                   setEditOriginalPrice("");
+                  setEditBusinessVolume("");
+                } else {
+                  setEditBvPercentage("");
                 }
               }}
               disabled={!canManage}
@@ -1450,15 +1487,27 @@ export default function AdminServicesPage() {
           )}
 
           <div>
-            <label className={formLabelClass}>BV *</label>
+            <label className={formLabelClass}>
+              {isDynamicLinkPayment(editPaymentType) ? "BV percentage (%) *" : "Business volume (BV) *"}
+            </label>
             <input
               className={formInputClass}
               type="number"
               min={0}
-              value={editBusinessVolume}
-              onChange={(e) => setEditBusinessVolume(e.target.value === "" ? "" : Number(e.target.value))}
+              max={isDynamicLinkPayment(editPaymentType) ? 100 : undefined}
+              value={isDynamicLinkPayment(editPaymentType) ? editBvPercentage : editBusinessVolume}
+              onChange={(e) => {
+                const v = e.target.value === "" ? "" : Number(e.target.value);
+                if (isDynamicLinkPayment(editPaymentType)) setEditBvPercentage(v);
+                else setEditBusinessVolume(v);
+              }}
               disabled={!canManage}
             />
+            {isDynamicLinkPayment(editPaymentType) ? (
+              <p className="mt-1 text-xs text-slate-500">
+                BV = admin-set order price × this percentage (applied when order is marked paid).
+              </p>
+            ) : null}
           </div>
 
           {editPaymentType === "fixed_upi" ? (

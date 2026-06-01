@@ -33,8 +33,11 @@ const serviceSchema = new Schema(
     // Discount percentage
     discountPercent: { type: Number, min: 0, max: 100 },
 
-    // Business Volume (BV) for this service purchase
-    businessVolume: { type: Number, required: true, min: 0 },
+    // Business Volume (BV) for fixed_upi services (absolute amount)
+    businessVolume: { type: Number, min: 0, default: 0 },
+
+    /** dynamic_link only: BV % of admin-set order price (e.g. 30 = 30%) */
+    bvPercentage: { type: Number, min: 0, max: 100 },
 
     /** fixed_upi = same UPI for every order; dynamic_link = admin adds link per order */
     paymentType: {

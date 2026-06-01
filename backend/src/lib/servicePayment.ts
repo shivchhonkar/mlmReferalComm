@@ -26,6 +26,19 @@ export function canMarkDynamicPaid(status: unknown): boolean {
   return status === "payment_received";
 }
 
+export function dynamicOrderHasPaymentProof(payment: {
+  paymentProofUrl?: string;
+} | null | undefined): boolean {
+  const url = payment?.paymentProofUrl;
+  return typeof url === "string" && url.trim().length > 0;
+}
+
+export function dynamicPaymentProofVerified(payment: {
+  paymentReviewStatus?: string;
+} | null | undefined): boolean {
+  return payment?.paymentReviewStatus === "APPROVED";
+}
+
 export function normalizeServicePaymentType(value: unknown): ServicePaymentType {
   return value === "dynamic_link" ? "dynamic_link" : "fixed_upi";
 }

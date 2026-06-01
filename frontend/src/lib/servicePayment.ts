@@ -23,15 +23,40 @@ export function canMarkDynamicPaid(status?: string | null): boolean {
   return status === "payment_received";
 }
 
-export type DynamicPaymentStep = 1 | 2 | 3 | 4;
+export type DynamicPaymentStep = 1 | 2 | 3 | 4 | 5 | 6;
+
+export function orderHasAdminPricingSet(totalAmount: number): boolean {
+  return Number.isFinite(totalAmount) && totalAmount > 0;
+}
+
+export function dynamicPaymentProofVerified(payment?: {
+  paymentReviewStatus?: string;
+} | null): boolean {
+  return payment?.paymentReviewStatus === "APPROVED";
+}
+
+export function dynamicOrderHasPaymentProof(payment?: {
+  paymentProofUrl?: string;
+} | null): boolean {
+  const url = payment?.paymentProofUrl;
+  return typeof url === "string" && url.trim().length > 0;
+}
 
 export function dynamicPaymentStep(
   orderStatus: string,
   servicePaymentStatus?: string | null,
+  totalAmount = 0,
 ): DynamicPaymentStep {
-  if (servicePaymentStatus === "paid") return 4;
-  if (canMarkDynamicPaid(servicePaymentStatus)) return 4;
-  if (canMarkDynamicPaymentReceived(servicePaymentStatus)) return 3;
+  if (servicePaymentStatus === "paid") return 6 as DynamicPaymentStep;
+  if (canMarkDynamicPaid(servicePaymentStatus)) return 5;
+  if (canMarkDynamicPaymentReceived(servicePaymentStatus)) return 4;
+  if (isPaymentLinkSharedStatus(servicePaymentStatus)) return 4;
+  if (
+    (orderStatus === "CONFIRMED" || orderStatus === "COMPLETED") &&
+    orderHasAdminPricingSet(totalAmount)
+  ) {
+    return 3;
+  }
   if (orderStatus === "CONFIRMED" || orderStatus === "COMPLETED") return 2;
   return 1;
 }
@@ -72,6 +97,7 @@ export function servicePaymentStatusLabel(status?: string | null): string {
 
 export const DYNAMIC_PAYMENT_STEP_LABELS = [
   "Confirm order",
+  "Set order price",
   "Payment link shared",
   "Payment received",
   "Mark paid",
