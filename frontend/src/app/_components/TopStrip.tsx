@@ -1,9 +1,54 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Phone, MessagesSquare, Megaphone } from "lucide-react";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
+
+function AnnouncementMarquee({ text }: { readonly text: string }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const [shouldScroll, setShouldScroll] = useState(false);
+  const [duration, setDuration] = useState(18);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const measure = measureRef.current;
+    if (!container || !measure) return;
+
+    const update = () => {
+      const overflow = measure.scrollWidth > container.clientWidth;
+      setShouldScroll(overflow);
+      if (overflow) {
+        const seconds = Math.max(12, Math.min(40, measure.scrollWidth / 28));
+        setDuration(seconds);
+      }
+    };
+
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [text]);
+
+  return (
+    <div ref={containerRef} className="min-w-0 flex-1 overflow-hidden" aria-label={text}>
+      <div
+        className={shouldScroll ? "announcement-marquee-track" : "inline-flex"}
+        style={shouldScroll ? ({ "--marquee-duration": `${duration}s` } as React.CSSProperties) : undefined}
+      >
+        <span ref={measureRef} className="whitespace-nowrap font-medium">
+          {text}
+        </span>
+        {shouldScroll ? (
+          <span className="whitespace-nowrap px-8 font-medium" aria-hidden="true">
+            {text}
+          </span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 type TopStripProps = {
   readonly phone?: string;
@@ -119,12 +164,14 @@ export default function TopStrip({
               ) : null}
 
               {activeNotification ? (
-                <div className="hidden min-w-0 max-w-[520px] items-center gap-2 rounded-full border border-white/25 bg-black/15 px-3 py-1 text-xs text-white/95 md:inline-flex">
+                <div className="hidden min-w-0 max-w-[min(520px,42vw)] flex-1 items-center gap-2 rounded-full border border-white/25 bg-black/15 px-3 py-1 text-xs text-white/95 md:inline-flex">
                   <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/20">
                     <Megaphone className="h-3 w-3" />
                   </span>
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-white/80">Announcement</span>
-                  <span className="truncate font-medium">{activeNotification}</span>
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-white/80">
+                    Announcement
+                  </span>
+                  <AnnouncementMarquee text={activeNotification} />
                 </div>
               ) : null}
             </div>
