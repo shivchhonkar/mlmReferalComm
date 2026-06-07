@@ -19,6 +19,7 @@ import { setServices, type Service } from "@/store/slices/serviceSlice";
 import { setCategories, type Category } from "@/store/slices/categorySlice";
 import ServicesGrid from "@/app/services/components/ServicesGrid";
 import { addItem } from "@/store/slices/cartSlice";
+import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
 
 type Subcategory = {
   _id: string;
@@ -663,8 +664,13 @@ export default function ServicesCategoryClient({
                   <p className="mt-2 text-xs text-slate-600">
                     Business Volume (BV):{" "}
                     <span className="font-semibold text-emerald-700">
-                      {selectedService.businessVolume}
+                      {formatServiceBvLabel(selectedService)}
                     </span>
+                    {isDynamicLinkPayment(selectedService.paymentType) ? (
+                      <span className="block text-[11px] text-slate-500">
+                        Calculated from final order price when payment is confirmed.
+                      </span>
+                    ) : null}
                   </p>
                 </div>
 

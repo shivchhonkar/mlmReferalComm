@@ -77,6 +77,30 @@ export function isCatalogPriceRequired(paymentType: unknown): boolean {
 /** Stored catalog price for dynamic-link services (govt fee / quoted per order) */
 export const DYNAMIC_LINK_CATALOG_PRICE = 0;
 
+export type ServiceBvDisplay = {
+  paymentType?: unknown;
+  businessVolume?: number;
+  bvPercentage?: number;
+};
+
+/** Catalog BV badge: fixed services show points; dynamic_link shows configured percentage. */
+export function formatServiceBvLabel(service: ServiceBvDisplay): string {
+  if (isDynamicLinkPayment(service.paymentType)) {
+    const pct =
+      service.bvPercentage ??
+      (typeof service.businessVolume === "number" &&
+      service.businessVolume > 0 &&
+      service.businessVolume <= 100
+        ? service.businessVolume
+        : undefined);
+    if (typeof pct === "number" && Number.isFinite(pct)) {
+      return `${pct}% BV`;
+    }
+    return "BV on order price";
+  }
+  return `${Number(service.businessVolume) || 0} BV`;
+}
+
 export function servicePaymentStatusLabel(status?: string | null): string {
   switch (status) {
     case "awaiting_payment_link":

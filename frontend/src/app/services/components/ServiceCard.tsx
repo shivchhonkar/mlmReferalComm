@@ -7,7 +7,7 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { addItem, removeItem, updateQty } from "@/store/slices/cartSlice";
 import { NoImage } from "./NoImage";
 import type { Service } from "@/store/slices/serviceSlice";
-import { isDynamicLinkPayment } from "@/lib/servicePayment";
+import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
 interface ServiceCardProps {
   service: Service;
   onSelect?: (service: Service) => void;
@@ -137,7 +137,7 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700 border border-emerald-100">
-              {service.businessVolume} BV
+              {formatServiceBvLabel(service)}
             </span>
 
             <span

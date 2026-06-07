@@ -489,33 +489,25 @@ function DynamicPaymentAdminPanel({
             </p>
           )}
 
-          {hasProof && (
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Customer payment proof
-              </p>
-              <button
-                type="button"
-                onClick={() => {
-                  const url = getProofImageUrl(order.paymentProofUrl);
-                  if (url) window.open(url, "_blank", "noopener,noreferrer");
-                }}
-                className="mt-2 block text-left"
-              >
-                <img
-                  src={getProofImageUrl(order.paymentProofUrl)}
-                  alt="Payment proof"
-                  className="max-h-40 rounded-lg border border-slate-200 object-contain"
-                />
-              </button>
-            </div>
-          )}
         </div>
       )}
 
       {isPaid && (
         <p className="mt-3 text-sm font-medium text-emerald-700">This order is fully paid and fulfilled.</p>
       )}
+
+      {hasProof ? (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Customer payment proof
+          </p>
+          <PaymentProofAttachment
+            proofUrl={order.paymentProofUrl}
+            label=""
+            maxHeightClass="max-h-40"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -634,7 +626,12 @@ function CustomerDynamicPaymentPanel({
   if (isPaid) {
     return (
       <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800">
-        Payment complete. Thank you!
+        <p>Payment complete. Thank you!</p>
+        <PaymentProofAttachment
+          proofUrl={order.paymentProofUrl}
+          label="Your payment screenshot"
+          maxHeightClass="max-h-32"
+        />
       </div>
     );
   }
@@ -707,21 +704,11 @@ function CustomerDynamicPaymentPanel({
         {hasProof ? (
           <div className="mt-3">
             <p className="text-xs font-medium text-emerald-700">✓ Proof submitted</p>
-            <button
-              type="button"
-              onClick={() => {
-                const url = getProofImageUrl(order.paymentProofUrl);
-                if (url) window.open(url, "_blank", "noopener,noreferrer");
-              }}
-              className="mt-2 block"
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={getProofImageUrl(order.paymentProofUrl)}
-                alt="Your payment proof"
-                className="max-h-32 rounded-lg border border-slate-200 object-contain"
-              />
-            </button>
+            <PaymentProofAttachment
+              proofUrl={order.paymentProofUrl}
+              label=""
+              maxHeightClass="max-h-32"
+            />
             {proofVerified ? (
               <p className="mt-2 text-xs text-violet-700">Verified by admin — awaiting final confirmation.</p>
             ) : (
@@ -798,6 +785,44 @@ function PaymentStatusBadge({ status }: { status?: "PENDING" | "PAID" | "FAILED"
     <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold ${styles}`}>
       {label}
     </span>
+  );
+}
+
+function PaymentProofAttachment({
+  proofUrl,
+  label = "Payment screenshot",
+  maxHeightClass = "max-h-32",
+  onOpen,
+}: {
+  proofUrl?: string;
+  label?: string;
+  maxHeightClass?: string;
+  onOpen?: (url: string) => void;
+}) {
+  if (!dynamicOrderHasPaymentProof({ paymentProofUrl: proofUrl })) return null;
+  const src = getProofImageUrl(proofUrl);
+  if (!src) return null;
+
+  return (
+    <div className={label ? "mt-3" : "mt-2"}>
+      {label ? <p className="text-xs font-medium text-slate-600">{label}</p> : null}
+      <button
+        type="button"
+        onClick={() => {
+          if (onOpen) onOpen(src);
+          else window.open(src, "_blank", "noopener,noreferrer");
+        }}
+        className="mt-1 inline-block cursor-pointer text-left"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt="Payment proof"
+          className={`${maxHeightClass} rounded-lg border border-slate-200 object-contain transition hover:opacity-90`}
+        />
+      </button>
+      <p className="mt-1 text-xs text-slate-500">Click to open full size</p>
+    </div>
   );
 }
 
@@ -1536,23 +1561,14 @@ export default function OrdersPage() {
                                   )}
                                 </div>
                               )}
-                              {order.paymentMode === "UPI" && order.paymentProofUrl && (
-                                <div className="mt-3">
-                                  <p className="text-xs font-medium text-slate-600">Payment screenshot</p>
-                                  <button
-                                    type="button"
-                                    onClick={() => setImageModalUrl(getProofImageUrl(order.paymentProofUrl))}
-                                    className="mt-1 inline-block cursor-pointer text-left"
-                                  >
-                                    <img
-                                      src={getProofImageUrl(order.paymentProofUrl)}
-                                      alt="Payment proof"
-                                      className="max-h-32 rounded-lg border border-slate-200 object-contain hover:opacity-90 transition"
-                                    />
-                                  </button>
-                                  <p className="mt-1 text-xs text-slate-500">Click to open full size</p>
-                                </div>
-                              )}
+                              {order.paymentProofUrl ? (
+                                <PaymentProofAttachment
+                                  proofUrl={order.paymentProofUrl}
+                                  label="Payment screenshot"
+                                  maxHeightClass="max-h-32"
+                                  onOpen={setImageModalUrl}
+                                />
+                              ) : null}
                             </div>
                           </>
                         ) : (
@@ -1588,23 +1604,14 @@ export default function OrdersPage() {
                                 onReload={loadOrders}
                               />
                             ) : null}
-                            {order.paymentMode === "UPI" && order.paymentProofUrl && (
-                              <div className="mt-3">
-                                <p className="text-xs font-medium text-slate-600">Your payment screenshot</p>
-                                <button
-                                  type="button"
-                                  onClick={() => setImageModalUrl(getProofImageUrl(order.paymentProofUrl))}
-                                  className="mt-1 inline-block cursor-pointer text-left"
-                                >
-                                  <img
-                                    src={getProofImageUrl(order.paymentProofUrl)}
-                                    alt="Payment proof"
-                                    className="max-h-24 rounded-lg border border-slate-200 object-contain hover:opacity-90 transition"
-                                  />
-                                </button>
-                                <p className="mt-1 text-xs text-slate-500">Click to open full size</p>
-                              </div>
-                            )}
+                            {order.paymentProofUrl ? (
+                              <PaymentProofAttachment
+                                proofUrl={order.paymentProofUrl}
+                                label="Your payment screenshot"
+                                maxHeightClass="max-h-24"
+                                onOpen={setImageModalUrl}
+                              />
+                            ) : null}
                           </div>
                         )}
                       </div>

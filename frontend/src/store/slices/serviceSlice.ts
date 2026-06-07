@@ -13,6 +13,7 @@ export type Service = {
   shortDescription?: string;
   description?: string; 
   businessVolume: number;
+  bvPercentage?: number;
   paymentType?: "fixed_upi" | "dynamic_link";
   fixedUpiId?: string;
   requiresAdminPricing?: boolean;
