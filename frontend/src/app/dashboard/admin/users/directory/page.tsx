@@ -15,6 +15,7 @@ import {
   Search,
   Users,
 } from "lucide-react";
+import ReportExportButtons from "../../reports/income-reports/_components/ReportExportButtons";
 
 export type PeriodKey = "all" | "weekly" | "monthly" | "quarterly" | "annually";
 
@@ -258,6 +259,76 @@ export default function AdminUserDirectoryPage() {
 
   const periodLabel = useMemo(() => PERIODS.find((p) => p.key === period)?.label ?? period, [period]);
 
+  const exportMeta = useMemo(
+    () => [
+      { label: "Registration period", value: periodLabel },
+      { label: "Accounts", value: includeStaff ? "Users + admin / moderator" : "Users only" },
+      { label: "Name search", value: debouncedNameSearch || "—" },
+      { label: "Sort", value: `${sortKey} (${sortDir})` },
+      { label: "Total matching", value: String(total) },
+      { label: "Rows in export", value: String(rows.length) },
+      ...(truncated
+        ? [{ label: "Note", value: `Export capped at ${MAX_PAGES * PAGE_SIZE} loaded rows; narrow filters for full list` }]
+        : []),
+    ],
+    [periodLabel, includeStaff, debouncedNameSearch, sortKey, sortDir, total, rows.length, truncated],
+  );
+
+  const exportHeaders = useMemo(() => {
+    const headers = ["Name", "Email", "Mobile", "Referral code"];
+    if (includeStaff) headers.push("Role");
+    headers.push(
+      "Bank account name",
+      "Bank account number",
+      "Bank name",
+      "IFSC",
+      "Bank address",
+      "UPI",
+      "Registered",
+    );
+    return headers;
+  }, [includeStaff]);
+
+  const exportRows = useMemo(
+    () =>
+      rows.map((u) => {
+        const cols = [
+          displayName(u),
+          u.email || "—",
+          u.mobile || "—",
+          u.referralCode || "—",
+        ];
+        if (includeStaff) cols.push(u.role || "user");
+        cols.push(
+          u.bankAccountName || "—",
+          u.bankAccountNumber || "—",
+          u.bankName || "—",
+          u.bankIfsc || "—",
+          u.bankAddress || "—",
+          (u.upiLink || "").trim() || "—",
+          u.createdAt
+            ? new Date(u.createdAt).toLocaleString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : "—",
+        );
+        return cols;
+      }),
+    [rows, includeStaff],
+  );
+
+  const exportFileBase = useMemo(() => {
+    const date = new Date().toISOString().slice(0, 10);
+    const searchSlug = debouncedNameSearch
+      ? `-${debouncedNameSearch.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").slice(0, 24)}`
+      : "";
+    return `users-directory-${period}${searchSlug}-${date}`;
+  }, [period, debouncedNameSearch]);
+
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedNameSearch(nameSearch.trim()), 400);
     return () => window.clearTimeout(t);
@@ -355,15 +426,25 @@ export default function AdminUserDirectoryPage() {
             Directory with sortable columns, name search, and virtualized scrolling for large lists.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadAll()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-50"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => void loadAll()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 shadow-sm hover:bg-zinc-50 disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <ReportExportButtons
+            reportTitle="Users directory — bank details"
+            fileNameBase={exportFileBase}
+            meta={exportMeta}
+            headers={exportHeaders}
+            rows={exportRows}
+            disabled={loading || rows.length === 0}
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">

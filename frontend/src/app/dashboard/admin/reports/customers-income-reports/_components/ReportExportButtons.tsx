@@ -36,7 +36,8 @@ export default function ReportExportButtons({
     rows.forEach((row) => {
       lines.push(row.map((c) => csvEscape(c)).join(","));
     });
-    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    // UTF-8 BOM so Excel on Windows opens Unicode (e.g. em dash) correctly
+    const blob = new Blob(["\uFEFF", lines.join("\n")], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
