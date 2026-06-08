@@ -22,7 +22,8 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { clearCart } from "@/store/slices/cartSlice";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
-import { isDynamicLinkPayment } from "@/lib/servicePayment";
+import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
+import type { CartItem } from "@/store/slices/cartSlice";
 
 type CheckoutDrawerProps = {
   open: boolean;
@@ -50,7 +51,20 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
   const dispatch = useAppDispatch();
 
   const cart = useAppSelector((s) => s.cart);
-  const items = useMemo(() => Object.values(cart.items), [cart.items]);
+  const catalogServices = useAppSelector((s) => s.service.services);
+
+  const items = useMemo(() => {
+    return Object.values(cart.items).map((item) => {
+      const svc = catalogServices.find((s) => s._id === item.id);
+      if (!svc) return item;
+      return {
+        ...item,
+        paymentType: item.paymentType ?? svc.paymentType,
+        bvPercentage: item.bvPercentage ?? svc.bvPercentage,
+        businessVolume: item.businessVolume ?? svc.businessVolume,
+      } satisfies CartItem;
+    });
+  }, [cart.items, catalogServices]);
 
   const { isDynamicCheckout, cartMixedPaymentTypes } = useMemo(() => {
     let hasFixed = false;
@@ -613,10 +627,11 @@ export default function CheckoutDrawer({ open, onClose }: CheckoutDrawerProps) {
                         {i.name}
                       </div>
                       <div className="mt-0.5 text-xs font-semibold text-zinc-500">
-                        Qty: {i.quantity} • {formatINR(i.price)}
-                        {typeof i.businessVolume === "number"
-                          ? ` • ${i.businessVolume} BV`
-                          : ""}
+                        Qty: {i.quantity} •{" "}
+                        {isDynamicLinkPayment(i.paymentType) && (!i.price || i.price <= 0)
+                          ? "Price on request"
+                          : formatINR(i.price)}{" "}
+                        • {formatServiceBvLabel(i)}
                       </div>
                     </div>
                     <div className="shrink-0 text-sm  text-zinc-900">

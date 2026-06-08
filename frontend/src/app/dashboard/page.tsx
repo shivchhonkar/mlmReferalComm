@@ -451,7 +451,7 @@ export default function DashboardPage() {
             
           </div>
           <div className="flex max-w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto">
-            {!isAdmin ? (
+            {/* {!isAdmin ? (
               <button
                 type="button"
                 onClick={() => {
@@ -469,7 +469,7 @@ export default function DashboardPage() {
                 <IndianRupee className="h-4 w-4 shrink-0" />
                 Request withdrawal
               </button>
-            ) : null}
+            ) : null} */}
             {isAdmin ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"

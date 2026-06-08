@@ -43,6 +43,7 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
         name: service.name,
         price: service.price,
         businessVolume: service.businessVolume,
+        bvPercentage: service.bvPercentage,
         quantity: 1,
         paymentType: service.paymentType,
         fixedUpiId: service.fixedUpiId,

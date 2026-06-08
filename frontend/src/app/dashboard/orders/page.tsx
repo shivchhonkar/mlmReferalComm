@@ -496,7 +496,7 @@ function DynamicPaymentAdminPanel({
         <p className="mt-3 text-sm font-medium text-emerald-700">This order is fully paid and fulfilled.</p>
       )}
 
-      {hasProof ? (
+      {/* {hasProof ? (
         <div className="mt-3 rounded-lg border border-slate-200 bg-white p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Customer payment proof
@@ -507,7 +507,7 @@ function DynamicPaymentAdminPanel({
             maxHeightClass="max-h-40"
           />
         </div>
-      ) : null}
+      ) : null} */}
     </div>
   );
 }
@@ -623,18 +623,18 @@ function CustomerDynamicPaymentPanel({
     );
   }
 
-  if (isPaid) {
-    return (
-      <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800">
-        <p>Payment complete. Thank you!</p>
-        <PaymentProofAttachment
-          proofUrl={order.paymentProofUrl}
-          label="Your payment screenshot"
-          maxHeightClass="max-h-32"
-        />
-      </div>
-    );
-  }
+  // if (isPaid) {
+  //   return (
+  //     <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 p-4 text-sm text-emerald-800">
+  //       <p>Payment complete. Thank you!</p>
+  //       <PaymentProofAttachment
+  //         proofUrl={order.paymentProofUrl}
+  //         label="Your payment screenshot"
+  //         maxHeightClass="max-h-32"
+  //       />
+  //     </div>
+  //   );
+  // }
 
   if (!canPay) return null;
 
@@ -645,7 +645,7 @@ function CustomerDynamicPaymentPanel({
         Pay exactly <strong>{formatINR(payAmount)}</strong>, then upload your payment screenshot.
       </p>
 
-      {effectiveUpi && upiPayLink ? (
+      {/* {effectiveUpi && upiPayLink ? (
         <div className="mt-4 rounded-lg border border-emerald-100 bg-white p-3">
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start">
             {qrUrl ? (
@@ -682,7 +682,7 @@ function CustomerDynamicPaymentPanel({
         </div>
       ) : (
         <p className="mt-3 text-xs text-amber-800">UPI details are not available. Contact support.</p>
-      )}
+      )} */}
 
       {order.paymentLink && !order.paymentLink.startsWith("upi://") ? (
         <a
@@ -692,7 +692,7 @@ function CustomerDynamicPaymentPanel({
           className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-sky-700 hover:underline"
         >
           <ExternalLink className="h-4 w-4" />
-          Alternate payment link
+          payment link
         </a>
       ) : null}
 
@@ -749,6 +749,21 @@ function OrderStatusBadge({ status }: { status: OrderStatus }) {
       {status}
     </span>
   );
+}
+
+function OrderPaymentStatusBadges({
+  isDynamicPayment,
+  paymentStatus,
+  servicePaymentStatus,
+}: {
+  isDynamicPayment?: boolean;
+  paymentStatus?: "PENDING" | "PAID" | "FAILED";
+  servicePaymentStatus?: ServicePaymentStatusType;
+}) {
+  if (isDynamicPayment && servicePaymentStatus) {
+    return <ServicePaymentStatusBadge status={servicePaymentStatus} />;
+  }
+  return <PaymentStatusBadge status={paymentStatus} />;
 }
 
 function ServicePaymentStatusBadge({ status }: { status?: ServicePaymentStatusType }) {
@@ -1438,10 +1453,11 @@ export default function OrdersPage() {
                           {order.orderNumber}
                         </span>
                         <OrderStatusBadge status={order.status} />
-                        <PaymentStatusBadge status={order.paymentStatus} />
-                        {order.isDynamicPayment ? (
-                          <ServicePaymentStatusBadge status={order.servicePaymentStatus} />
-                        ) : null}
+                        <OrderPaymentStatusBadges
+                          isDynamicPayment={order.isDynamicPayment}
+                          paymentStatus={order.paymentStatus}
+                          servicePaymentStatus={order.servicePaymentStatus}
+                        />
                       </div>
                       <div className="mt-0.5 flex flex-wrap items-center gap-3 text-xs text-slate-500">
                         <span className="flex items-center gap-1">
@@ -1534,7 +1550,9 @@ export default function OrdersPage() {
                                   <PaymentModeIcon mode={order.paymentMode} />
                                   {order.paymentMode || "—"}
                                 </span>
-                                <PaymentStatusBadge status={order.paymentStatus} />
+                                {!order.isDynamicPayment ? (
+                                  <PaymentStatusBadge status={order.paymentStatus} />
+                                ) : null}
                               </div>
                               {order.isDynamicPayment && (
                                 <div className="mt-3 rounded-lg border border-sky-100 bg-sky-50/50 p-3 text-sm">
@@ -1589,10 +1607,11 @@ export default function OrdersPage() {
                                         ? "Pay later"
                                         : order.paymentMode || "—"}
                               </span>
-                              <PaymentStatusBadge status={order.paymentStatus} />
-                              {order.isDynamicPayment ? (
-                                <ServicePaymentStatusBadge status={order.servicePaymentStatus} />
-                              ) : null}
+                              <OrderPaymentStatusBadges
+                                isDynamicPayment={order.isDynamicPayment}
+                                paymentStatus={order.paymentStatus}
+                                servicePaymentStatus={order.servicePaymentStatus}
+                              />
                               {order.paymentMode === "UPI" && order.paymentReviewStatus === "PENDING_REVIEW" && (
                                 <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-800">Awaiting review</span>
                               )}

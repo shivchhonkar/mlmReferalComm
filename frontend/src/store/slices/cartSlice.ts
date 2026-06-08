@@ -5,6 +5,7 @@ export type CartItem = {
   name: string;
   price: number;
   businessVolume?: number;
+  bvPercentage?: number;
   quantity: number;
   paymentType?: "fixed_upi" | "dynamic_link";
   fixedUpiId?: string;
@@ -49,23 +50,35 @@ export const cartSlice = createSlice({
         name: string;
         price: number;
         businessVolume?: number;
+        bvPercentage?: number;
         quantity?: number;
         paymentType?: "fixed_upi" | "dynamic_link";
         fixedUpiId?: string;
       }>
     ) => {
-      const { id, name, price, businessVolume, quantity = 1, paymentType, fixedUpiId } =
-        action.payload;
+      const {
+        id,
+        name,
+        price,
+        businessVolume,
+        bvPercentage,
+        quantity = 1,
+        paymentType,
+        fixedUpiId,
+      } = action.payload;
       const existing = state.items[id];
 
       if (existing) {
         existing.quantity += quantity;
+        if (bvPercentage !== undefined) existing.bvPercentage = bvPercentage;
+        if (paymentType) existing.paymentType = paymentType;
       } else {
         state.items[id] = {
           id,
           name,
           price,
           businessVolume,
+          bvPercentage,
           quantity,
           paymentType,
           fixedUpiId,

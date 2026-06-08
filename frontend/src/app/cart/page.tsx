@@ -8,8 +8,12 @@ import { Package, ShoppingCart, ShieldCheck, Sparkles } from "lucide-react";
 import CheckoutDrawer from "./CheckoutDrawer";
 
 import { formatINR } from "@/lib/format";
+import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
+import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
+import type { CartItem } from "@/store/slices/cartSlice";
 import { clearCart, removeItem, updateQty } from "@/store/slices/cartSlice";
+import { setServices } from "@/store/slices/serviceSlice";
 import { showErrorToast } from "@/lib/toast";
 
 const brandGradient = "linear-gradient(90deg, #22C55E 0%, #0EA5E9 100%)";
@@ -52,8 +56,41 @@ export default function CartPage() {
   const cart = useAppSelector((s) => s.cart);
   const user = useAppSelector((s) => s.user.profile);
 
-  const items = useMemo(() => Object.values(cart.items), [cart.items]);
+  const catalogServices = useAppSelector((s) => s.service.services);
+
+  const items = useMemo(() => {
+    return Object.values(cart.items).map((item) => {
+      const svc = catalogServices.find((s) => s._id === item.id);
+      if (!svc) return item;
+      return {
+        ...item,
+        paymentType: item.paymentType ?? svc.paymentType,
+        bvPercentage: item.bvPercentage ?? svc.bvPercentage,
+        businessVolume: item.businessVolume ?? svc.businessVolume,
+      } satisfies CartItem;
+    });
+  }, [cart.items, catalogServices]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+  useEffect(() => {
+    if (catalogServices.length > 0) return;
+    let cancelled = false;
+    async function loadCatalog() {
+      try {
+        const res = await apiFetch("/api/services");
+        const body = await readApiBody(res);
+        if (cancelled || !res.ok) return;
+        const list = (body.json as { services?: unknown[] })?.services ?? [];
+        dispatch(setServices(list as Parameters<typeof setServices>[0]));
+      } catch {
+        // Optional enrichment for BV labels on direct /cart visits.
+      }
+    }
+    loadCatalog();
+    return () => {
+      cancelled = true;
+    };
+  }, [catalogServices.length, dispatch]);
 
   function handleCheckoutClick() {
     if (!user) {
@@ -180,14 +217,15 @@ export default function CartPage() {
 
                         <div className="mt-1 flex flex-wrap items-center gap-2">
                           <span className="text-base font-bold text-zinc-900">
-                            {formatINR(item.price)}
+                            {isDynamicLinkPayment(item.paymentType) &&
+                            (!item.price || item.price <= 0)
+                              ? "Price on request"
+                              : formatINR(item.price)}
                           </span>
 
-                          {typeof item.businessVolume === "number" && (
-                            <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                              {item.businessVolume} BV
-                            </span>
-                          )}
+                          <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                            {formatServiceBvLabel(item)}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -325,13 +363,13 @@ export default function CartPage() {
                   Clear Cart
                 </button>
 
-                <Link
+                {/* <Link
                   prefetch={false}
                   href="/services"
                   className="block text-center text-sm font-semibold text-emerald-700 hover:text-emerald-800"
                 >
                   Add more services →
-                </Link>
+                </Link> */}
               </div>
             </div>
           </div>

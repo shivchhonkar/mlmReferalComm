@@ -592,7 +592,9 @@ export default function ServicesCategoryClient({
                         name: selectedService.name,
                         price: selectedService.price,
                         businessVolume: selectedService.businessVolume,
+                        bvPercentage: selectedService.bvPercentage,
                         quantity: 1,
+                        paymentType: selectedService.paymentType,
                       })
                     );
                   }}
