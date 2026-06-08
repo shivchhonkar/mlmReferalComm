@@ -168,7 +168,10 @@ export default function ImageUpload({ onImageSelect, currentImage, className = "
                 </p>
               </div>
               <p className="text-xs text-gray-700">
-                PNG, JPG, GIF up to 5MB
+                PNG, JPG, GIF with dimensions 1920 × 800 (or 2400 × 1000)
+              </p>
+              <p className="text-xs text-gray-700">
+                Max image size: 5MB
               </p>
             </div>
           )}
