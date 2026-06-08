@@ -26,7 +26,11 @@ import {
   Check,
   ImagePlus,
   Loader2,
+  Download,
+  BarChart3,
 } from "lucide-react";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { buildUpiPayUrl, upiQrImageUrl } from "@/lib/upiPayment";
 import {
   canMarkDynamicPaid,
@@ -42,8 +46,26 @@ import {
 
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { formatINR } from "@/lib/format";
+import {
+  buildOrderReportRows,
+  filterOrdersByDateRange,
+  filterOrdersByPeriodKey,
+  orderRowPeriodLabel,
+  paymentStatusLabel,
+  type OrderReportEntry,
+  type OrderReportType,
+} from "@/lib/orderReports";
 import { showErrorToast, showSuccessToast } from "@/lib/toast";
 import { useAppSelector } from "@/store/hooks";
+
+function formatINRPrecise(value: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number.isFinite(value) ? value : 0);
+}
 
 const STATUS_OPTIONS: { value: "" | "PENDING" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "paid" | "unpaid"; label: string }[] = [
   { value: "", label: "All" },
@@ -897,7 +919,19 @@ export default function OrdersPage() {
   const [platformUpi, setPlatformUpi] = useState("");
   const [query, setQuery] = useState("");
   const [imageModalUrl, setImageModalUrl] = useState<string | null>(null);
+  const [reportType, setReportType] = useState<OrderReportType>("monthly");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [selectedPeriodKey, setSelectedPeriodKey] = useState("");
+  const [reportPanelOpen, setReportPanelOpen] = useState(true);
   const listScrollRef = useRef<HTMLDivElement>(null);
+
+  const REPORT_TYPE_OPTIONS: { value: OrderReportType; label: string }[] = [
+    { value: "monthly", label: "Monthly" },
+    { value: "quarterly", label: "Quarterly" },
+    { value: "annual", label: "Annual" },
+    { value: "custom", label: "Custom" },
+  ];
 
   async function loadOrders() {
     if (!user) {
@@ -1184,8 +1218,159 @@ export default function OrdersPage() {
 
   const currentFilterLabel = STATUS_OPTIONS.find((o) => o.value === filterOption)?.label ?? "All";
 
+  const reportEntries = useMemo<OrderReportEntry[]>(
+    () =>
+      orders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        date: o.date,
+        total: o.total,
+        status: o.status,
+        customerName: o.customerName,
+        customerEmail: o.customerEmail,
+        customerMobile: o.customerMobile,
+        paymentMode: o.paymentMode,
+        paymentStatus: o.paymentStatus,
+        servicePaymentStatus: o.servicePaymentStatus,
+        items: o.items,
+      })),
+    [orders]
+  );
+
+  const dateRangeOrders = useMemo(() => {
+    if (reportType === "custom" && (customFrom || customTo)) {
+      return filterOrdersByDateRange(reportEntries, customFrom, customTo);
+    }
+    return reportEntries;
+  }, [reportEntries, reportType, customFrom, customTo]);
+
+  const reportRows = useMemo(
+    () => buildOrderReportRows(dateRangeOrders, reportType, customFrom, customTo),
+    [dateRangeOrders, reportType, customFrom, customTo]
+  );
+
+  const periodFilteredOrders = useMemo(() => {
+    const scoped = filterOrdersByPeriodKey(
+      dateRangeOrders,
+      reportType,
+      selectedPeriodKey,
+      customFrom,
+      customTo
+    );
+    const idSet = new Set(scoped.map((e) => e.id));
+    return orders.filter((o) => idSet.has(o.id));
+  }, [orders, dateRangeOrders, reportType, selectedPeriodKey, customFrom, customTo]);
+
+  const reportTotalAmount = dateRangeOrders.reduce((sum, o) => sum + (o.total ?? 0), 0);
+  const reportPaidCount = dateRangeOrders.filter(
+    (o) => o.paymentStatus === "PAID" || o.servicePaymentStatus === "paid"
+  ).length;
+  const reportPendingCount = dateRangeOrders.length - reportPaidCount;
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    dateRangeOrders.forEach((o) => {
+      const d = new Date(o.date);
+      if (!Number.isNaN(d.getTime())) years.add(d.getFullYear());
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [dateRangeOrders]);
+
+  const downloadCsvReport = () => {
+    const lines: string[] = [];
+    lines.push(`Report Type,${reportType.toUpperCase()}`);
+    if (reportType === "custom") {
+      lines.push(`Custom From,${customFrom || "-"}`);
+      lines.push(`Custom To,${customTo || "-"}`);
+    }
+    lines.push(`Total Orders,${dateRangeOrders.length}`);
+    lines.push(`Paid Orders,${reportPaidCount}`);
+    lines.push(`Total Amount,${reportTotalAmount.toFixed(2)}`);
+    lines.push("");
+    lines.push("Period,Order,Date,Customer,Mobile,Email,Status,Payment,Mode,Items,Amount");
+
+    reportRows.forEach((row) => {
+      row.entries.forEach((order) => {
+        const dateStr = new Date(order.date).toLocaleString("en-IN");
+        const customer = (order.customerName || "-").replace(/,/g, " ");
+        const mobile = (order.customerMobile || "-").replace(/,/g, " ");
+        const email = (order.customerEmail || "-").replace(/,/g, " ");
+        lines.push(
+          `"${orderRowPeriodLabel(order.date, reportType, customFrom, customTo)}","${order.orderNumber}","${dateStr}","${customer}","${mobile}","${email}","${order.status}","${paymentStatusLabel(order)}","${order.paymentMode || "-"}",${order.items},${(order.total ?? 0).toFixed(2)}`
+        );
+      });
+    });
+
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `orders-report-${reportType}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadPdfReport = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    doc.setFontSize(14);
+    doc.text(`Orders Report (${reportType.toUpperCase()})`, 40, 40);
+    doc.setFontSize(10);
+    doc.text(`Generated: ${new Date().toLocaleString("en-IN")}`, 40, 58);
+    if (reportType === "custom") {
+      doc.text(`Custom range: ${customFrom || "-"} to ${customTo || "-"}`, 40, 74);
+    }
+    doc.text(
+      `Total Orders: ${dateRangeOrders.length}    Paid: ${reportPaidCount}    Total Amount: ${formatINRPrecise(reportTotalAmount)}`,
+      40,
+      90
+    );
+
+    const summaryRows = reportRows.map((row) => [
+      row.periodLabel,
+      row.orderCount,
+      row.paidCount,
+      row.pendingCount,
+      formatINRPrecise(row.totalAmount),
+    ]);
+
+    autoTable(doc, {
+      startY: 105,
+      head: [["Period", "Orders", "Paid", "Pending", "Total Amount"]],
+      body: summaryRows,
+      styles: { fontSize: 9 },
+      headStyles: { fillColor: [16, 185, 129] },
+    });
+
+    const detailRows: Array<Array<string | number>> = [];
+    reportRows.forEach((row) => {
+      row.entries.forEach((order) => {
+        detailRows.push([
+          orderRowPeriodLabel(order.date, reportType, customFrom, customTo),
+          order.orderNumber,
+          new Date(order.date).toLocaleString("en-IN"),
+          order.customerName || "-",
+          order.customerMobile || "-",
+          order.status,
+          paymentStatusLabel(order),
+          formatINRPrecise(order.total ?? 0),
+        ]);
+      });
+    });
+
+    const finalY = (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 105;
+    autoTable(doc, {
+      startY: finalY + 16,
+      head: [["Period", "Order", "Date", "Customer", "Mobile", "Status", "Payment", "Amount"]],
+      body: detailRows,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [14, 165, 233] },
+    });
+
+    doc.save(`orders-report-${reportType}-${new Date().toISOString().slice(0, 10)}.pdf`);
+  };
+
   const filteredOrders = useMemo(() => {
-    let base = orders;
+    let base = periodFilteredOrders;
 
     if (filterOption === "paid") {
       base = base.filter((o) => o.paymentStatus === "PAID");
@@ -1210,7 +1395,7 @@ export default function OrdersPage() {
       );
     }
     return base;
-  }, [orders, filterOption, query]);
+  }, [periodFilteredOrders, filterOption, query]);
 
   const totalRows = filteredOrders.length;
 
@@ -1230,8 +1415,12 @@ export default function OrdersPage() {
   });
 
   useEffect(() => {
+    setSelectedPeriodKey("");
+  }, [reportType, customFrom, customTo]);
+
+  useEffect(() => {
     listScrollRef.current?.scrollTo({ top: 0 });
-  }, [filterOption, query]);
+  }, [filterOption, query, reportType, selectedPeriodKey, customFrom, customTo]);
 
   useEffect(() => {
     rowVirtualizer.measure();
@@ -1300,74 +1489,283 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {/* Search + Status dropdown (dropdown to the right of search) */}
-        <div className="mb-6 flex flex-wrap items-center gap-3 justify-between">
-          <div className="flex gap-3">
-          <div className="relative flex-1 min-w-[200px] max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search orders, customer..."
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 !pl-10 pr-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-emerald-500/20 focus:border-emerald-500 focus:ring-2"
-            />
-          </div>
-          <div className="relative" ref={dropdownRef}>
+        {/* Order reports — monthly / quarterly / annual / custom */}
+        {user && orders.length > 0 ? (
+          <div className="mb-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <button
               type="button"
-              onClick={() => setDropdownOpen((o) => !o)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 min-w-[140px] justify-between"
+              onClick={() => setReportPanelOpen((open) => !open)}
+              className="flex w-full items-center justify-between gap-3 border-b border-slate-200 bg-slate-50/80 px-4 py-3 text-left transition hover:bg-slate-100/80 hover:cursor-pointer"
+              aria-expanded={reportPanelOpen}
             >
-              <Filter className="h-4 w-4 text-slate-500" />
-              <span className="truncate">{currentFilterLabel}</span>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition cursor-pointer ${dropdownOpen ? "rotate-180" : ""}`} />
-            </button>
-            {dropdownOpen && (
-              <div className="absolute right-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-                <div className="border-b border-slate-100 p-2">
-                  <input
-                    type="text"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    placeholder="Search status..."
-                    className="w-full rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-emerald-500"
-                    autoFocus
-                  />
-                </div>
-                <ul className="max-h-60 overflow-y-auto py-1">
-                  {filteredStatusOptions.length === 0 ? (
-                    <li className="px-3 py-2 text-sm text-slate-500">No match</li>
-                  ) : (
-                    filteredStatusOptions.map((opt) => (
-                      <li key={opt.value || "all"}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFilterOption(opt.value);
-                            setFilterQuery("");
-                            setDropdownOpen(false);
-                          }}
-                          className={`w-full px-3 py-2 text-left text-sm transition hover:cursor-pointer ${
-                            filterOption === opt.value
-                              ? "bg-emerald-50 font-medium text-emerald-800"
-                              : "text-slate-700 hover:bg-slate-50"
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>
+              <div className="flex min-w-0 items-center gap-2">
+                <BarChart3 className="h-5 w-5 shrink-0 text-emerald-600" />
+                <span className="font-semibold text-slate-900">Order reports</span>
+                {!reportPanelOpen ? (
+                  <span className="truncate text-sm font-normal text-slate-500">
+                    · {formatINRPrecise(reportTotalAmount)} · {dateRangeOrders.length} orders
+                  </span>
+                ) : null}
               </div>
-            )}
+              {reportPanelOpen ? (
+                <ChevronUp className="h-4 w-4 shrink-0 text-slate-500" />
+              ) : (
+                <ChevronDown className="h-4 w-4 shrink-0 text-slate-500" />
+              )}
+            </button>
+
+            {reportPanelOpen ? (
+              <div className="space-y-4 p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/80">Report total</p>
+                    <p className="mt-0.5 text-lg font-semibold text-emerald-900">
+                      {formatINRPrecise(reportTotalAmount)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/60 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-sky-800/80">Orders in range</p>
+                    <p className="mt-0.5 text-lg font-semibold text-sky-900">{dateRangeOrders.length}</p>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-amber-800/80">Paid / pending</p>
+                    <p className="mt-0.5 text-lg font-semibold text-amber-900">
+                      <span className="text-emerald-700">{reportPaidCount}</span>
+                      <span className="mx-1 text-amber-700/60">/</span>
+                      <span className="text-amber-700">{reportPendingCount}</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/40 p-3">
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Time period</p>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {REPORT_TYPE_OPTIONS.map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setReportType(value)}
+                        className={`rounded-lg border px-3 py-2 text-sm font-medium transition hover:cursor-pointer ${
+                          reportType === value
+                            ? "border-emerald-300 bg-emerald-50 text-emerald-700 shadow-sm"
+                            : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {reportType === "custom" ? (
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">From</span>
+                        <input
+                          type="date"
+                          value={customFrom}
+                          onChange={(e) => setCustomFrom(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="mb-1 block text-xs font-medium text-slate-600">To</span>
+                        <input
+                          type="date"
+                          value={customTo}
+                          onChange={(e) => setCustomTo(e.target.value)}
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  {reportRows.length > 0 ? (
+                    <label className="block w-full sm:max-w-xs">
+                      <span className="mb-1 block text-xs font-medium text-slate-600">Filter by period</span>
+                      <select
+                        value={selectedPeriodKey}
+                        onChange={(e) => setSelectedPeriodKey(e.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20"
+                        aria-label="Filter by period"
+                      >
+                        <option value="">All periods</option>
+                        {reportRows.map((row) => (
+                          <option key={row.key} value={row.key}>
+                            {row.periodLabel} ({row.orderCount})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <p className="text-sm text-slate-500">No periods in the selected range.</p>
+                  )}
+
+                  <div className="flex shrink-0 gap-2">
+                    <button
+                      type="button"
+                      onClick={downloadCsvReport}
+                      disabled={reportRows.length === 0}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:cursor-pointer disabled:opacity-50 sm:flex-none"
+                    >
+                      <Download className="h-4 w-4" />
+                      CSV
+                    </button>
+                    <button
+                      type="button"
+                      onClick={downloadPdfReport}
+                      disabled={reportRows.length === 0}
+                      className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:cursor-pointer disabled:opacity-50 sm:flex-none"
+                    >
+                      <Download className="h-4 w-4" />
+                      PDF
+                    </button>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-500">
+                  {selectedPeriodKey
+                    ? `Showing orders for ${reportRows.find((r) => r.key === selectedPeriodKey)?.periodLabel ?? "selected period"}`
+                    : `${dateRangeOrders.length} order${dateRangeOrders.length === 1 ? "" : "s"} in report`}
+                  {availableYears.length > 0 ? ` · Years: ${availableYears.join(", ")}` : ""}
+                </p>
+
+                {reportRows.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-500">
+                    No orders in the selected range.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto rounded-lg border border-slate-200">
+                    <table className="w-full min-w-[640px]">
+                      <thead>
+                        <tr className="border-b border-slate-200 bg-slate-50/60">
+                          <th className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Period
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Orders
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Paid
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Pending
+                          </th>
+                          <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wider text-slate-500">
+                            Total Amount
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {reportRows.map((row) => (
+                          <tr
+                            key={row.key}
+                            className={`transition hover:bg-slate-50/50 ${
+                              selectedPeriodKey === row.key ? "bg-emerald-50/60" : ""
+                            }`}
+                          >
+                            <td className="px-4 py-3 text-sm font-medium text-slate-800">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSelectedPeriodKey((prev) => (prev === row.key ? "" : row.key))
+                                }
+                                className="text-left hover:text-emerald-700 hover:underline hover:cursor-pointer"
+                              >
+                                {row.periodLabel}
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-right text-sm text-slate-700">{row.orderCount}</td>
+                            <td className="px-4 py-3 text-right text-sm text-emerald-700">{row.paidCount}</td>
+                            <td className="px-4 py-3 text-right text-sm text-amber-700">{row.pendingCount}</td>
+                            <td className="px-4 py-3 text-right text-sm font-medium text-slate-900">
+                              {formatINRPrecise(row.totalAmount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
+        ) : null}
+
+        {/* Search + Status filter */}
+        <div className="mb-6 rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative min-w-0 flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search orders, customer..."
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 !pl-10 pr-3 text-sm text-slate-900 placeholder-slate-400 outline-none ring-emerald-500/20 focus:border-emerald-500 focus:ring-2"
+              />
+            </div>
+            <div className="relative w-full sm:w-auto" ref={dropdownRef}>
+              <button
+                type="button"
+                onClick={() => setDropdownOpen((o) => !o)}
+                className="inline-flex w-full items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 hover:cursor-pointer sm:min-w-[160px]"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-slate-500" />
+                  <span className="truncate">{currentFilterLabel}</span>
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${dropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+              {dropdownOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg sm:left-auto sm:right-0 sm:w-56">
+                  <div className="border-b border-slate-100 p-2">
+                    <input
+                      type="text"
+                      value={filterQuery}
+                      onChange={(e) => setFilterQuery(e.target.value)}
+                      placeholder="Search status..."
+                      className="w-full rounded-lg border border-slate-200 py-2 px-3 text-sm outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                  </div>
+                  <ul className="max-h-60 overflow-y-auto py-1">
+                    {filteredStatusOptions.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-slate-500">No match</li>
+                    ) : (
+                      filteredStatusOptions.map((opt) => (
+                        <li key={opt.value || "all"}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterOption(opt.value);
+                              setFilterQuery("");
+                              setDropdownOpen(false);
+                            }}
+                            className={`w-full px-3 py-2 text-left text-sm transition hover:cursor-pointer ${
+                              filterOption === opt.value
+                                ? "bg-emerald-50 font-medium text-emerald-800"
+                                : "text-slate-700 hover:bg-slate-50"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
           </div>
-          {!loading && totalRows > 0 && (
-            <span className="text-sm text-slate-600">
-              {totalRows} order{totalRows !== 1 ? "s" : ""}
-            </span>
-          )}
+          {!loading && totalRows > 0 ? (
+            <p className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-500">
+              Showing {totalRows} order{totalRows !== 1 ? "s" : ""}
+              {selectedPeriodKey
+                ? ` · filtered by ${reportRows.find((r) => r.key === selectedPeriodKey)?.periodLabel ?? "period"}`
+                : ""}
+            </p>
+          ) : null}
         </div>
 
         {/* Orders list */}
