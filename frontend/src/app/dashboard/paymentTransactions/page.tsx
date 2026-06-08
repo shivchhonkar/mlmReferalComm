@@ -535,7 +535,7 @@ export default function PaymentTransactionsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Refresh
           </button>
-          <button
+          {/* <button
             type="button"
             onClick={openWithdrawModal}
             disabled={!summary || maxWithdrawable <= 0 || submitting}
@@ -548,7 +548,7 @@ export default function PaymentTransactionsPage() {
           >
             <IndianRupee className="h-4 w-4" />
             Request withdrawal
-          </button>
+          </button> */}
         </div>
       </div>
 
