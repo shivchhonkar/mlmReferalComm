@@ -87,6 +87,7 @@ export default function KYCPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [kycStatus, setKycStatus] = useState<KYCStatus | null>(null);
   const [kycRejectionReason, setKycRejectionReason] = useState<string | null>(null);
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
   const [formData, setFormData] = useState<KYCData>({
     fullName: "",
     fatherName: "",
@@ -193,11 +194,55 @@ export default function KYCPage() {
     }));
   };
 
-  const handleFileUpload = (field: string, file: File) => {
-    // In a real implementation, you would upload the file to a storage service
-    // For now, we'll just simulate it with a URL
-    const mockUrl = URL.createObjectURL(file);
-    setFormData(prev => ({ ...prev, [field]: mockUrl }));
+  const handleFileUpload = async (field: keyof KYCData, file: File) => {
+    setUploadingField(field);
+    try {
+      if (field === "profileImage") {
+        const body = new FormData();
+        body.append("image", file);
+
+        const res = await fetch("/api/upload/profile-image", {
+          method: "POST",
+          credentials: "include",
+          body,
+        });
+        const data = (await res.json()) as { imageUrl?: string; error?: string };
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to upload profile photo");
+        }
+        if (!data.imageUrl) {
+          throw new Error("Upload succeeded but no image URL was returned");
+        }
+
+        setFormData((prev) => ({ ...prev, profileImage: data.imageUrl }));
+        showSuccessToast("Profile photo uploaded successfully");
+        return;
+      }
+
+      const body = new FormData();
+      body.append("field", field);
+      body.append("document", file);
+
+      const res = await fetch(`/api/upload/kyc-document?field=${encodeURIComponent(field)}`, {
+        method: "POST",
+        credentials: "include",
+        body,
+      });
+      const data = (await res.json()) as { documentUrl?: string; error?: string };
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to upload document");
+      }
+      if (!data.documentUrl) {
+        throw new Error("Upload succeeded but no document URL was returned");
+      }
+
+      setFormData((prev) => ({ ...prev, [field]: data.documentUrl }));
+      showSuccessToast("Document uploaded successfully");
+    } catch (err) {
+      showErrorToast(err instanceof Error ? err.message : "Failed to upload document");
+    } finally {
+      setUploadingField(null);
+    }
   };
 
   const aadhaarDigits = (formData.aadhaarNumber || "").replace(/\D/g, "");
@@ -243,6 +288,16 @@ export default function KYCPage() {
     if (!validateStep(1) || !validateStep(2) || !validateStep(3) || !validateStep(4)) {
       showWarningToast("Please complete all steps and fill required fields.");
       setError("Please complete all steps. Check Personal, Documents, Bank, and Nominees.");
+      return;
+    }
+
+    const invalidDoc = [formData.panDocument, formData.aadhaarDocument, formData.bankDocument].find(
+      (url) => url?.startsWith("blob:")
+    );
+    if (invalidDoc) {
+      const msg = "Please re-upload your documents before submitting. Temporary browser links cannot be saved.";
+      setError(msg);
+      showWarningToast(msg);
       return;
     }
 
@@ -505,7 +560,7 @@ export default function KYCPage() {
                         className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100"
                       >
                         <Upload className="h-4 w-4" />
-                        Upload Photo
+                        {uploadingField === "profileImage" ? "Uploading…" : "Upload Photo"}
                       </label>
                     </>
                   )}
@@ -554,11 +609,13 @@ export default function KYCPage() {
                     <>
                       <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("panDocument", e.target.files[0])} className="hidden" id="panDocument" />
                       <label htmlFor="panDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                        <Upload className="h-4 w-4" /> Upload PAN
+                        <Upload className="h-4 w-4" /> {uploadingField === "panDocument" ? "Uploading…" : "Upload PAN"}
                       </label>
                     </>
                   )}
-                  {formData.panDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
+                  {formData.panDocument && uploadingField !== "panDocument" && (
+                    <span className="text-sm font-medium text-emerald-600">Uploaded</span>
+                  )}
                 </div>
               </div>
               <div>
@@ -582,11 +639,13 @@ export default function KYCPage() {
                     <>
                       <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("aadhaarDocument", e.target.files[0])} className="hidden" id="aadhaarDocument" />
                       <label htmlFor="aadhaarDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                        <Upload className="h-4 w-4" /> Upload Aadhaar
+                        <Upload className="h-4 w-4" /> {uploadingField === "aadhaarDocument" ? "Uploading…" : "Upload Aadhaar"}
                       </label>
                     </>
                   )}
-                  {formData.aadhaarDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
+                  {formData.aadhaarDocument && uploadingField !== "aadhaarDocument" && (
+                    <span className="text-sm font-medium text-emerald-600">Uploaded</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -663,11 +722,13 @@ export default function KYCPage() {
                   <>
                     <input type="file" accept="image/*,.pdf" onChange={(e) => e.target.files?.[0] && handleFileUpload("bankDocument", e.target.files[0])} className="hidden" id="bankDocument" />
                     <label htmlFor="bankDocument" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100">
-                      <Upload className="h-4 w-4" /> Upload
+                      <Upload className="h-4 w-4" /> {uploadingField === "bankDocument" ? "Uploading…" : "Upload"}
                     </label>
                   </>
                 )}
-                {formData.bankDocument && <span className="text-sm font-medium text-emerald-600">Uploaded</span>}
+                {formData.bankDocument && uploadingField !== "bankDocument" && (
+                  <span className="text-sm font-medium text-emerald-600">Uploaded</span>
+                )}
               </div>
             </div>
           </div>

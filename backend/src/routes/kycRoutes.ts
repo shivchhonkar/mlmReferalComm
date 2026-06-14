@@ -94,6 +94,15 @@ router.put("/", async (req, res) => {
       })).optional()
     }).parse(req.body);
 
+    const blobDoc = [body.panDocument, body.aadhaarDocument, body.bankDocument].find(
+      (url) => typeof url === "string" && url.startsWith("blob:")
+    );
+    if (blobDoc) {
+      return res.status(400).json({
+        error: "One or more documents were not uploaded correctly. Please re-upload PAN, Aadhaar, or bank documents before submitting.",
+      });
+    }
+
     await connectToDatabase();
 
     const user = await UserModel.findByIdAndUpdate(

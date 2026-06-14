@@ -66,6 +66,56 @@ const TABS: { value: TabStatus; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
+function resolveKycDocumentUrl(url?: string): string | null {
+  if (!url) return null;
+  if (url.startsWith("blob:")) return null;
+  if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+  if (url.startsWith("/uploads/")) return url;
+  return url.startsWith("/") ? url : `/${url}`;
+}
+
+function isImageDocument(url: string): boolean {
+  if (url.startsWith("data:image/")) return true;
+  return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+}
+
+function KycDocumentLinks({ url, label }: { url?: string; label: string }) {
+  const resolved = resolveKycDocumentUrl(url);
+
+  if (!url) {
+    return <p className="text-xs text-gray-400 mt-1">No document uploaded</p>;
+  }
+
+  if (!resolved) {
+    return (
+      <p className="text-xs text-amber-700 mt-1">
+        {label} unavailable — saved as a temporary browser link. Ask the user to re-upload and resubmit KYC.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 space-y-2">
+      <div className="flex flex-wrap gap-3">
+        <a
+          href={resolved}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+        >
+          View Document
+        </a>
+        <a href={resolved} download className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+          Download
+        </a>
+      </div>
+      {isImageDocument(resolved) && (
+        <img src={resolved} alt={label} className="max-h-48 rounded-lg border border-gray-200 object-contain bg-gray-50" />
+      )}
+    </div>
+  );
+}
+
 export default function KYCPage() {
   useAuth({ requireAdmin: true });
   const [activeTab, setActiveTab] = useState<TabStatus>("submitted");
@@ -597,30 +647,12 @@ export default function KYCPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">PAN Number</label>
                     <p className="text-gray-900">{selectedUser.panNumber || "-"}</p>
-                    {selectedUser.panDocument && (
-                      <a
-                        href={selectedUser.panDocument}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        View Document
-                      </a>
-                    )}
+                    <KycDocumentLinks url={selectedUser.panDocument} label="PAN document" />
                   </div>
                   <div>
                     <label className="text-sm font-medium text-gray-500">Aadhaar Number</label>
                     <p className="text-gray-900">{selectedUser.aadhaarNumber || "-"}</p>
-                    {selectedUser.aadhaarDocument && (
-                      <a
-                        href={selectedUser.aadhaarDocument}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 text-sm"
-                      >
-                        View Document
-                      </a>
-                    )}
+                    <KycDocumentLinks url={selectedUser.aadhaarDocument} label="Aadhaar document" />
                   </div>
                 </div>
 
@@ -645,6 +677,10 @@ export default function KYCPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-500">IFSC Code</label>
                     <p className="text-gray-900">{selectedUser.bankIfsc || "-"}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-500">Bank Document</label>
+                    <KycDocumentLinks url={selectedUser.bankDocument} label="Bank document" />
                   </div>
                 </div>
               </div>

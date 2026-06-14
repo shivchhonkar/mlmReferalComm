@@ -416,6 +416,70 @@ router.post("/upload/payment-proof", async (req, res) => {
   }
 });
 
+// KYC document upload (PAN, Aadhaar, bank passbook/cheque) — images or PDF
+router.post("/upload/kyc-document", async (req, res) => {
+  try {
+    const ctx = await requireAuth(req);
+    await connectToDatabase();
+
+    const multer = require("multer");
+    const path = require("path");
+    const fs = require("fs");
+
+    const uploadsDir = path.join(process.cwd(), "uploads", "kyc-documents");
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    const allowedFields = new Set(["panDocument", "aadhaarDocument", "bankDocument"]);
+
+    const storage = multer.diskStorage({
+      destination: (_req: any, _file: any, cb: any) => cb(null, uploadsDir),
+      filename: (_req: any, file: Express.Multer.File, cb: any) => {
+        const ext = (path.extname(file.originalname) || ".png").toLowerCase();
+        const safeExt = [".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"].includes(ext) ? ext : ".png";
+        const name = `kyc-${ctx.userId}-${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+        cb(null, name);
+      },
+    });
+
+    const upload = multer({
+      storage,
+      limits: { fileSize: 5 * 1024 * 1024 },
+      fileFilter: (_req: any, file: Express.Multer.File, cb: any) => {
+        const allowed =
+          file.mimetype.startsWith("image/") || file.mimetype === "application/pdf";
+        if (!allowed) {
+          return cb(new Error("Only image files (JPG, PNG, GIF, WebP) or PDF are allowed"));
+        }
+        cb(null, true);
+      },
+    });
+
+    upload.single("document")(req, res, async (err: any) => {
+      if (err) {
+        const msg = err.code === "LIMIT_FILE_SIZE" ? "Document size cannot exceed 5MB." : err.message;
+        return res.status(400).json({ error: msg });
+      }
+      if (!req.file) return res.status(400).json({ error: "No document provided" });
+
+      const field = String(req.query.field || req.body?.field || "").trim();
+      if (!allowedFields.has(field)) {
+        return res.status(400).json({
+          error: `Invalid document field${field ? `: ${field}` : ""}. Expected panDocument, aadhaarDocument, or bankDocument.`,
+        });
+      }
+
+      const url = `/uploads/kyc-documents/${req.file.filename}`;
+      return res.json({ success: true, documentUrl: url, field });
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Unable to upload KYC document";
+    const status = msg.includes("log in") || msg.includes("Authentication") ? 401 : 400;
+    return res.status(status).json({ error: msg });
+  }
+});
+
 // Clear profile image
 router.post("/profile/clear-image", async (req, res) => {
   try {
