@@ -23,6 +23,9 @@ import {
   Clock,
   Store,
   AlertCircle,
+  ChevronDown,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import { formatINR, formatNumber } from "@/lib/format";
 import { useAppSelector } from "@/store/hooks";
@@ -33,8 +36,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -72,6 +73,7 @@ type Income = {
   level: number;
   bv: number;
   amount: number;
+  legRootUserId?: string | null;
   fromUser?: { name?: string; email?: string; referralCode?: string };
   createdAt: string;
 };
@@ -87,6 +89,19 @@ type IncomeSummary = {
   totalWithdrawn: number;
   totalPendingWithdrawals: number;
   nonWithdrawableEarnings: number;
+  legBreakdown?: Array<{
+    legRootUserId: string;
+    legEarnings: number;
+    legWithdrawableCap: number;
+  }>;
+};
+
+type ReferralTreeNode = {
+  id: string;
+  name: string;
+  email?: string;
+  referralCode?: string;
+  children?: ReferralTreeNode[];
 };
 
 type ReferralStats = {
@@ -98,6 +113,29 @@ type ReferralStats = {
   depth: number;
 };
 
+type LegIncomeTransaction = {
+  id: string;
+  date: string;
+  level: number;
+  amount: number;
+  bv: number;
+};
+
+type LegIncomeContributor = {
+  id: string;
+  name: string;
+  amount: number;
+  transactions: LegIncomeTransaction[];
+};
+
+type LegIncomeSummary = {
+  legId: string;
+  name: string;
+  amount: number;
+  contributorCount: number;
+  users: LegIncomeContributor[];
+};
+
 export default function DashboardPage() {
   const { user: authUser, loading: authLoading } = useAuth();
   const cart = useAppSelector((s) => s.cart);
@@ -107,13 +145,15 @@ export default function DashboardPage() {
   const [incomes, setIncomes] = useState<Income[]>([]);
   const [incomeSummary, setIncomeSummary] = useState<IncomeSummary | null>(null);
   const [referralStats, setReferralStats] = useState<ReferralStats | null>(null);
+  const [referralRoot, setReferralRoot] = useState<ReferralTreeNode | null>(null);
   const [purchaseCount, setPurchaseCount] = useState(0);
   const [dataLoading, setDataLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [pendingSellers, setPendingSellers] = useState<unknown[]>([]);
-  const [showAllIncomeModal, setShowAllIncomeModal] = useState(false);
+  const [selectedLegId, setSelectedLegId] = useState<string | null>(null);
+  const [expandedLegContributorId, setExpandedLegContributorId] = useState<string | null>(null);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const incomeHistoryScrollRef = useRef<HTMLDivElement>(null);
@@ -179,52 +219,114 @@ export default function DashboardPage() {
     return [{ name: "Direct referrals", value: direct, color: "#10b981" }];
   }, [referralStats]);
 
-  // Chart data: Income by level
-  const incomeByLevelData = useMemo(() => {
-    const levelMap = new Map<number, number>();
-    incomes.forEach((inc) => {
-      const level = inc.level ?? 0;
-      levelMap.set(level, (levelMap.get(level) || 0) + (inc.amount ?? 0));
-    });
-    return Array.from(levelMap.entries())
-      .map(([level, amount]) => ({ level: `L${level}`, amount }))
-      .sort((a, b) => parseInt(a.level.slice(1)) - parseInt(b.level.slice(1)));
-  }, [incomes]);
+  const incomeByLegWise = useMemo((): LegIncomeSummary[] => {
+    type LegEntry = {
+      legId: string;
+      name: string;
+      amount: number;
+      users: Map<string, LegIncomeContributor>;
+    };
 
-  const allLevelUserIncome = useMemo(() => {
-    const byLevel = new Map<number, Map<string, { id: string; name: string; amount: number }>>();
-    const allLevels = new Set<number>();
+    const legMap = new Map<string, LegEntry>();
+    const nameByLegId = new Map<string, string>();
+
+    for (const child of referralRoot?.children ?? []) {
+      legMap.set(child.id, {
+        legId: child.id,
+        name: child.name || child.email || child.referralCode || "Direct referral",
+        amount: 0,
+        users: new Map(),
+      });
+      nameByLegId.set(child.id, child.name || child.email || child.referralCode || "Direct referral");
+    }
+
+    for (const leg of incomeSummary?.legBreakdown ?? []) {
+      const legId = leg.legRootUserId;
+      const existing = legMap.get(legId) ?? {
+        legId,
+        name: nameByLegId.get(legId) ?? "Direct referral",
+        amount: 0,
+        users: new Map(),
+      };
+      existing.amount = leg.legEarnings;
+      legMap.set(legId, existing);
+    }
 
     incomes.forEach((inc) => {
-      const lvl = inc.level ?? 0;
-      if (lvl < 1) return;
-      allLevels.add(lvl);
+      const legId = inc.legRootUserId ? String(inc.legRootUserId) : "";
+      if (!legId) return;
+
+      if (!legMap.has(legId)) {
+        legMap.set(legId, {
+          legId,
+          name: nameByLegId.get(legId) ?? "Direct referral",
+          amount: 0,
+          users: new Map(),
+        });
+      }
 
       const fu = inc.fromUser ?? {};
-      const id = fu.referralCode || fu.email || fu.name || "unknown";
-      const name = fu.name || fu.email || fu.referralCode || "Unknown";
+      const userId = fu.referralCode || fu.email || fu.name || "unknown";
+      const userName = fu.name || fu.email || fu.referralCode || "Unknown";
+      const legEntry = legMap.get(legId)!;
 
-      if (!byLevel.has(lvl)) byLevel.set(lvl, new Map());
-      const levelMap = byLevel.get(lvl)!;
-      const existing = levelMap.get(id) ?? { id, name, amount: 0 };
+      const existing = legEntry.users.get(userId) ?? {
+        id: userId,
+        name: userName,
+        amount: 0,
+        transactions: [],
+      };
       existing.amount += inc.amount ?? 0;
-      levelMap.set(id, existing);
+      existing.transactions.push({
+        id: inc._id,
+        date: inc.createdAt,
+        level: inc.level ?? 0,
+        amount: inc.amount ?? 0,
+        bv: inc.bv ?? 0,
+      });
+      legEntry.users.set(userId, existing);
     });
 
-    const sortedLevels = Array.from(allLevels).sort((a, b) => a - b);
-    const levelsToRender = sortedLevels.length > 0 ? sortedLevels : [1, 2, 3, 4, 5];
+    return Array.from(legMap.values())
+      .map((entry) => {
+        const users = Array.from(entry.users.values())
+          .map((user) => ({
+            ...user,
+            transactions: [...user.transactions].sort(
+              (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+            ),
+          }))
+          .sort((a, b) => b.amount - a.amount);
 
-    return levelsToRender.map((lvl) => {
-      const users = Array.from(byLevel.get(lvl)?.values() ?? []);
-      users.sort((a, b) => b.amount - a.amount);
-      return { level: lvl, users };
-    });
-  }, [incomes]);
+        return {
+          legId: entry.legId,
+          name: entry.name,
+          amount: entry.amount,
+          contributorCount: users.length,
+          users,
+        };
+      })
+      .sort((a, b) => {
+        if (b.amount !== a.amount) return b.amount - a.amount;
+        return a.name.localeCompare(b.name);
+      });
+  }, [incomes, incomeSummary?.legBreakdown, referralRoot?.children]);
 
-  const topFiveLevelIncome = useMemo(() => {
-    const byLevel = new Map(allLevelUserIncome.map((entry) => [entry.level, entry]));
-    return [1, 2, 3, 4, 5].map((level) => byLevel.get(level) ?? { level, users: [] });
-  }, [allLevelUserIncome]);
+  const selectedLeg = useMemo(
+    () => incomeByLegWise.find((leg) => leg.legId === selectedLegId) ?? null,
+    [incomeByLegWise, selectedLegId],
+  );
+
+  useEffect(() => {
+    if (selectedLegId && !incomeByLegWise.some((leg) => leg.legId === selectedLegId)) {
+      setSelectedLegId(null);
+      setExpandedLegContributorId(null);
+    }
+  }, [incomeByLegWise, selectedLegId]);
+
+  useEffect(() => {
+    setExpandedLegContributorId(null);
+  }, [selectedLegId]);
 
   const loadAll = useCallback(async () => {
     setError(null);
@@ -259,8 +361,9 @@ export default function DashboardPage() {
       setIncomeSummary(incomeData?.summary ?? null);
 
       const refBody = await readApiBody(referralsRes);
-      const refData = refBody.json as { stats?: ReferralStats };
+      const refData = refBody.json as { stats?: ReferralStats; root?: ReferralTreeNode | null };
       setReferralStats(refData?.stats ?? null);
+      setReferralRoot(refData?.root ?? null);
 
       const purchBody = await readApiBody(purchasesRes);
       const purchData = purchBody.json as { purchases?: unknown[] };
@@ -833,73 +936,202 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Income by level (default: first 5 levels) */}
+        {/* Income by leg (unlimited direct-referral legs) */}
         <section className="mb-10 rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-sky-600 text-white shadow-sm">
-                <BarChart3 className="h-5 w-5" />
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-600 to-teal-600 text-white shadow-sm">
+                <Users className="h-5 w-5" />
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-zinc-900">Income by level</h2>
+                <h2 className="text-lg font-semibold text-zinc-900">Income by leg wise</h2>
                 <p className="text-xs text-zinc-600">
-                  Commission earned from your first 5 levels in the downline.
+                  Tap a leg summary card to drill down into contributors and transactions.
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAllIncomeModal(true)}
+            <Link
+              prefetch={false}
+              href="/dashboard/referrals"
               className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 transition hover:bg-emerald-100 hover:cursor-pointer"
             >
-              View all income
-            </button>
+              View referrals
+            </Link>
           </div>
 
           {dataLoading ? (
-            <div className="flex gap-3">
-              {Array.from({ length: 5 }).map((_, idx) => (
-                <div key={idx} className="h-24 flex-1 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                  <div className="mb-2 h-3 w-12 rounded bg-zinc-200 animate-pulse" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, idx) => (
+                <div key={idx} className="h-24 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="mb-2 h-3 w-20 rounded bg-zinc-200 animate-pulse" />
                   <div className="mb-1 h-3 w-24 rounded bg-zinc-200 animate-pulse" />
                   <div className="h-3 w-full rounded bg-zinc-200 animate-pulse" />
                 </div>
               ))}
             </div>
+          ) : incomeByLegWise.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-8 text-center text-sm text-zinc-500">
+              No direct referral legs yet. When someone joins with your code, their leg income will appear here.
+            </p>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {topFiveLevelIncome.map(({ level, users }) => (
-                <div
-                  key={level}
-                  className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-3"
-                >
-                  <div className="mb-1 flex items-center justify-between text-xs">
-                    <span className="font-medium text-zinc-500">Level {level}</span>
-                    <span className="font-semibold text-emerald-700">
-                      {formatINRPrecise(users.reduce((sum, u) => sum + u.amount, 0))}
-                    </span>
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {incomeByLegWise.map((leg, index) => {
+                  const isSelected = selectedLegId === leg.legId;
+                  return (
+                    <button
+                      key={leg.legId}
+                      type="button"
+                      onClick={() =>
+                        setSelectedLegId((prev) => (prev === leg.legId ? null : leg.legId))
+                      }
+                      className={[
+                        "flex flex-col rounded-2xl border p-4 text-left transition hover:cursor-pointer",
+                        isSelected
+                          ? "border-emerald-400 bg-emerald-50/80 ring-2 ring-emerald-500/30 shadow-sm"
+                          : "border-zinc-200 bg-zinc-50 hover:border-emerald-200 hover:bg-emerald-50/40",
+                      ].join(" ")}
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">
+                            Leg {index + 1}
+                          </p>
+                          <p className="truncate text-sm font-semibold text-zinc-900" title={leg.name}>
+                            {leg.name}
+                          </p>
+                        </div>
+                        <ChevronRight
+                          className={[
+                            "h-4 w-4 shrink-0 text-emerald-600 transition",
+                            isSelected ? "rotate-90" : "",
+                          ].join(" ")}
+                        />
+                      </div>
+                      <p className="text-lg font-semibold text-emerald-700">
+                        {formatINRPrecise(leg.amount)}
+                      </p>
+                      <p className="mt-1 text-[11px] text-zinc-500">
+                        {leg.contributorCount > 0
+                          ? `${leg.contributorCount} contributor${leg.contributorCount === 1 ? "" : "s"}`
+                          : "No income yet"}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedLeg ? (
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/30 p-4 sm:p-5">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLegId(null)}
+                        className="mb-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 hover:underline hover:cursor-pointer"
+                      >
+                        <ArrowLeft className="h-3.5 w-3.5" />
+                        Back to all legs
+                      </button>
+                      <h3 className="text-base font-semibold text-zinc-900">{selectedLeg.name}</h3>
+                      <p className="text-xs text-zinc-600">
+                        Leg income breakdown — all depth under this direct referral
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-emerald-200 bg-white px-4 py-2 text-right">
+                      <p className="text-[10px] uppercase tracking-wide text-zinc-500">Leg total</p>
+                      <p className="text-lg font-semibold text-emerald-700">
+                        {formatINRPrecise(selectedLeg.amount)}
+                      </p>
+                    </div>
                   </div>
-                  {users.length === 0 ? (
-                    <p className="mt-2 text-[11px] text-zinc-400">No income yet.</p>
+
+                  {selectedLeg.users.length === 0 ? (
+                    <p className="rounded-xl border border-dashed border-emerald-200 bg-white px-4 py-6 text-center text-sm text-zinc-500">
+                      No income recorded for this leg yet.
+                    </p>
                   ) : (
-                    <ul className="mt-1 space-y-1.5 max-h-28 overflow-y-auto">
-                      {users.map((u) => (
-                        <li
-                          key={u.id}
-                          className="flex items-center justify-between text-[11px]"
-                        >
-                          <span className="mr-2 truncate text-zinc-700" title={u.name}>
-                            {u.name}
-                          </span>
-                          <span className="font-semibold text-emerald-700">
-                            {formatINRPrecise(u.amount)}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="space-y-2">
+                      {selectedLeg.users.map((user) => {
+                        const contributorKey = `${selectedLeg.legId}:${user.id}`;
+                        const isExpanded = expandedLegContributorId === contributorKey;
+                        return (
+                          <div
+                            key={contributorKey}
+                            className="overflow-hidden rounded-xl border border-zinc-200 bg-white"
+                          >
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setExpandedLegContributorId((prev) =>
+                                  prev === contributorKey ? null : contributorKey,
+                                )
+                              }
+                              className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-zinc-50 hover:cursor-pointer"
+                            >
+                              <div className="flex min-w-0 items-center gap-2">
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4 shrink-0 text-emerald-600" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 shrink-0 text-emerald-600" />
+                                )}
+                                <span className="truncate text-sm font-medium text-zinc-900" title={user.name}>
+                                  {user.name}
+                                </span>
+                                <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] text-zinc-600">
+                                  {user.transactions.length} txn
+                                </span>
+                              </div>
+                              <span className="shrink-0 text-sm font-semibold text-emerald-700">
+                                {formatINRPrecise(user.amount)}
+                              </span>
+                            </button>
+
+                            {isExpanded && (
+                              <div className="border-t border-zinc-100 bg-zinc-50/80 px-3 py-2">
+                                <div className="hidden sm:grid sm:grid-cols-[minmax(120px,1fr)_minmax(56px,0.4fr)_minmax(56px,0.4fr)_minmax(88px,0.6fr)] gap-2 px-2 pb-1 text-[10px] font-medium uppercase tracking-wide text-zinc-500">
+                                  <span>Date</span>
+                                  <span>Level</span>
+                                  <span>BV</span>
+                                  <span className="text-right">Amount</span>
+                                </div>
+                                <ul className="space-y-1">
+                                  {user.transactions.map((txn) => (
+                                    <li
+                                      key={txn.id}
+                                      className="grid grid-cols-1 gap-1 rounded-lg bg-white px-2 py-2 text-xs sm:grid-cols-[minmax(120px,1fr)_minmax(56px,0.4fr)_minmax(56px,0.4fr)_minmax(88px,0.6fr)] sm:items-center sm:gap-2"
+                                    >
+                                      <span className="text-zinc-700">
+                                        {new Date(txn.date).toLocaleString(undefined, {
+                                          dateStyle: "short",
+                                          timeStyle: "short",
+                                        })}
+                                      </span>
+                                      <span>
+                                        <span className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                                          L{txn.level}
+                                        </span>
+                                      </span>
+                                      <span className="text-zinc-600">{formatNumber(txn.bv)}</span>
+                                      <span className="font-semibold text-emerald-700 sm:text-right">
+                                        {formatINRPrecise(txn.amount)}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
-              ))}
+              ) : (
+                <p className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 px-4 py-3 text-center text-xs text-zinc-500">
+                  Select a leg card above to view contributor-wise income details.
+                </p>
+              )}
             </div>
           )}
         </section>
@@ -1201,57 +1433,6 @@ export default function DashboardPage() {
           </div>
         </div>
       ) : null}
-
-      {showAllIncomeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="max-h-[85vh] w-full max-w-5xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
-              <div>
-                <h3 className="text-lg font-semibold text-zinc-900">All levels income</h3>
-                <p className="text-xs text-zinc-600">Commission breakdown across all downline levels</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowAllIncomeModal(false)}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50 hover:cursor-pointer"
-              >
-                Close
-              </button>
-            </div>
-
-            <div className="max-h-[70vh] overflow-y-auto p-5">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {allLevelUserIncome.map(({ level, users }) => (
-                  <div key={level} className="flex flex-col rounded-2xl border border-zinc-200 bg-zinc-50 p-3">
-                    <div className="mb-1 flex items-center justify-between text-xs">
-                      <span className="font-medium text-zinc-500">Level {level}</span>
-                      <span className="font-semibold text-emerald-700">
-                        {formatINRPrecise(users.reduce((sum, u) => sum + u.amount, 0))}
-                      </span>
-                    </div>
-                    {users.length === 0 ? (
-                      <p className="mt-2 text-[11px] text-zinc-400">No income yet.</p>
-                    ) : (
-                      <ul className="mt-1 space-y-1.5 max-h-40 overflow-y-auto">
-                        {users.map((u) => (
-                          <li key={u.id} className="flex items-center justify-between text-[11px]">
-                            <span className="mr-2 truncate text-zinc-700" title={u.name}>
-                              {u.name}
-                            </span>
-                            <span className="font-semibold text-emerald-700">
-                              {formatINRPrecise(u.amount)}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -90,7 +90,7 @@ function buildReferralWithdrawalSummary(
     totalWithdrawn,
     totalPendingWithdrawals,
     nonWithdrawableEarnings,
-    ...(legBreakdown?.length ? { legBreakdown } : {}),
+    legBreakdown: legBreakdown ?? [],
   };
 }
 
@@ -98,13 +98,14 @@ function legBreakdownFromMap(
   legEarnings: Map<string, number>,
   perLegCap: number | null,
 ): LegWithdrawalBreakdown[] {
-  if (perLegCap === null) return [];
-  const cap = Math.max(0, perLegCap);
   return [...legEarnings.entries()]
     .map(([legRootUserId, legEarningsTotal]) => ({
       legRootUserId,
       legEarnings: legEarningsTotal,
-      legWithdrawableCap: Math.min(legEarningsTotal, cap),
+      legWithdrawableCap:
+        perLegCap === null
+          ? legEarningsTotal
+          : Math.min(legEarningsTotal, Math.max(0, perLegCap)),
     }))
     .sort((a, b) => b.legEarnings - a.legEarnings);
 }
