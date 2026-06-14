@@ -1737,7 +1737,7 @@ function AdminUsersPage({ activeTab }: { activeTab: AdminUsersTab }) {
                   </select>
                   {!isSuperAdmin ? (
                     <p className="mt-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
-                      Γä╣∩╕Å Admin can create only User/Moderator. (Super Admin required for Admin/Super Admin)
+                      Admin can create only User/Moderator. (Super Admin required for Admin/Super Admin)
                     </p>
                   ) : null}
                 </div>
