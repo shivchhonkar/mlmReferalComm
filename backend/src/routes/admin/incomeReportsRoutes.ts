@@ -42,6 +42,20 @@ function mapUserBrief(u: {
   };
 }
 
+function mapUserBank(u: {
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankName?: string;
+  bankIfsc?: string;
+}) {
+  return {
+    accountName: String(u.bankAccountName ?? "").trim(),
+    accountNumber: String(u.bankAccountNumber ?? "").trim(),
+    bankName: String(u.bankName ?? "").trim(),
+    ifsc: String(u.bankIfsc ?? "").trim(),
+  };
+}
+
 export function registerAdminIncomeReportRoutes(app: Express) {
   /** Upload UPI payout screenshot (admin only). */
   app.post("/api/admin/upload/payout-proof", async (req: Request, res: Response) => {
@@ -352,7 +366,9 @@ export function registerAdminIncomeReportRoutes(app: Express) {
 
       const [users, total] = await Promise.all([
         UserModel.find(filter)
-          .select("_id fullName name email mobile referralCode role")
+          .select(
+            "_id fullName name email mobile referralCode role bankAccountName bankAccountNumber bankName bankIfsc",
+          )
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
@@ -367,7 +383,10 @@ export function registerAdminIncomeReportRoutes(app: Express) {
         const key = String(u._id);
         const w = earningsMap.get(key);
         return {
-          user: mapUserBrief(u),
+          user: {
+            ...mapUserBrief(u),
+            bank: mapUserBank(u as Parameters<typeof mapUserBank>[0]),
+          },
           totalEarnedAmount: w?.totalEarnedAmount ?? 0,
           totalPaidAmount: w?.totalWithdrawn ?? 0,
           withdrawalAmount: w?.withdrawalAmount ?? 0,

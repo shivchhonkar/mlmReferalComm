@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { RefreshCw, Search } from "lucide-react";
 import ReportExportButtons from "./_components/ReportExportButtons";
-import { formatINRPrecise, type IncomeSummaryRow } from "./_lib";
+import { formatINRPrecise, formatBankDetailsExport, formatBankDetailsLabel, type IncomeSummaryRow } from "./_lib";
 
 export default function IncomeReportsOverviewPage() {
   const [q, setQ] = useState("");
@@ -46,7 +46,10 @@ export default function IncomeReportsOverviewPage() {
 
   const exportHeaders = [
     "User",
-    "Email / Mobile",
+    "Customer ID",
+    "Mobile",
+    "Email",
+    "Bank details",
     "Total earned (INR)",
     "Total paid (INR)",
     "Remaining withdrawable (INR)",
@@ -57,7 +60,10 @@ export default function IncomeReportsOverviewPage() {
     () =>
       items.map((row) => [
         row.user.name,
-        row.user.email || row.user.mobile || "—",
+        row.user.referralCode || "—",
+        row.user.mobile || "—",
+        row.user.email || "—",
+        formatBankDetailsExport(row.user.bank),
         row.totalEarnedAmount.toFixed(2),
         row.totalPaidAmount.toFixed(2),
         row.withdrawalAmount.toFixed(2),
@@ -115,6 +121,9 @@ export default function IncomeReportsOverviewPage() {
           <thead>
             <tr className="border-b border-zinc-200 text-xs font-medium uppercase text-zinc-500">
               <th className="px-3 py-3">User</th>
+              <th className="px-3 py-3">Customer ID</th>
+              <th className="px-3 py-3">Mobile</th>
+              <th className="px-3 py-3">Bank details</th>
               <th className="px-3 py-3">Total earned</th>
               <th className="px-3 py-3">Total paid</th>
               <th className="px-3 py-3">Remaining withdrawable</th>
@@ -127,7 +136,16 @@ export default function IncomeReportsOverviewPage() {
               <tr key={row.user.id} className="border-b border-zinc-100 hover:bg-emerald-50/30">
                 <td className="px-3 py-3">
                   <div className="font-medium text-zinc-900">{row.user.name}</div>
-                  <div className="text-xs text-zinc-500">{row.user.email || row.user.mobile}</div>
+                  {row.user.email ? (
+                    <div className="text-xs text-zinc-500">{row.user.email}</div>
+                  ) : null}
+                </td>
+                <td className="px-3 py-3 font-mono text-xs text-zinc-800">
+                  {row.user.referralCode || "—"}
+                </td>
+                <td className="px-3 py-3 text-zinc-800">{row.user.mobile || "—"}</td>
+                <td className="max-w-[220px] px-3 py-3 text-xs leading-relaxed text-zinc-700">
+                  {formatBankDetailsLabel(row.user.bank)}
                 </td>
                 <td className="px-3 py-3 font-medium text-emerald-800">
                   {formatINRPrecise(row.totalEarnedAmount)}
@@ -147,7 +165,7 @@ export default function IncomeReportsOverviewPage() {
             ))}
             {!busy && items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-10 text-center text-zinc-500">
+                <td colSpan={9} className="px-3 py-10 text-center text-zinc-500">
                   No users found
                 </td>
               </tr>

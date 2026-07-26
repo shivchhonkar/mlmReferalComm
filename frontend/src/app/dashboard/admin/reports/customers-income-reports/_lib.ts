@@ -9,6 +9,13 @@ export function formatINRPrecise(value: number): string {
   }).format(Number.isFinite(value) ? value : 0);
 }
 
+export type UserBankBrief = {
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  ifsc: string;
+};
+
 export type IncomeSummaryRow = {
   user: {
     id: string;
@@ -17,12 +24,45 @@ export type IncomeSummaryRow = {
     mobile: string;
     referralCode: string;
     role: string;
+    bank?: UserBankBrief;
   };
   totalEarnedAmount: number;
   totalPaidAmount: number;
   withdrawalAmount: number;
   pendingPayouts: number;
 };
+
+export function maskAccountNumber(accountNumber: string): string {
+  const trimmed = String(accountNumber ?? "").trim();
+  if (!trimmed) return "";
+  if (trimmed.length <= 4) return trimmed;
+  return `****${trimmed.slice(-4)}`;
+}
+
+export function formatBankDetailsLabel(bank?: UserBankBrief | null): string {
+  if (!bank) return "—";
+  const hasBank =
+    bank.accountName || bank.accountNumber || bank.bankName || bank.ifsc;
+  if (!hasBank) return "—";
+
+  const masked = maskAccountNumber(bank.accountNumber);
+  const parts = [bank.bankName, bank.ifsc, masked].filter(Boolean);
+  if (bank.accountName) {
+    return parts.length > 0 ? `${bank.accountName} · ${parts.join(" · ")}` : bank.accountName;
+  }
+  return parts.join(" · ") || "—";
+}
+
+export function formatBankDetailsExport(bank?: UserBankBrief | null): string {
+  if (!bank) return "—";
+  const parts = [
+    bank.accountName,
+    bank.bankName,
+    bank.ifsc,
+    bank.accountNumber,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" | ") : "—";
+}
 
 export type WithdrawalSummary = {
   totalEarnedAmount: number;
