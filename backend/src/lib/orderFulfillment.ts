@@ -8,7 +8,7 @@ import { orderIsDynamicPaymentOrder } from "@/lib/orderDynamicPayment";
 type OrderDoc = {
   _id: mongoose.Types.ObjectId;
   user: mongoose.Types.ObjectId;
-  items?: Array<{ service: string; quantity: number; bv: number; price?: number }>;
+  items?: Array<{ service: string; name?: string; quantity: number; bv: number; price?: number }>;
 };
 
 /** Create purchases and distribute BV for a confirmed order (shared by UPI approve + dynamic link paid). */
@@ -76,6 +76,7 @@ export async function markOrderPaidAndFulfilled(
     const withBv = await applyDynamicBvToOrderItems(
       itemsForFulfillment.map((it) => ({
         service: String(it.service),
+        name: typeof it.name === "string" ? it.name : undefined,
         price: Number(it.price) || 0,
         quantity: Number(it.quantity) || 1,
         bv: Number(it.bv) || 0,

@@ -19,10 +19,18 @@ export async function applyDynamicBvToOrderItems(
 
   return items.map((it) => {
     const svc = serviceMap.get(String(it.service));
-    if (!svc || !isDynamicLinkService(svc.paymentType)) return it;
+    const catalogName = String((svc as { name?: string })?.name ?? "").trim();
+    const lineName = String(it.name ?? "").trim();
+    const name = lineName || catalogName || "Service";
+
+    if (!svc || !isDynamicLinkService(svc.paymentType)) {
+      return { ...it, name: lineName || catalogName || it.name };
+    }
+
     const price = Number(it.price) || 0;
     return {
       ...it,
+      name,
       bv: lineBvForService(
         {
           paymentType: svc.paymentType,
