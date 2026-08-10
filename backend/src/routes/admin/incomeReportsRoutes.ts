@@ -119,7 +119,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
           .populate("fromUser", "fullName name email mobile referralCode")
           .populate({
             path: "purchase",
-            populate: { path: "service", select: "name" },
+            populate: { path: "service", select: "name price" },
           })
           .sort({ createdAt: -1 })
           .limit(500)
@@ -292,9 +292,13 @@ export function registerAdminIncomeReportRoutes(app: Express) {
             | { fullName?: string; name?: string; email?: string; mobile?: string; referralCode?: string }
             | undefined;
           const purchase = inc.purchase as
-            | { service?: { name?: string } | string }
+            | { service?: { name?: string; price?: number } | string }
             | undefined;
           const service = purchase?.service;
+          const servicePrice =
+            typeof service === "object" && service != null && Number.isFinite(Number(service.price))
+              ? Number(service.price)
+              : null;
           return {
             _id: String(inc._id),
             level: inc.level,
@@ -311,6 +315,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
               : null,
             serviceName:
               typeof service === "string" ? service : (service as { name?: string })?.name || "",
+            serviceCost: servicePrice,
           };
         }),
         paymentsToCustomers: payouts.map((w) => {
@@ -425,7 +430,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
           .populate("fromUser", "fullName name email mobile referralCode")
           .populate({
             path: "purchase",
-            populate: { path: "service", select: "_id name" },
+            populate: { path: "service", select: "_id name price" },
           })
           .sort({ createdAt: -1 })
           .limit(500)

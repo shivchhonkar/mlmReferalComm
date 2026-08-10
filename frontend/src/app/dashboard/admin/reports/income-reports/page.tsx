@@ -20,8 +20,14 @@ type IncomeRow = {
   amount: number;
   createdAt: string;
   serviceName?: string;
+  serviceCost?: number | null;
   fromUser?: { name?: string; email?: string; mobile?: string; referralCode?: string } | null;
 };
+
+function serviceCostDisplay(row: { serviceCost?: number | null }): string {
+  const cost = Number(row.serviceCost);
+  return Number.isFinite(cost) ? cost.toFixed(2) : "—";
+}
 
 type PaymentRow = {
   _id: string;
@@ -204,13 +210,14 @@ export default function AdminIncomeReportsPage() {
       },
       {
         title: "Your income (period)",
-        headers: ["Date", "Level", "From", "Service", "BV", "Amount (INR)"],
+        headers: ["Date", "Level", "From", "Service", "BV", "Service cost", "Amount (INR)"],
         rows: incomes.map((row) => [
           new Date(row.createdAt).toLocaleString("en-IN"),
           `L${row.level}`,
           row.fromUser?.name || row.fromUser?.email || "—",
           row.serviceName || "—",
           String(row.bv),
+          serviceCostDisplay(row),
           row.amount.toFixed(2),
         ]),
       },
@@ -518,6 +525,7 @@ export default function AdminIncomeReportsPage() {
                     <th className="px-3 py-2">From</th>
                     <th className="px-3 py-2">Service</th>
                     <th className="px-3 py-2">BV</th>
+                    <th className="px-3 py-2">Service cost</th>
                     <th className="px-3 py-2">Amount</th>
                   </tr>
                 </thead>
@@ -533,6 +541,11 @@ export default function AdminIncomeReportsPage() {
                       </td>
                       <td className="px-3 py-2 text-xs">{row.serviceName || "—"}</td>
                       <td className="px-3 py-2">{row.bv}</td>
+                      <td className="px-3 py-2 text-xs">
+                        {row.serviceCost == null || !Number.isFinite(Number(row.serviceCost))
+                          ? "—"
+                          : formatINRPrecise(Number(row.serviceCost))}
+                      </td>
                       <td className="px-3 py-2 font-medium text-emerald-800">
                         {formatINRPrecise(row.amount)}
                       </td>
@@ -540,7 +553,7 @@ export default function AdminIncomeReportsPage() {
                   ))}
                   {!loading && incomes.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-zinc-500">
+                      <td colSpan={7} className="py-8 text-center text-zinc-500">
                         No income in this period
                       </td>
                     </tr>

@@ -13,7 +13,17 @@ type Income = {
   bv: number;
   amount: number;
   createdAt: string;
+  purchase?: {
+    service?: string | { price?: number };
+  };
 };
+
+function serviceCostDisplay(inc: Income): string {
+  const svc = inc.purchase?.service;
+  if (!svc || typeof svc === "string") return "—";
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price.toFixed(2) : "—";
+}
 
 type IncomeSummary = {
   totalEarnedAmount: number;
@@ -266,7 +276,7 @@ export default function IncomeReportsPage() {
     lines.push(`Total Business,${totalBusiness}`);
     lines.push(`Total Income,${totalAmount.toFixed(2)}`);
     lines.push("");
-    lines.push("Period,Date,Level,From User,Mobile,Email,BV,Amount");
+    lines.push("Period,Date,Level,From User,Mobile,Email,BV,Service cost,Amount");
 
     reportRows.forEach((row) => {
       row.entries.forEach((inc) => {
@@ -275,7 +285,7 @@ export default function IncomeReportsPage() {
         const mobile = fromUserMobile(inc.fromUser).replace(/,/g, " ");
         const email = fromUserEmail(inc.fromUser).replace(/,/g, " ");
         lines.push(
-          `"${rowPeriodLabel(inc, reportType)}","${dateStr}","L${inc.level}","${from}","${mobile}","${email}",${inc.bv ?? 0},${(inc.amount ?? 0).toFixed(2)}`
+          `"${rowPeriodLabel(inc, reportType)}","${dateStr}","L${inc.level}","${from}","${mobile}","${email}",${inc.bv ?? 0},${serviceCostDisplay(inc)},${(inc.amount ?? 0).toFixed(2)}`
         );
       });
     });
@@ -312,6 +322,7 @@ export default function IncomeReportsPage() {
           fromUserMobile(inc.fromUser),
           fromUserEmail(inc.fromUser),
           inc.bv ?? 0,
+          serviceCostDisplay(inc),
           formatINRPrecise(inc.amount ?? 0),
         ]);
       });
@@ -319,7 +330,7 @@ export default function IncomeReportsPage() {
 
     autoTable(doc, {
       startY: 105,
-      head: [["Period", "Date", "Level", "From User", "Mobile", "Email", "BV", "Amount"]],
+      head: [["Period", "Date", "Level", "From User", "Mobile", "Email", "BV", "Service cost", "Amount"]],
       body: bodyRows,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [16, 185, 129] },

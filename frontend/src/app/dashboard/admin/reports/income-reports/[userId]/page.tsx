@@ -20,8 +20,20 @@ type IncomeEntry = {
   amount: number;
   createdAt: string;
   fromUser?: { fullName?: string; name?: string; email?: string };
-  purchase?: { service?: { name?: string } | string };
+  purchase?: { service?: { name?: string; price?: number } | string };
 };
+
+function serviceCostValue(row: IncomeEntry): number | null {
+  const svc = row.purchase?.service;
+  if (!svc || typeof svc === "string") return null;
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price : null;
+}
+
+function serviceCostDisplay(row: IncomeEntry): string {
+  const price = serviceCostValue(row);
+  return price == null ? "—" : price.toFixed(2);
+}
 
 type WithdrawalEntry = {
   _id: string;
@@ -181,13 +193,14 @@ export default function IncomeReportsUserDetailPage() {
       },
       {
         title: "Income sources",
-        headers: ["Date", "Level", "From", "Service", "BV", "Amount (INR)"],
+        headers: ["Date", "Level", "From", "Service", "BV", "Service cost", "Amount (INR)"],
         rows: incomes.map((inc) => [
           new Date(inc.createdAt).toLocaleString("en-IN"),
           `L${inc.level}`,
           inc.fromUser?.fullName || inc.fromUser?.name || inc.fromUser?.email || "—",
           serviceLabel(inc),
           String(inc.bv),
+          serviceCostDisplay(inc),
           inc.amount.toFixed(2),
         ]),
       },
@@ -382,6 +395,7 @@ export default function IncomeReportsUserDetailPage() {
                   <th className="px-2 py-2 text-left">From</th>
                   <th className="px-2 py-2 text-left">Service</th>
                   <th className="px-2 py-2 text-left">BV</th>
+                  <th className="px-2 py-2 text-left">Service cost</th>
                   <th className="px-2 py-2 text-left">Amount</th>
                 </tr>
               </thead>
@@ -397,6 +411,12 @@ export default function IncomeReportsUserDetailPage() {
                     </td>
                     <td className="px-2 py-2">{serviceLabel(inc)}</td>
                     <td className="px-2 py-2">{inc.bv}</td>
+                    <td className="px-2 py-2">
+                      {(() => {
+                        const cost = serviceCostValue(inc);
+                        return cost == null ? "—" : formatINRPrecise(cost);
+                      })()}
+                    </td>
                     <td className="px-2 py-2 font-medium text-emerald-800">
                       {formatINRPrecise(inc.amount)}
                     </td>
@@ -404,7 +424,7 @@ export default function IncomeReportsUserDetailPage() {
                 ))}
                 {incomes.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-zinc-500">
+                    <td colSpan={7} className="py-8 text-center text-zinc-500">
                       No income entries
                     </td>
                   </tr>

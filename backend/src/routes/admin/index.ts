@@ -2233,7 +2233,7 @@ export function registerAdminRoutes(app: Express) {
           .populate("fromUser", "fullName name email mobile referralCode")
           .populate({
             path: "purchase",
-            populate: { path: "service", select: "_id name" },
+            populate: { path: "service", select: "_id name price" },
           })
           .sort({ createdAt: -1 })
           .limit(1000)

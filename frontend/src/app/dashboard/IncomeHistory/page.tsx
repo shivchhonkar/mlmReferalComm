@@ -23,12 +23,21 @@ type Income = {
   _id: string;
   fromUser?: FromUser | string;
   toUser?: string;
-  purchase?: unknown;
+  purchase?: {
+    service?: string | { price?: number };
+  };
   level: number;
   bv: number;
   amount: number;
   createdAt: string;
 };
+
+function serviceCostDisplay(inc: Income): string {
+  const svc = inc.purchase?.service;
+  if (!svc || typeof svc === "string") return "—";
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price.toFixed(2) : "—";
+}
 
 type IncomeSummary = {
   totalEarnedAmount: number;
@@ -104,6 +113,7 @@ function exportTableRow(inc: Income): string[] {
     fromUserName(inc.fromUser),
     fromUserReferralCode(inc.fromUser),
     String(inc.bv ?? 0),
+    serviceCostDisplay(inc),
     (inc.amount ?? 0).toFixed(2),
   ];
 }
@@ -114,6 +124,7 @@ const EXPORT_HEADERS = [
   "From",
   "Referral code",
   "BV",
+  "Service cost",
   "Amount (INR)",
 ];
 

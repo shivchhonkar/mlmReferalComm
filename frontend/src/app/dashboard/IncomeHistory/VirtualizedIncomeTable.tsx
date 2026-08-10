@@ -6,7 +6,7 @@ import { User } from "lucide-react";
 
 const ROW_HEIGHT = 64;
 const INCOME_GRID_COLS =
-  "grid grid-cols-[minmax(108px,1fr)_56px_minmax(140px,1.35fr)_72px_100px] gap-x-2 items-center";
+  "grid grid-cols-[minmax(108px,1fr)_56px_minmax(140px,1.35fr)_72px_minmax(100px,0.9fr)_100px] gap-x-2 items-center";
 
 type FromUser = {
   _id?: string;
@@ -24,7 +24,17 @@ export type IncomeRow = {
   bv: number;
   amount: number;
   createdAt: string;
+  purchase?: {
+    service?: string | { price?: number };
+  };
 };
+
+function serviceCostValue(inc: IncomeRow): number | null {
+  const svc = inc.purchase?.service;
+  if (!svc || typeof svc === "string") return null;
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price : null;
+}
 
 function fromUserName(u: FromUser | string | undefined): string {
   if (!u || typeof u === "string") return "-";
@@ -58,7 +68,7 @@ export default function VirtualizedIncomeTable({ incomes }: { incomes: IncomeRow
 
   return (
     <>
-      <div className="min-w-[600px] border-b border-zinc-200 bg-zinc-50/50">
+      <div className="min-w-[720px] border-b border-zinc-200 bg-zinc-50/50">
         <div
           className={`${INCOME_GRID_COLS} px-4 py-3 text-xs font-medium uppercase tracking-wider text-zinc-500`}
         >
@@ -66,6 +76,7 @@ export default function VirtualizedIncomeTable({ incomes }: { incomes: IncomeRow
           <div>Level</div>
           <div>From</div>
           <div className="text-right">BV</div>
+          <div className="text-right">Service cost</div>
           <div className="text-right">Amount</div>
         </div>
       </div>
@@ -74,10 +85,11 @@ export default function VirtualizedIncomeTable({ incomes }: { incomes: IncomeRow
         className="h-[min(70vh,640px)] overflow-auto"
         style={{ contain: "strict" }}
       >
-        <div className="relative min-w-[600px]" style={{ height: rowVirtualizer.getTotalSize() }}>
+        <div className="relative min-w-[720px]" style={{ height: rowVirtualizer.getTotalSize() }}>
           {rowVirtualizer.getVirtualItems().map((vi) => {
             const inc = incomes[vi.index];
             if (!inc) return null;
+            const serviceCost = serviceCostValue(inc);
             return (
               <div
                 key={inc._id}
@@ -109,6 +121,9 @@ export default function VirtualizedIncomeTable({ incomes }: { incomes: IncomeRow
                   ) : null}
                 </div>
                 <div className="text-right text-zinc-600">{inc.bv ?? 0}</div>
+                <div className="text-right text-zinc-600">
+                  {serviceCost == null ? "—" : formatINRPrecise(serviceCost)}
+                </div>
                 <div className="text-right font-medium text-emerald-700">
                   {formatINRPrecise(inc.amount ?? 0)}
                 </div>

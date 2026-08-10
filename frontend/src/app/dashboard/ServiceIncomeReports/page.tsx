@@ -38,6 +38,13 @@ type ApiResponse = {
 
 type ReportType = "monthly" | "quarterly" | "annual" | "custom";
 
+function serviceCostDisplay(inc: Income): string {
+  const svc = inc.purchase?.service;
+  if (!svc || typeof svc === "string") return "—";
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price.toFixed(2) : "—";
+}
+
 type ReportRow = {
   key: string;
   periodLabel: string;
@@ -244,11 +251,11 @@ export default function ServiceIncomeReportsPage() {
     lines.push(`Total Business,${totalBusiness}`);
     lines.push(`Total Income,${totalIncome.toFixed(2)}`);
     lines.push("");
-    lines.push("Period,Service Name,Date,Level,BV,Amount");
+    lines.push("Period,Service Name,Date,Level,BV,Service cost,Amount");
     reportRows.forEach((row) => {
       row.entries.forEach((inc) => {
         lines.push(
-          `"${row.periodLabel}","${row.serviceName}","${new Date(inc.createdAt).toLocaleString("en-IN")}","L${inc.level}",${inc.bv ?? 0},${(inc.amount ?? 0).toFixed(2)}`
+          `"${row.periodLabel}","${row.serviceName}","${new Date(inc.createdAt).toLocaleString("en-IN")}","L${inc.level}",${inc.bv ?? 0},${serviceCostDisplay(inc)},${(inc.amount ?? 0).toFixed(2)}`
         );
       });
     });
@@ -282,6 +289,7 @@ export default function ServiceIncomeReportsPage() {
           new Date(inc.createdAt).toLocaleString("en-IN"),
           `L${inc.level}`,
           inc.bv ?? 0,
+          serviceCostDisplay(inc),
           formatINRPrecise(inc.amount ?? 0),
         ]);
       });
@@ -289,7 +297,7 @@ export default function ServiceIncomeReportsPage() {
 
     autoTable(doc, {
       startY: 120,
-      head: [["Period", "Service", "Date", "Level", "BV", "Amount"]],
+      head: [["Period", "Service", "Date", "Level", "BV", "Service cost", "Amount"]],
       body,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [16, 185, 129] },

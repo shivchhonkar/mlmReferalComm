@@ -29,7 +29,7 @@ function isEndUserRole(role?: string): boolean {
 
 const LEDGER_ROW_HEIGHT = 52;
 const LEDGER_GRID_COLS =
-  "grid grid-cols-[minmax(148px,1.25fr)_minmax(120px,1fr)_52px_minmax(110px,1fr)_minmax(100px,0.85fr)_72px_100px] gap-x-2 items-center";
+  "grid grid-cols-[minmax(148px,1.25fr)_minmax(120px,1fr)_52px_minmax(110px,1fr)_minmax(100px,0.85fr)_72px_minmax(100px,0.9fr)_100px] gap-x-2 items-center";
 
 type LedgerEntry = {
   _id: string;
@@ -50,6 +50,7 @@ type LedgerEntry = {
       | {
           _id?: string;
           name?: string;
+          price?: number;
         };
   };
 };
@@ -111,6 +112,18 @@ function ledgerFromName(row: LedgerEntry): string {
   return row.fromUser?.fullName || row.fromUser?.name || row.fromUser?.email || "-";
 }
 
+function ledgerServiceCost(row: LedgerEntry): number | null {
+  const svc = row.purchase?.service;
+  if (!svc || typeof svc === "string") return null;
+  const price = Number(svc.price);
+  return Number.isFinite(price) ? price : null;
+}
+
+function ledgerServiceCostDisplay(row: LedgerEntry): string {
+  const cost = ledgerServiceCost(row);
+  return cost == null ? "—" : cost.toFixed(2);
+}
+
 function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -133,7 +146,7 @@ function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
 
   return (
     <>
-      <div className="min-w-[980px] border-b border-zinc-200 bg-zinc-50">
+      <div className="min-w-[1100px] border-b border-zinc-200 bg-zinc-50">
         <div
           className={`${LEDGER_GRID_COLS} px-4 py-3 text-xs font-medium uppercase tracking-wider text-zinc-500`}
         >
@@ -143,6 +156,7 @@ function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
           <div>From User</div>
           <div>From Mobile</div>
           <div className="text-right">BV</div>
+          <div className="text-right">Service cost</div>
           <div className="text-right">Amount</div>
         </div>
       </div>
@@ -152,11 +166,12 @@ function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
         style={{ contain: "strict" }}
       >
         <div
-          className="relative min-w-[980px]"
+          className="relative min-w-[1100px]"
           style={{ height: rowVirtualizer.getTotalSize() }}
         >
           {rowVirtualizer.getVirtualItems().map((vi) => {
             const row = ledger[vi.index];
+            const serviceCost = ledgerServiceCost(row);
             return (
               <div
                 key={row._id}
@@ -174,6 +189,9 @@ function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {
                 <div className="truncate text-zinc-700">{ledgerFromName(row)}</div>
                 <div className="truncate text-zinc-700">{row.fromUser?.mobile || "-"}</div>
                 <div className="text-right text-zinc-700">{row.bv ?? 0}</div>
+                <div className="text-right text-zinc-700">
+                  {serviceCost == null ? "—" : formatINRPrecise(serviceCost)}
+                </div>
                 <div className="text-right font-medium text-emerald-700">
                   {formatINRPrecise(row.amount ?? 0)}
                 </div>
@@ -363,13 +381,13 @@ export default function AdminLedgerReportPage() {
     lines.push(`Total Income,${ledgerData.summary.totalIncome.toFixed(2)}`);
     lines.push(`Total Business,${ledgerData.summary.totalBusiness}`);
     lines.push("");
-    lines.push("Date,Service,Level,From User,From Mobile,BV,Amount");
+    lines.push("Date,Service,Level,From User,From Mobile,BV,Service cost,Amount");
 
     ledgerData.ledger.forEach((row) => {
       const svc = ledgerServiceName(row);
       const fromName = ledgerFromName(row);
       lines.push(
-        `"${new Date(row.createdAt).toLocaleString("en-IN")}","${String(svc).replace(/,/g, " ")}","L${row.level}","${fromName.replace(/,/g, " ")}","${row.fromUser?.mobile || "-"}",${row.bv ?? 0},${(row.amount ?? 0).toFixed(2)}`
+        `"${new Date(row.createdAt).toLocaleString("en-IN")}","${String(svc).replace(/,/g, " ")}","L${row.level}","${fromName.replace(/,/g, " ")}","${row.fromUser?.mobile || "-"}",${row.bv ?? 0},${ledgerServiceCostDisplay(row)},${(row.amount ?? 0).toFixed(2)}`
       );
     });
 
@@ -408,13 +426,14 @@ export default function AdminLedgerReportPage() {
         fromName,
         row.fromUser?.mobile || "-",
         row.bv ?? 0,
+        ledgerServiceCostDisplay(row),
         formatINRPrecise(row.amount ?? 0),
       ];
     });
 
     autoTable(doc, {
       startY: 124,
-      head: [["Date", "Service", "Level", "From User", "From Mobile", "BV", "Amount"]],
+      head: [["Date", "Service", "Level", "From User", "From Mobile", "BV", "Service cost", "Amount"]],
       body,
       styles: { fontSize: 9 },
       headStyles: { fillColor: [16, 185, 129] },
