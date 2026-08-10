@@ -551,6 +551,33 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+            {!isAdmin && incomeSummary && incomeSummary.lifetimeWithdrawalCap != null ? (
+              <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2.5 text-xs text-amber-950">
+                <p>
+                  <span className="font-semibold">Capping amount:</span>{" "}
+                  {formatINRPrecise(incomeSummary.lifetimeWithdrawalCap)}
+                  <span className="text-amber-900/80">
+                    {" "}
+                    per direct referral leg (from your first order)
+                  </span>
+                </p>
+                {/* <p className="mt-1 text-xs text-amber-900/75">
+                  Max you can withdraw:{" "}
+                  <span className="font-medium text-amber-950">
+                    {formatINRPrecise(incomeSummary.maxCumulativeWithdrawalAllowed)}
+                  </span>
+                  {incomeSummary.nonWithdrawableEarnings > 0 ? (
+                    <>
+                      {" · "}
+                      Non-withdrawable:{" "}
+                      <span className="font-medium text-amber-950">
+                        {formatINRPrecise(incomeSummary.nonWithdrawableEarnings)}
+                      </span>
+                    </>
+                  ) : null}
+                </p> */}
+              </div>
+            ) : null}
             
           </div>
           <div className="flex max-w-full flex-nowrap items-center justify-end gap-2 overflow-x-auto">
