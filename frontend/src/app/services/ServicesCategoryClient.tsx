@@ -18,7 +18,12 @@ import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { setServices, type Service } from "@/store/slices/serviceSlice";
 import { setCategories, type Category } from "@/store/slices/categorySlice";
 import ServicesGrid from "@/app/services/components/ServicesGrid";
-import { addItem } from "@/store/slices/cartSlice";
+import {
+  addItem,
+  getConflictingCartItem,
+  singleServiceCartMessage,
+} from "@/store/slices/cartSlice";
+import { showWarningToast } from "@/lib/toast";
 import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
 
 type Subcategory = {
@@ -57,6 +62,7 @@ export default function ServicesCategoryClient({
   subcategories?: Subcategory[];
 }) {
   const dispatch = useAppDispatch();
+  const cart = useAppSelector((s) => s.cart);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
@@ -586,6 +592,11 @@ export default function ServicesCategoryClient({
                 <button
                   type="button"
                   onClick={() => {
+                    const conflict = getConflictingCartItem(cart.items, selectedService._id);
+                    if (conflict) {
+                      showWarningToast(singleServiceCartMessage(conflict.name));
+                      return;
+                    }
                     dispatch(
                       addItem({
                         id: selectedService._id,
@@ -595,6 +606,7 @@ export default function ServicesCategoryClient({
                         bvPercentage: selectedService.bvPercentage,
                         quantity: 1,
                         paymentType: selectedService.paymentType,
+                        fixedUpiId: selectedService.fixedUpiId,
                       })
                     );
                   }}

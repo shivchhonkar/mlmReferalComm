@@ -23,6 +23,21 @@ const initialState: CartState = {
   totalAmount: 0,
 };
 
+/** Returns another distinct service already in the cart, if any. */
+export function getConflictingCartItem(
+  items: Record<string, CartItem>,
+  serviceId: string
+): CartItem | null {
+  for (const item of Object.values(items)) {
+    if (item.id !== serviceId) return item;
+  }
+  return null;
+}
+
+export function singleServiceCartMessage(existingServiceName: string): string {
+  return `Only one service can be in your cart at a time because payment methods may differ. "${existingServiceName}" is already selected. Remove it first, or increase its quantity.`;
+}
+
 function recalc(state: CartState) {
   let totalQuantity = 0;
   let totalAmount = 0;
@@ -73,6 +88,10 @@ export const cartSlice = createSlice({
         if (bvPercentage !== undefined) existing.bvPercentage = bvPercentage;
         if (paymentType) existing.paymentType = paymentType;
       } else {
+        // Cart may only hold one distinct service (qty of that service can increase).
+        if (getConflictingCartItem(state.items, id)) {
+          return;
+        }
         state.items[id] = {
           id,
           name,

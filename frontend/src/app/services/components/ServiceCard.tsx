@@ -3,8 +3,15 @@
 import { useMemo, useState, MouseEvent } from "react";
 import { Package, ShoppingCart, Heart, Plus, Minus, BadgePercent, Sparkles } from "lucide-react";
 import { formatINR } from "@/lib/format";
+import { showWarningToast } from "@/lib/toast";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
-import { addItem, removeItem, updateQty } from "@/store/slices/cartSlice";
+import {
+  addItem,
+  getConflictingCartItem,
+  removeItem,
+  singleServiceCartMessage,
+  updateQty,
+} from "@/store/slices/cartSlice";
 import { NoImage } from "./NoImage";
 import type { Service } from "@/store/slices/serviceSlice";
 import { formatServiceBvLabel, isDynamicLinkPayment } from "@/lib/servicePayment";
@@ -37,6 +44,11 @@ export default function ServiceCard({ service, onSelect }: ServiceCardProps) {
 
   const handleAddToCart = (e: MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
+    const conflict = getConflictingCartItem(cart.items, service._id);
+    if (conflict) {
+      showWarningToast(singleServiceCartMessage(conflict.name));
+      return;
+    }
     dispatch(
       addItem({
         id: service._id,
