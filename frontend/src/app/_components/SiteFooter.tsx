@@ -87,7 +87,20 @@ export default function SiteFooter() {
 
         <div className="mt-10 border-t border-gray-200 pt-6 flex flex-col sm:flex-row gap-3 items-center justify-between">
           <p className="text-sm text-gray-600">© 2026 Sambhariya Marketing. All rights reserved.</p>
-          <p className="text-xs text-gray-500">Built for referrals, growth & marketplace success.</p>
+          <div className="flex flex-col items-center sm:items-end gap-1">
+            {/* <p className="text-xs text-gray-500">Built for referrals, growth & marketplace success.</p> */}
+            <p className="text-xs text-gray-500">
+              Designed & Developed by{" "}
+              <a
+                href="https://www.shribi.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-sky-700 hover:text-sky-800 hover:underline"
+              >
+                Shribi Technologies
+              </a>
+            </p>
+          </div>
         </div>
       </div>
     </footer>

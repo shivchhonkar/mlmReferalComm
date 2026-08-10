@@ -18,6 +18,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Sambhariya Marketing - Referral Growth Marketplace",
   description: "Referral-based platform to list services and earn commission on successful referrals",
+  icons: {
+    icon: [{ url: "/brand/sambhariya-icon.png", type: "image/png" }],
+    apple: [{ url: "/brand/sambhariya-icon.png", type: "image/png" }],
+    shortcut: ["/brand/sambhariya-icon.png"],
+  },
 };
 
 export default function RootLayout({
