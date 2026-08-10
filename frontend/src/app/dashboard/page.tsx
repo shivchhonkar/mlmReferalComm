@@ -573,6 +573,14 @@ export default function DashboardPage() {
                 Request withdrawal
               </button>
             ) : null} */}
+            <Link
+              prefetch={false}
+              href="/services"
+              className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-emerald-200 bg-white px-3 py-2 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer sm:px-4 sm:py-2.5"
+            >
+              <ShoppingCart className="h-4 w-4 shrink-0" />
+              Buy
+            </Link>
             {isAdmin ? (
               <Link
                 className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:bg-emerald-50 hover:cursor-pointer"
