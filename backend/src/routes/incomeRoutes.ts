@@ -11,10 +11,16 @@ const incomeListPopulate = [
   { path: "fromUser", select: "email mobile referralCode fullName fullname name" },
   {
     path: "purchase",
-    populate: {
-      path: "service",
-      select: "_id name price businessVolume",
-    },
+    populate: [
+      {
+        path: "service",
+        select: "_id name price businessVolume",
+      },
+      {
+        path: "order",
+        select: "items.service items.price",
+      },
+    ],
   },
 ] as const;
 

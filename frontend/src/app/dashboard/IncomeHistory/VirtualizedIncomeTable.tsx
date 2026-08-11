@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { User } from "lucide-react";
+import { resolveIncomeServiceCost } from "@/lib/incomeServiceCost";
 
 const ROW_HEIGHT = 64;
 const INCOME_GRID_COLS =
@@ -25,16 +26,12 @@ export type IncomeRow = {
   amount: number;
   createdAt: string;
   purchase?: {
-    service?: string | { price?: number };
+    service?: string | { _id?: string; price?: number };
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
   };
 };
-
-function serviceCostValue(inc: IncomeRow): number | null {
-  const svc = inc.purchase?.service;
-  if (!svc || typeof svc === "string") return null;
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price : null;
-}
 
 function fromUserName(u: FromUser | string | undefined): string {
   if (!u || typeof u === "string") return "-";
@@ -89,7 +86,7 @@ export default function VirtualizedIncomeTable({ incomes }: { incomes: IncomeRow
           {rowVirtualizer.getVirtualItems().map((vi) => {
             const inc = incomes[vi.index];
             if (!inc) return null;
-            const serviceCost = serviceCostValue(inc);
+            const serviceCost = resolveIncomeServiceCost(inc.purchase);
             return (
               <div
                 key={inc._id}

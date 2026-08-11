@@ -5,6 +5,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { BarChart3, Download, RefreshCw } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatServiceCostDisplay } from "@/lib/incomeServiceCost";
 
 type Income = {
   _id: string;
@@ -22,6 +23,9 @@ type Income = {
           price?: number;
           businessVolume?: number;
         };
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
   };
 };
 
@@ -37,13 +41,6 @@ type ApiResponse = {
 };
 
 type ReportType = "monthly" | "quarterly" | "annual" | "custom";
-
-function serviceCostDisplay(inc: Income): string {
-  const svc = inc.purchase?.service;
-  if (!svc || typeof svc === "string") return "—";
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price.toFixed(2) : "—";
-}
 
 type ReportRow = {
   key: string;
@@ -255,7 +252,7 @@ export default function ServiceIncomeReportsPage() {
     reportRows.forEach((row) => {
       row.entries.forEach((inc) => {
         lines.push(
-          `"${row.periodLabel}","${row.serviceName}","${new Date(inc.createdAt).toLocaleString("en-IN")}","L${inc.level}",${inc.bv ?? 0},${serviceCostDisplay(inc)},${(inc.amount ?? 0).toFixed(2)}`
+          `"${row.periodLabel}","${row.serviceName}","${new Date(inc.createdAt).toLocaleString("en-IN")}","L${inc.level}",${inc.bv ?? 0},${formatServiceCostDisplay(inc.purchase)},${(inc.amount ?? 0).toFixed(2)}`
         );
       });
     });
@@ -289,7 +286,7 @@ export default function ServiceIncomeReportsPage() {
           new Date(inc.createdAt).toLocaleString("en-IN"),
           `L${inc.level}`,
           inc.bv ?? 0,
-          serviceCostDisplay(inc),
+          formatServiceCostDisplay(inc.purchase),
           formatINRPrecise(inc.amount ?? 0),
         ]);
       });

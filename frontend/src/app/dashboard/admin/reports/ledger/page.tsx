@@ -6,6 +6,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { Check, ChevronDown, Download, RefreshCw, Search } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatServiceCostDisplay, resolveIncomeServiceCost } from "@/lib/incomeServiceCost";
 
 type UserOption = {
   _id: string;
@@ -52,6 +53,9 @@ type LedgerEntry = {
           name?: string;
           price?: number;
         };
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
   };
 };
 
@@ -113,15 +117,11 @@ function ledgerFromName(row: LedgerEntry): string {
 }
 
 function ledgerServiceCost(row: LedgerEntry): number | null {
-  const svc = row.purchase?.service;
-  if (!svc || typeof svc === "string") return null;
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price : null;
+  return resolveIncomeServiceCost(row.purchase);
 }
 
 function ledgerServiceCostDisplay(row: LedgerEntry): string {
-  const cost = ledgerServiceCost(row);
-  return cost == null ? "—" : cost.toFixed(2);
+  return formatServiceCostDisplay(row.purchase);
 }
 
 function VirtualizedLedgerTable({ ledger }: { ledger: LedgerEntry[] }) {

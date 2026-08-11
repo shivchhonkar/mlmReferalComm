@@ -12,6 +12,7 @@ import PayoutPaymentFields, {
   isPayoutPaymentValid,
   type PayoutPaymentPayload,
 } from "../_components/PayoutPaymentFields";
+import { formatServiceCostDisplay, resolveIncomeServiceCost } from "@/lib/incomeServiceCost";
 
 type IncomeEntry = {
   _id: string;
@@ -20,20 +21,13 @@ type IncomeEntry = {
   amount: number;
   createdAt: string;
   fromUser?: { fullName?: string; name?: string; email?: string };
-  purchase?: { service?: { name?: string; price?: number } | string };
+  purchase?: {
+    service?: { _id?: string; name?: string; price?: number } | string;
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
+  };
 };
-
-function serviceCostValue(row: IncomeEntry): number | null {
-  const svc = row.purchase?.service;
-  if (!svc || typeof svc === "string") return null;
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price : null;
-}
-
-function serviceCostDisplay(row: IncomeEntry): string {
-  const price = serviceCostValue(row);
-  return price == null ? "—" : price.toFixed(2);
-}
 
 type WithdrawalEntry = {
   _id: string;
@@ -200,7 +194,7 @@ export default function IncomeReportsUserDetailPage() {
           inc.fromUser?.fullName || inc.fromUser?.name || inc.fromUser?.email || "—",
           serviceLabel(inc),
           String(inc.bv),
-          serviceCostDisplay(inc),
+          formatServiceCostDisplay(inc.purchase),
           inc.amount.toFixed(2),
         ]),
       },
@@ -413,7 +407,7 @@ export default function IncomeReportsUserDetailPage() {
                     <td className="px-2 py-2">{inc.bv}</td>
                     <td className="px-2 py-2">
                       {(() => {
-                        const cost = serviceCostValue(inc);
+                        const cost = resolveIncomeServiceCost(inc.purchase);
                         return cost == null ? "—" : formatINRPrecise(cost);
                       })()}
                     </td>

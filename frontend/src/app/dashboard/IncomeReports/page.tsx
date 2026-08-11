@@ -5,6 +5,7 @@ import { apiFetch, readApiBody } from "@/lib/apiClient";
 import { BarChart3, Download, RefreshCw, TrendingUp } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { formatServiceCostDisplay } from "@/lib/incomeServiceCost";
 
 type Income = {
   _id: string;
@@ -14,16 +15,12 @@ type Income = {
   amount: number;
   createdAt: string;
   purchase?: {
-    service?: string | { price?: number };
+    service?: string | { _id?: string; price?: number };
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
   };
 };
-
-function serviceCostDisplay(inc: Income): string {
-  const svc = inc.purchase?.service;
-  if (!svc || typeof svc === "string") return "—";
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price.toFixed(2) : "—";
-}
 
 type IncomeSummary = {
   totalEarnedAmount: number;
@@ -285,7 +282,7 @@ export default function IncomeReportsPage() {
         const mobile = fromUserMobile(inc.fromUser).replace(/,/g, " ");
         const email = fromUserEmail(inc.fromUser).replace(/,/g, " ");
         lines.push(
-          `"${rowPeriodLabel(inc, reportType)}","${dateStr}","L${inc.level}","${from}","${mobile}","${email}",${inc.bv ?? 0},${serviceCostDisplay(inc)},${(inc.amount ?? 0).toFixed(2)}`
+          `"${rowPeriodLabel(inc, reportType)}","${dateStr}","L${inc.level}","${from}","${mobile}","${email}",${inc.bv ?? 0},${formatServiceCostDisplay(inc.purchase)},${(inc.amount ?? 0).toFixed(2)}`
         );
       });
     });
@@ -322,7 +319,7 @@ export default function IncomeReportsPage() {
           fromUserMobile(inc.fromUser),
           fromUserEmail(inc.fromUser),
           inc.bv ?? 0,
-          serviceCostDisplay(inc),
+          formatServiceCostDisplay(inc.purchase),
           formatINRPrecise(inc.amount ?? 0),
         ]);
       });

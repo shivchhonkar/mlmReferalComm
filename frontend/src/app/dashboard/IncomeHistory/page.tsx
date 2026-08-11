@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/useAuth";
 import { showErrorToast } from "@/lib/toast";
 import { BarChart3, Calendar, Download, Printer, RefreshCw, TrendingUp } from "lucide-react";
 import VirtualizedIncomeTable from "./VirtualizedIncomeTable";
+import { formatServiceCostDisplay } from "@/lib/incomeServiceCost";
 
 type FromUser = {
   _id?: string;
@@ -24,20 +25,16 @@ type Income = {
   fromUser?: FromUser | string;
   toUser?: string;
   purchase?: {
-    service?: string | { price?: number };
+    service?: string | { _id?: string; price?: number };
+    order?: {
+      items?: Array<{ service?: string; price?: number }>;
+    } | null;
   };
   level: number;
   bv: number;
   amount: number;
   createdAt: string;
 };
-
-function serviceCostDisplay(inc: Income): string {
-  const svc = inc.purchase?.service;
-  if (!svc || typeof svc === "string") return "—";
-  const price = Number(svc.price);
-  return Number.isFinite(price) ? price.toFixed(2) : "—";
-}
 
 type IncomeSummary = {
   totalEarnedAmount: number;
@@ -113,7 +110,7 @@ function exportTableRow(inc: Income): string[] {
     fromUserName(inc.fromUser),
     fromUserReferralCode(inc.fromUser),
     String(inc.bv ?? 0),
-    serviceCostDisplay(inc),
+    formatServiceCostDisplay(inc.purchase),
     (inc.amount ?? 0).toFixed(2),
   ];
 }

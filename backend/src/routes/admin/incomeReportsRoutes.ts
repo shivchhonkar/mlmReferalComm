@@ -18,6 +18,7 @@ import { AdminPaymentActionLogModel } from "@/models/AdminPaymentActionLog";
 import { assertValidAdminPayoutPayment, ADMIN_PAYOUT_PAYMENT_METHODS } from "@/lib/adminPayoutPayment";
 import { payoutProofPublicUrl, payoutProofUpload } from "@/lib/payoutProofUpload";
 import { resolveReportPeriodRange } from "@/lib/reportPeriodRange";
+import { resolveIncomeServiceCost } from "@/lib/incomeServiceCost";
 
 function escapeRegexLiteral(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -119,7 +120,10 @@ export function registerAdminIncomeReportRoutes(app: Express) {
           .populate("fromUser", "fullName name email mobile referralCode")
           .populate({
             path: "purchase",
-            populate: { path: "service", select: "name price" },
+            populate: [
+              { path: "service", select: "name price _id" },
+              { path: "order", select: "items.service items.price" },
+            ],
           })
           .sort({ createdAt: -1 })
           .limit(500)
@@ -292,13 +296,12 @@ export function registerAdminIncomeReportRoutes(app: Express) {
             | { fullName?: string; name?: string; email?: string; mobile?: string; referralCode?: string }
             | undefined;
           const purchase = inc.purchase as
-            | { service?: { name?: string; price?: number } | string }
+            | {
+                service?: { _id?: string; name?: string; price?: number } | string;
+                order?: { items?: Array<{ service?: string; price?: number }> } | null;
+              }
             | undefined;
           const service = purchase?.service;
-          const servicePrice =
-            typeof service === "object" && service != null && Number.isFinite(Number(service.price))
-              ? Number(service.price)
-              : null;
           return {
             _id: String(inc._id),
             level: inc.level,
@@ -315,7 +318,7 @@ export function registerAdminIncomeReportRoutes(app: Express) {
               : null,
             serviceName:
               typeof service === "string" ? service : (service as { name?: string })?.name || "",
-            serviceCost: servicePrice,
+            serviceCost: resolveIncomeServiceCost(purchase),
           };
         }),
         paymentsToCustomers: payouts.map((w) => {
@@ -430,7 +433,10 @@ export function registerAdminIncomeReportRoutes(app: Express) {
           .populate("fromUser", "fullName name email mobile referralCode")
           .populate({
             path: "purchase",
-            populate: { path: "service", select: "_id name price" },
+            populate: [
+              { path: "service", select: "_id name price" },
+              { path: "order", select: "items.service items.price" },
+            ],
           })
           .sort({ createdAt: -1 })
           .limit(500)
