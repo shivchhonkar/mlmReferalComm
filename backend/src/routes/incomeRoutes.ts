@@ -22,7 +22,7 @@ const incomeListPopulate = [
       },
     ],
   },
-] as const;
+];
 
 function parseDateRangeQuery(from?: string, to?: string): { createdAt?: { $gte?: Date; $lte?: Date } } {
   const createdAt: { $gte?: Date; $lte?: Date } = {};
