@@ -218,7 +218,8 @@ export default function ImageSlider({
             unoptimized={currentSlide.imageUrl.startsWith('data:')}
             style={{
               objectPosition: 'center',
-              padding: '0'
+              padding: '0',
+              height: 'auto'
             }}
           />
         ) : (
